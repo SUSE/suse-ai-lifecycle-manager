@@ -974,15 +974,15 @@ export async function ensureRegistrySecret(
     if (cur) {
       const s = (cur?.data ?? cur) || {};
       if (s?.type === 'kubernetes.io/dockerconfigjson' && typeof s?.data?.['.dockerconfigjson'] === 'string') {
-        log('secret GET', `${base} â†’ exists & usable`);
+        log('secret GET', `${base} →’ exists & usable`);
         return base;
       }
-      // wrong type â†’ fall through to unique name to avoid fights with other controllers
-      log('secret GET', `${base} â†’ exists but wrong type; will create unique`);
+      // wrong type →’ fall through to unique name to avoid fights with other controllers
+      log('secret GET', `${base} →’ exists but wrong type; will create unique`);
     } else {
-      log('secret GET', `${base} â†’ 404`);
+      log('secret GET', `${base} →’ 404`);
       // create canonical
-      log('secret create POST â†’ ', { clusterId, namespace, name: base });
+      log('secret create POST →’ ', { clusterId, namespace, name: base });
       await $store.dispatch('rancher/request', {
         url: baseUrl, method: 'POST',
         data: {
@@ -1003,7 +1003,7 @@ export async function ensureRegistrySecret(
 
   // 2) Create a unique name if base is unsuitable or managed by someone else
   const unique = `${base}-${Math.random().toString(36).slice(2, 7)}`;
-  log('secret create POST â†’ ', { clusterId, namespace, name: unique });
+  log('secret create POST →’ ', { clusterId, namespace, name: unique });
   await $store.dispatch('rancher/request', {
     url: baseUrl, method: 'POST',
     data: {
