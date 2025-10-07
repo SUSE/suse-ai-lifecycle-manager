@@ -18,16 +18,15 @@ jobs:
         id: tags 
         shell: bash
         run: |
-          prefix=ghcr.io/${{ github.repository }}
           echo "TAGS<<##" >> "$GITHUB_OUTPUT"
           ref=${{ github.ref }}
           case "$ref" in
             refs/heads/main)
-              echo "$prefix:latest" >> "$GITHUB_OUTPUT";;
-            refs/tags/[0-9]*)
-              echo "$prefix:${ref#refs/tags/}" >> "$GITHUB_OUTPUT";;
+              echo "latest" >> "$GITHUB_OUTPUT";;
+            refs/tags/*)
+              echo "${ref#refs/tags/}" >> "$GITHUB_OUTPUT";;
             *)
-              echo "$prefix:${{ github.sha }}" >> "$GITHUB_OUTPUT";;
+              echo "${{ github.sha }}" >> "$GITHUB_OUTPUT";;
           esac
           echo "##" >> "$GITHUB_OUTPUT"
 
@@ -61,6 +60,7 @@ jobs:
         run: yarn
 
       - name: Parse Extension Name
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
         id: parsed-name
         env:
           GH_TOKEN: ${{ github.token }}
