@@ -1,11 +1,6 @@
 name: Build and Deploy Extension Catalog
 
-on:
-  repository_dispatch:
-    types: [build_container]
-    
-env:
-  RELEASE_TAG: ${{ github.event.client_payload.tag }}
+on: [push, pull_request, workflow_dispatch]
   
 jobs:
   build-extension-catalog:
@@ -16,8 +11,25 @@ jobs:
       contents: read
       packages: write
     steps:  
-      - name: Checkout repository (normal flow)
+      - name: Checkout repository
         uses: actions/checkout@v5
+        
+      - name: Calculate tags
+        id: tags 
+        shell: bash
+        run: |
+          prefix=ghcr.io/${{ github.repository }}
+          echo "TAGS<<##" >> "$GITHUB_OUTPUT"
+          ref=${{ github.ref }}
+          case "$ref" in
+            refs/heads/main)
+              echo "$prefix:latest" >> "$GITHUB_OUTPUT";;
+            refs/tags/[0-9]*)
+              echo "$prefix:${ref#refs/tags/}" >> "$GITHUB_OUTPUT";;
+            *)
+              echo "$prefix:${{ github.sha }}" >> "$GITHUB_OUTPUT";;
+          esac
+          echo "##" >> "$GITHUB_OUTPUT"
 
       - name: Enable Corepack
         run: corepack enable
@@ -52,10 +64,14 @@ jobs:
         id: parsed-name
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
           yarn parse-tag-name ${{ env.RELEASE_TAG }} ${{ github.run_id }} "catalog"
 
       - name: Build and push UI image
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+        env:
+          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
           publish="yarn publish-pkgs -c -p"
 
