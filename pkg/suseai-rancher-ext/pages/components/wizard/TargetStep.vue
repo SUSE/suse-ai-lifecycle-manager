@@ -10,16 +10,13 @@
       />
     </template>
     <template v-else>
-      <label class="lbl">Target clusters</label>
-      <ClusterSelect 
-        v-model="displayCluster" 
+      <label class="lbl">Target Cluster</label>
+      <ClusterSelect
+        v-model="displayCluster"
         :disabled="true"
       />
       <p class="hint">
-        Target clusters are determined by existing installations and cannot be changed in Manage mode.
-        <span v-if="clusters.length > 1">
-          ({{ clusters.length }} clusters: {{ clusters.join(', ') }})
-        </span>
+        Changes will be applied only to the cluster in the current context and cannot be changed in Manage mode.
       </p>
     </template>
   </div>

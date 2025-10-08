@@ -24,7 +24,7 @@
         <span>{{ chartVersion }}</span>
       </div>
       <div class="detail-item full-width">
-        <label>{{ isInstallMode ? 'Target Cluster:' : 'Target Clusters:' }}</label>
+        <label>{{ isInstallMode ? 'Target Cluster:' : 'Target Cluster:' }}</label>
         <span>{{ clusterDisplay }}</span>
       </div>
     </div>

@@ -433,10 +433,9 @@ export async function discoverExistingInstall(
         if (!hit) continue;
 
         if (!found) found = { release: rel, namespace: ns, chartName: chart, version: ver, clusters: [c.id] };
-        else if (found.release === rel && found.namespace === ns) found.clusters.push(c.id);
+        else if (!found.clusters.includes(c.id)) found.clusters.push(c.id);
       }
     } catch { /* ignore */ }
-    if (found) break;
 
     // 2) Helm v3 storage per namespace
     try {
@@ -450,7 +449,7 @@ export async function discoverExistingInstall(
                       (chartBase && matchesSlug(chartBase, slug, chartNameGuess));
           if (hit) {
             if (!localFound) localFound = { release: release || slug, namespace: ns, chartName: chartBase || slug, version: version || '', clusters: [c.id] };
-            else if (localFound.release === release && localFound.namespace === ns) localFound.clusters.push(c.id);
+            else if (!localFound.clusters.includes(c.id)) localFound.clusters.push(c.id);
           }
         }
         if (!localFound) {
@@ -461,14 +460,13 @@ export async function discoverExistingInstall(
                         (chartBase && matchesSlug(chartBase, slug, chartNameGuess));
             if (hit) {
               if (!localFound) localFound = { release: release || slug, namespace: ns, chartName: chartBase || slug, version: version || '', clusters: [c.id] };
-              else if (localFound.release === release && localFound.namespace === ns) localFound.clusters.push(c.id);
+              else if (!localFound.clusters.includes(c.id)) localFound.clusters.push(c.id);
             }
           }
         }
         if (localFound) { found = localFound; break; }
       }
     } catch { /* ignore */ }
-    if (found) break;
   }
 
   return found;
@@ -648,7 +646,7 @@ async function findHelmReleaseObjects(
     // First try to find the latest version of the Helm release secret
     // List all secrets to find the highest version number
     try {
-      const url = `/v1/secrets?namespaceId=${encodeURIComponent(namespace)}&limit=1000`;
+      const url = `/k8s/clusters/${encodeURIComponent(clusterId)}/api/v1/namespaces/${encodeURIComponent(namespace)}/secrets`;
       const response = await $store.dispatch('rancher/request', { url });
       const secrets = response?.data || response?.items || response || [];
 

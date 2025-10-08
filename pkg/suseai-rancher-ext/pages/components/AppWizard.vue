@@ -96,7 +96,7 @@ const wizardSteps = computed(() => [
   },
   {
     name: 'target',
-    label: 'Target Clusters',
+    label: 'Target Cluster',
     ready: !!form.value.chartRepo && !!form.value.chartVersion && !loadingVersions.value,
     weight: 2
   },
@@ -243,23 +243,24 @@ async function findRepoForApp(slug: string): Promise<string | null> {
 async function initializeManageMode() {
   if (!store) throw new Error('Store not available');
 
-  // Find installed app across clusters
-  const clusters = await getClusters(store);
-  const installedClusters: string[] = [];
+  const targetCluster = form.value.cluster;
 
-  for (const cluster of clusters) {
-    const exists = await appExists(store, cluster.id, form.value.namespace, form.value.release);
-    if (exists) installedClusters.push(cluster.id);
+  if (!targetCluster) {
+    throw new Error('No cluster specified for manage mode');
   }
 
-  form.value.clusters = installedClusters;
+  // Verify the app exists in the target cluster
+  const exists = await appExists(store, targetCluster, form.value.namespace, form.value.release);
 
-  // Load app details from the preferred cluster
-  const preferredCluster = form.value.cluster || installedClusters[0] || 'local';
-
-  if (preferredCluster && installedClusters.includes(preferredCluster)) {
-    await loadInstalledAppDetails(preferredCluster);
+  if (!exists) {
+    throw new Error(`App ${form.value.release} not found in cluster ${targetCluster}`);
   }
+
+  // Set clusters to only the current cluster context
+  form.value.clusters = [targetCluster];
+
+  // Load app details from the target cluster
+  await loadInstalledAppDetails(targetCluster);
 }
 
 async function loadInstalledAppDetails(clusterId: string) {
@@ -437,7 +438,7 @@ async function submit() {
     }
     
     if (isManageMode.value && !form.value.clusters.length) {
-      error.value = 'Please select target clusters.'; return;
+      error.value = 'Please select target cluster.'; return;
     }
     
     if (!store) { error.value = 'Store not available'; return; }
@@ -643,7 +644,7 @@ function previousStep() {
             :loading-versions="loadingVersions"
           />
 
-          <!-- Step: Target Clusters -->
+          <!-- Step: Target Cluster -->
           <TargetStep
             v-else-if="currentStep === 1"
             :mode="props.mode"
