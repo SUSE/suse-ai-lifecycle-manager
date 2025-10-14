@@ -22,7 +22,7 @@ export function init($plugin: IPlugin, store: RancherStore) {
   product({
     category: SUSEAI_PRODUCT.category,
     name: PRODUCT,
-    icon: SUSEAI_PRODUCT.icon,
+    svg: require("./assets/logo.svg"),
     inStore: SUSEAI_PRODUCT.inStore,
     weight: SUSEAI_PRODUCT.weight,
     to: { 
