@@ -6,58 +6,12 @@
  */
 
 import { log as logger } from '../utils/logger';
-import { createErrorHandler } from '../utils/error-handler';
+import { createErrorHandler, handleSimpleError } from '../utils/error-handler';
 import type {
   RancherStore,
   AppCRD,
   InstallationPayload
 } from '../types/rancher-types';
-
-/**
- * Extract HTTP status code from various error formats
- * @param e - Error object or value
- * @returns HTTP status code or null if not found
- */
-function statusOf(e: unknown): number | null {
-  if (!e || typeof e !== 'object') return null;
-  const obj = e as {
-    code?: number;
-    data?: { code?: number };
-    response?: { status?: number };
-    status?: number
-  };
-  return obj.code || obj.data?.code || obj.response?.status || obj.status || null;
-}
-
-/**
- * Extract error message from various error formats
- * @param e - Error object or value
- * @returns Human-readable error message
- */
-function getErrorMessage(e: unknown): string {
-  if (!e) return 'Unknown error';
-  if (typeof e === 'string') return e;
-  if (typeof e === 'object' && e !== null) {
-    const obj = e as {
-      message?: string;
-      data?: { message?: string };
-      response?: { data?: { message?: string } }
-    };
-    return obj.message || obj.data?.message || obj.response?.data?.message || 'Unknown error';
-  }
-  return 'Unknown error';
-}
-
-/**
- * Extract error data from various error formats
- * @param e - Error object or value
- * @returns Error data payload or undefined
- */
-function getErrorData(e: unknown): unknown {
-  if (!e || typeof e !== 'object') return undefined;
-  const obj = e as { data?: unknown; response?: { data?: unknown } };
-  return obj.data || obj.response?.data;
-}
 
 /**
  * Reference to a Helm chart in a cluster repository
@@ -143,6 +97,8 @@ export class AppLifecycleService {
     values: Record<string, unknown>,
     preferredAction: 'install' | 'upgrade' = 'install'
   ): Promise<void> {
+
+    const errorHandler = createErrorHandler($store, 'AppLifecycleService');
 
     logger.info('Starting app lifecycle operation', {
       component: 'AppLifecycleService',
@@ -240,7 +196,6 @@ export class AppLifecycleService {
 
           return;
         } catch (upgradeError: unknown) {
-          const errorHandler = createErrorHandler($store, 'AppLifecycleService');
           const standardError = errorHandler.handleApiError(upgradeError, 'upgrade', { releaseName, namespace });
           throw new Error(`Failed to upgrade app: ${standardError.message}`);
         }
@@ -277,8 +232,9 @@ export class AppLifecycleService {
           throw new Error('App exists but could not retrieve resourceVersion.');
         }
       } catch (e: unknown) {
-        const status = statusOf(e);
-        if (status === 404) {
+        const standardError = errorHandler.normalizeError(e);
+
+        if (standardError.status === 404) {
           logger.info('App does not exist, performing install', {
             component: 'AppLifecycleService',
             data: { releaseName }
@@ -307,19 +263,22 @@ export class AppLifecycleService {
               data: { releaseName }
             });
           } catch (installError: unknown) {
-            const errorHandler = createErrorHandler($store, 'AppLifecycleService');
-            const standardError = errorHandler.handleApiError(installError, 'install', { releaseName, namespace });
-            throw new Error(`Failed to install app: ${standardError.message}`);
+            const installStandardError = errorHandler.handleApiError(installError, 'install', { releaseName, namespace });
+            throw new Error(`Failed to install app: ${installStandardError.message}`);
           }
         } else {
-          const errorHandler = createErrorHandler($store, 'AppLifecycleService');
-          const standardError = errorHandler.handleApiError(e, 'install', { releaseName, namespace, status });
-          throw new Error(`Failed to install/upgrade app: ${standardError.message}`);
+          // For non-404 errors during app check, handle and re-throw
+          errorHandler.handleApiError(e, 'check-app', { releaseName, namespace, status: standardError.status });
+          throw e; // Re-throw original error to be caught by outer handler
         }
       }
     } catch (projectError: unknown) {
-      const errorHandler = createErrorHandler($store, 'AppLifecycleService');
-      const standardError = errorHandler.handleApiError(projectError, 'fetch', { operation: 'fetch projects' });
+      // Only handle if this is a new error, not a re-thrown error from inner catch
+      if (projectError instanceof Error && projectError.message.includes('Failed to')) {
+        // Already handled, just re-throw
+        throw projectError;
+      }
+      const standardError = errorHandler.handleApiError(projectError, 'fetch-projects', { operation: 'fetch projects' });
       throw new Error(`Failed to fetch projects: ${standardError.message}`);
     }
 
@@ -362,6 +321,7 @@ export class AppLifecycleService {
     releaseName: string,
     timeoutMs = 90_000
   ): Promise<AppCRD> {
+    const errorHandler = createErrorHandler($store, 'AppLifecycleService');
     const url = `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/catalog.cattle.io/v1/namespaces/${encodeURIComponent(namespace)}/apps/${encodeURIComponent(releaseName)}`;
     const start = Date.now();
     let lastErr: unknown = null;
@@ -394,17 +354,18 @@ export class AppLifecycleService {
         }
       } catch (e: unknown) {
         lastErr = e;
-        const code = statusOf(e);
-        if (code && code !== 404) {
+        const standardError = errorHandler.normalizeError(e);
+
+        if (standardError.status && standardError.status !== 404) {
           logger.warn('Non-404 error during app wait', {
             component: 'AppLifecycleService',
-            data: { releaseName, statusCode: code }
+            data: { releaseName, statusCode: standardError.status }
           });
         }
       }
 
       if (Date.now() - start > timeoutMs) {
-        const msg = getErrorMessage(lastErr) || (getErrorData(lastErr) as { message?: string })?.message || 'App did not appear in time';
+        const msg = lastErr ? handleSimpleError(lastErr, 'App did not appear in time') : 'App did not appear in time';
         throw new Error(msg);
       }
       await new Promise(r => setTimeout(r, 1500));
@@ -464,10 +425,10 @@ export class AppLifecycleService {
         data: { releaseName }
       });
     } catch (e: unknown) {
-      const errorMsg = getErrorMessage(e);
+      const errorMsg = handleSimpleError(e, 'Failed to delete app');
       logger.error('Failed to delete app', e, {
         component: 'AppLifecycleService',
-        data: { releaseName }
+        data: { releaseName, error: errorMsg }
       });
       throw e;
     }
