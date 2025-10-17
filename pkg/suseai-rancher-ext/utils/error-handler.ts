@@ -47,15 +47,19 @@ export class ErrorHandler {
   /**
    * Normalize different error types into a consistent format
    */
-  private normalizeError(error: unknown): StandardError {
+  public normalizeError(error: unknown): StandardError {
     // Handle RancherError
     if (this.isRancherError(error)) {
+      // Kubernetes API errors have 'code' as HTTP status (number), 'status' as "Failure" (string)
+      // Rancher errors may have 'status' or 'response.status' as HTTP status
+      const httpStatus = (error as any).code || error.status || error.response?.status;
+
       return {
         message: error.message || 'API request failed',
-        status: error.status || error.response?.status,
-        code: error.code?.toString(),
+        status: typeof httpStatus === 'number' ? httpStatus : undefined,
+        code: (error as any).code?.toString() || error.code?.toString(),
         details: this.extractErrorDetails(error),
-        retryable: this.isRetryableStatus(error.status || error.response?.status)
+        retryable: this.isRetryableStatus(httpStatus)
       };
     }
 

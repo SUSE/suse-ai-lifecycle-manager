@@ -21,7 +21,7 @@ function deepMerge(target: Record<string, any>, source: Record<string, any>): Re
 }
 import { log as logger } from '../utils/logger';
 import { createChartValuesService } from './chart-values';
-import { createErrorHandler } from '../utils/error-handler';
+import { createErrorHandler, handleSimpleError } from '../utils/error-handler';
 import type {
   RancherStore,
   ClusterInfo,
@@ -126,6 +126,7 @@ export async function createOrUpgradeApp(
   values: Record<string, unknown>,
   preferredAction: 'install' | 'upgrade' = 'install'
 ) {
+  const errorHandler = createErrorHandler($store, 'RancherApps');
   const log = (l: string, ...a: unknown[]) => { try { console.log(`[SUSE-AI-INSTALL] ${l}`, ...a); } catch {} };
 
   log('=== Starting createOrUpgradeApp ===');
@@ -216,7 +217,6 @@ export async function createOrUpgradeApp(
         log('=== Completed createOrUpgradeApp (upgrade) ===');
         return;
       } catch (upgradeError: unknown) {
-        const errorHandler = createErrorHandler($store, 'RancherApps');
         const standardError = errorHandler.handleApiError(upgradeError, 'upgrade', { releaseName, namespace });
         throw new Error(`Failed to upgrade app: ${standardError.message}`);
       }
@@ -245,16 +245,16 @@ export async function createOrUpgradeApp(
         throw new Error('App exists but could not retrieve resourceVersion.');
       }
     } catch (e: unknown) {
-      log('Exception during app check/upgrade:', { 
+      const standardError = errorHandler.normalizeError(e);
+
+      log('Exception during app check/upgrade:', {
         error: e,
-        status: statusOf(e),
-        message: getErrorMessage(e),
-        dataMessage: (getErrorData(e) as { message?: string })?.message,
-        responseData: getErrorData(e) 
+        status: standardError.status,
+        message: standardError.message,
+        details: standardError.details
       });
-      
-      const status = statusOf(e);
-      if (status === 404) {
+
+      if (standardError.status === 404) {
         log('App does not exist (404), performing install (POST)');
         
         const installData = {
@@ -276,19 +276,22 @@ export async function createOrUpgradeApp(
           });
           log('App install successful');
         } catch (installError: unknown) {
-          const errorHandler = createErrorHandler($store, 'RancherApps');
           const standardError = errorHandler.handleApiError(installError, 'install', { releaseName, namespace });
           throw new Error(`Failed to install app: ${standardError.message}`);
         }
       } else {
-        const errorHandler = createErrorHandler($store, 'RancherApps');
-        const standardError = errorHandler.handleApiError(e, 'install', { releaseName, namespace, status });
-        throw new Error(`Failed to install/upgrade app: ${standardError.message}`);
+        // For non-404 errors during app check, handle and re-throw
+        errorHandler.handleApiError(e, 'check-app', { releaseName, namespace, status: standardError.status });
+        throw e; // Re-throw original error to be caught by outer handler
       }
     }
   } catch (projectError: unknown) {
-    const errorHandler = createErrorHandler($store, 'RancherApps');
-    const standardError = errorHandler.handleApiError(projectError, 'fetch', { operation: 'fetch projects' });
+    // Only handle if this is a new error, not a re-thrown error from inner catch
+    if (projectError instanceof Error && projectError.message.includes('Failed to')) {
+      // Already handled, just re-throw
+      throw projectError;
+    }
+    const standardError = errorHandler.handleApiError(projectError, 'fetch-projects', { operation: 'fetch projects' });
     throw new Error(`Failed to fetch projects: ${standardError.message}`);
   }
   
@@ -304,6 +307,7 @@ export async function waitForAppInstall(
   releaseName: string,
   timeoutMs = 90_000
 ): Promise<AppCRD> {
+  const errorHandler = createErrorHandler($store, 'RancherApps');
   const url = `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/catalog.cattle.io/v1/namespaces/${encodeURIComponent(namespace)}/apps/${encodeURIComponent(releaseName)}`;
   const start = Date.now();
   let lastErr: unknown = null;
@@ -324,14 +328,14 @@ export async function waitForAppInstall(
     } catch (e: unknown) {
       lastErr = e;
       // keep polling on 404; bubble others
-      const code = statusOf(e);
-      if (code && code !== 404) {
-        log('post-install: early error (non-404)', code);
+      const standardError = errorHandler.normalizeError(e);
+      if (standardError.status && standardError.status !== 404) {
+        log('post-install: early error (non-404)', standardError.status);
       }
     }
 
     if (Date.now() - start > timeoutMs) {
-      const msg = getErrorMessage(lastErr) || (getErrorData(lastErr) as { message?: string })?.message || 'App did not appear in time';
+      const msg = lastErr ? handleSimpleError(lastErr, 'App did not appear in time') : 'App did not appear in time';
       throw new Error(msg);
     }
     await new Promise(r => setTimeout(r, 1500));
@@ -352,7 +356,8 @@ export async function deleteApp($store: RancherStore, clusterId: string, namespa
     await new Promise(resolve => setTimeout(resolve, 5000));
     log('App CRD deleted');
   } catch (e: unknown) {
-    log('Failed to delete app:', getErrorMessage(e));
+    const errorMsg = handleSimpleError(e, 'Failed to delete app');
+    log('Failed to delete app:', errorMsg);
     throw e;
   }
 }
@@ -678,7 +683,8 @@ async function findHelmReleaseObjects(
         }
       }
     } catch (e: unknown) {
-      console.log('[SUSE-AI] Failed to find latest Helm secret, trying fallback:', getErrorMessage(e));
+      const errorMsg = handleSimpleError(e, 'Failed to find latest Helm secret');
+      console.log('[SUSE-AI] Failed to find latest Helm secret, trying fallback:', errorMsg);
     }
     
     // Fallback to generic secret listing (original approach)
@@ -887,38 +893,6 @@ async function listNsSecrets(
   return (res?.data?.items || res?.data || []) as RegistrySecret[];
 }
 
-// robust status grabber (handles Steve/K8s errors)
-function statusOf(e: unknown): number | null {
-  if (!e || typeof e !== 'object') return null;
-  const obj = e as { code?: number; data?: { code?: number }; response?: { status?: number }; status?: number };
-  // Start with the most likely paths for numeric status codes
-  const code = obj?.code ?? obj?.data?.code ?? obj?.response?.status;
-  if (typeof code === 'number') {
-    return code;
-  }
-  // Fallback for other error shapes, but only if the value is a number
-  if (typeof obj?.status === 'number') {
-    return obj.status;
-  }
-  return null;
-}
-
-function getErrorMessage(e: unknown): string {
-  if (!e) return 'Unknown error';
-  if (typeof e === 'string') return e;
-  if (e instanceof Error) return e.message;
-  if (typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string') {
-    return (e as { message: string }).message;
-  }
-  return 'Unknown error';
-}
-
-function getErrorData(e: unknown): unknown {
-  if (!e || typeof e !== 'object') return undefined;
-  const obj = e as { data?: unknown; response?: { data?: unknown } };
-  return obj.data || obj.response?.data;
-}
-
 export async function ensureRegistrySecret(
   $store: RancherStore,
   clusterId: string,
@@ -928,6 +902,7 @@ export async function ensureRegistrySecret(
   username: string,
   password: string
 ): Promise<string> {
+  const errorHandler = createErrorHandler($store, 'RancherApps');
   const asB64 = (s: string) => (typeof btoa === 'function' ? btoa(s) : Buffer.from(s).toString('base64'));
   const authB64 = asB64(`${username}:${password}`);
 
@@ -961,7 +936,8 @@ export async function ensureRegistrySecret(
       return match.metadata.name;
     }
   } catch (e) {
-    log('ensureRegistrySecret: list secrets failed (continuing)', statusOf(e));
+    const standardError = errorHandler.normalizeError(e);
+    log('ensureRegistrySecret: list secrets failed (continuing)', standardError.status);
   }
 
   log('ensureRegistrySecret: No existing usable secret found');
@@ -969,7 +945,10 @@ export async function ensureRegistrySecret(
   // 1) Try the canonical base name first (create if missing; do NOT delete anything anymore)
   try {
     const cur = await $store.dispatch('rancher/request', { url: getUrl(base) })
-      .catch((e: unknown) => (statusOf(e) === 404 ? null : Promise.reject(e)));
+      .catch((e: unknown) => {
+        const standardError = errorHandler.normalizeError(e);
+        return standardError.status === 404 ? null : Promise.reject(e);
+      });
 
     if (cur) {
       const s = (cur?.data ?? cur) || {};
@@ -998,7 +977,8 @@ export async function ensureRegistrySecret(
       return base;
     }
   } catch (e: unknown) {
-    log('secret create(base) failed (continuing with unique)', statusOf(e), getErrorMessage(e));
+    const standardError = errorHandler.normalizeError(e);
+    log('secret create(base) failed (continuing with unique)', standardError.status, standardError.message);
   }
 
   // 2) Create a unique name if base is unsuitable or managed by someone else
@@ -1016,7 +996,8 @@ export async function ensureRegistrySecret(
   });
 
   try { await waitForSecretReady($store, clusterId, namespace, unique, 10_000, true); } catch (e: unknown) {
-    log('secret readiness timed out (continuing anyway)', { name: unique, err: getErrorMessage(e) || e });
+    const errorMsg = handleSimpleError(e, 'Secret readiness timeout');
+    log('secret readiness timed out (continuing anyway)', { name: unique, err: errorMsg });
   }
 
   return unique;
@@ -1093,6 +1074,8 @@ export async function ensureRegistrySecretSimple(
   username: string,
   password: string
 ): Promise<string> {
+  const errorHandler = createErrorHandler($store, 'RancherApps');
+
   logger.debug('Ensuring registry secret (simple)', {
     component: 'RancherApps',
     data: { clusterId, namespace, registryHost, desiredName }
@@ -1153,8 +1136,9 @@ export async function ensureRegistrySecretSimple(
     });
 
   } catch (e: any) {
-    const status = statusOf(e);
-    if (status === 404) {
+    const standardError = errorHandler.normalizeError(e);
+
+    if (standardError.status === 404) {
       // 5. If it doesn't exist (404), create it (POST)
       logger.debug('Secret does not exist, creating', {
         component: 'RancherApps',
@@ -1171,7 +1155,7 @@ export async function ensureRegistrySecretSimple(
         component: 'RancherApps',
         data: { secretName }
       });
-    } else if (status === 409) {
+    } else if (standardError.status === 409) {
       // Conflict on update means it was created in the meantime, or we don't have resourceVersion. This is fine.
       logger.debug('Conflict updating secret, assuming up to date', {
         component: 'RancherApps',
@@ -1183,7 +1167,7 @@ export async function ensureRegistrySecretSimple(
         component: 'RancherApps',
         data: { secretName }
       });
-      throw new Error(`Failed to create or update secret ${secretName}: ${e?.message || 'Unknown error'}`);
+      throw new Error(`Failed to create or update secret ${secretName}: ${standardError.message || 'Unknown error'}`);
     }
   }
 
@@ -1199,6 +1183,7 @@ export async function waitForSecretReady(
   timeoutMs = 20_000,
   assumeReadyOn403_404 = true
 ) {
+  const errorHandler = createErrorHandler($store, 'RancherApps');
   const start = Date.now();
   const url = `/k8s/clusters/${encodeURIComponent(clusterId)}/api/v1/namespaces/${encodeURIComponent(namespace)}/secrets/${encodeURIComponent(name)}`;
 
@@ -1211,8 +1196,9 @@ export async function waitForSecretReady(
                  s.data['.dockerconfigjson'].length > 0;
       if (ok) return;
     } catch (e: unknown) {
-      const code = statusOf(e);
-      if (assumeReadyOn403_404 && (code === 403 || code === 404)) {
+      const standardError = errorHandler.normalizeError(e);
+
+      if (assumeReadyOn403_404 && (standardError.status === 403 || standardError.status === 404)) {
         log('secret readiness probe blocked by RBAC/404; assuming ready', { ns: namespace, name });
         return;
       }
