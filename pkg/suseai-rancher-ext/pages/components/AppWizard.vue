@@ -483,36 +483,39 @@ async function performInstall() {
   // Resolve creds from SELECTED ClusterRepo
   const repoCtx = await getRepoAuthForClusterRepo(store, form.value.chartRepo);
   const desiredSecretBase = repoCtx.secretName || `repo-${form.value.chartRepo}`;
+  const hasRepoCredentials = !!repoCtx.auth?.username && !!repoCtx.auth?.password;
 
   const cid = form.value.cluster;
   await ensureNamespace(store, cid, form.value.namespace);
 
   let finalSecretName = '';
-  try {
-    finalSecretName = await ensureRegistrySecretSimple(
-      store, cid, form.value.namespace,
-      repoCtx.registryHost, desiredSecretBase,
-      repoCtx.auth.username, repoCtx.auth.password
-    );
-  } catch (e: any) {
-    console.error('[SUSE-AI] pull-secret creation skipped:', e?.message || e);
+  if (hasRepoCredentials) {
+    try {
+      finalSecretName = await ensureRegistrySecretSimple(
+        store, cid, form.value.namespace,
+        repoCtx.registryHost, desiredSecretBase,
+        repoCtx.auth!.username, repoCtx.auth!.password
+      );
+    } catch (e: any) {
+      console.error('[SUSE-AI] pull-secret creation skipped:', e?.message || e);
+    }
   }
 
   const v = JSON.parse(JSON.stringify(form.value.values || {}));
-  const addSecret = (arr: any): any[] => {
-    const list = Array.isArray(arr) ? arr.slice() : [];
-    if (finalSecretName) {
+
+  // Only add imagePullSecrets if we have a secret name (i.e., repo has authentication)
+  if (finalSecretName) {
+    const addSecret = (arr: any): any[] => {
+      const list = Array.isArray(arr) ? arr.slice() : [];
       const hasStr = list.some((e: any) => e === finalSecretName);
       const hasObj = list.some((e: any) => e && typeof e === 'object' && e.name === finalSecretName);
       if (!hasStr && !hasObj) list.push({ name: finalSecretName });
-    }
-    return list;
-  };
-  v.global = v.global || {};
-  v.global.imagePullSecrets = addSecret(v.global.imagePullSecrets);
-  v.imagePullSecrets = addSecret(v.imagePullSecrets);
+      return list;
+    };
+    v.global = v.global || {};
+    v.global.imagePullSecrets = addSecret(v.global.imagePullSecrets);
+    v.imagePullSecrets = addSecret(v.imagePullSecrets);
 
-  if (finalSecretName) {
     const saCandidates = new Set<string>(['default']);
     const vs = (v as any).serviceAccount || {};
     if (typeof vs?.name === 'string' && vs.name.trim()) saCandidates.add(vs.name.trim());
