@@ -132,9 +132,9 @@ export interface RepoInstallContext {
   /** The registry host derived from spec.url, e.g. "dp.apps.rancher.io" */
   registryHost: string;
   /** The name of the secret referenced by the ClusterRepo (in cattle-system) */
-  secretName: string;
+  secretName?: string;
   /** Basic auth (username/password) extracted from that secret */
-  auth: RepoAuth;
+  auth?: RepoAuth;
 }
 
 /** Parse an OCI or HTTPS/HTTP URL into just the registry host */
@@ -149,8 +149,8 @@ function registryHostFromUrl(url?: string): string {
 
 export interface RepoInstallContext {
   registryHost: string;
-  secretName: string;     // the repo's configured secret name (in cattle-system unless overridden)
-  auth: RepoAuth;         // parsed username/password
+  secretName?: string;     // the repo's configured secret name (in cattle-system unless overridden)
+  auth?: RepoAuth;         // parsed username/password
 }
 
 function parseRegistryHostFromOciUrl(url?: string): string {
@@ -178,24 +178,25 @@ export async function getRepoAuthForClusterRepo(store: any, clusterRepoName: str
   const ref =
     (repo?.spec?.clientSecret ? { name: repo.spec.clientSecret.name, namespace: repo.spec.clientSecret.namespace } : null)
 
-
-  if (!ref) throw new Error(`ClusterRepo ${clusterRepoName} has no auth secret configured`);
-
-  const sec  = await (async () => {
-    try { return await (fetchSecret as any)(store, ref.namespace, ref.name); } catch { return {}; }
-  })();
-
-  const auth = extract(sec);
-  if (!auth) {
-    const keys = Object.keys(sec?.data || {});
-    throw new Error(`Credentials not found in ${ref.namespace}/${ref.name}. Found keys: ${keys.join(', ') || 'none'}.`);
+  if (!ref) {
+    return {
+      registryHost,
+      secretName: undefined,
+      auth: undefined
+    };
+  } else {
+    const sec = await fetchSecret(store, ref.namespace, ref.name) || {};
+    const auth = extract(sec);
+    if (!auth) {
+      const keys = Object.keys(sec?.data || {});
+      throw new Error(`Credentials not found in ${ref.namespace}/${ref.name}. Found keys: ${keys.join(', ') || 'none'}.`);
+    }
+    return {
+      registryHost,
+      secretName: ref.name,
+      auth
+    };
   }
-
-  return {
-    registryHost,
-    secretName: ref.name,
-    auth
-  };
 }
 
 // Optional alias to satisfy any lingering import:
