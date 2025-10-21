@@ -608,22 +608,6 @@ export async function inferClusterRepoForChart(
   return best;
 }
 
-async function decodeHelmReleasePayload(b64: string): Promise<unknown | null> {
-  try {
-    // Simplified approach - try direct base64 decode first
-    const txt = atob(b64);
-    try { return JSON.parse(txt); } catch {}
-    try { return yaml.load(txt); } catch {}
-
-    // If direct decode fails, the data might be gzipped
-    // In production, Rancher should handle decompression server-side
-    console.warn('[SUSE-AI] Helm release payload appears to be compressed - consider using server-side decompression');
-    return null;
-  } catch (error) {
-    console.warn('[SUSE-AI] Failed to decode Helm release payload:', error);
-    return null;
-  }
-}
 
 async function findHelmReleaseObjects(
   $store: RancherStore,
@@ -750,15 +734,8 @@ export async function getInstalledHelmDetails(
       console.log('[SUSE-AI DEBUG] No values found in any location!');
     }
   } else {
-    // Fallback to decoding the blob (original approach)
-    const blob = secret?.data?.release;
-    if (blob) {
-      const decoded = await decodeHelmReleasePayload(blob);
-      const cfg = (decoded as { config?: unknown; values?: unknown; chart?: { values?: unknown } })?.config ||
-                  (decoded as { values?: unknown })?.values ||
-                  (decoded as { chart?: { values?: unknown } })?.chart?.values || null;
-      if (cfg && typeof cfg === 'object') values = cfg as Record<string, unknown>;
-    }
+    // This path should not be reached when using includeHelmData=true
+    console.warn('[SUSE-AI] Helm release data is not in expected object format. Check API response.');
   }
 
   console.log('[SUSE-AI DEBUG] getInstalledHelmDetails returning:', {
