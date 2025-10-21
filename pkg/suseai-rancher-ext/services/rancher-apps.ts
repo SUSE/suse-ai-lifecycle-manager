@@ -787,51 +787,6 @@ export async function getCatalogApp(
   }
 }
 
-export async function getInstalledAppDetails(
-  $store: RancherStore,
-  clusterId: string,
-  namespace: string,
-  releaseName: string
-): Promise<{ repoName: string; chartName: string; chartVersion: string; values: Record<string, unknown> }> {
-  const app = await getCatalogApp($store, clusterId, namespace, releaseName);
-  const labels = app?.metadata?.labels || {};
-  const repoName = labels[CLUSTER_REPO_NAME_LABEL] || labels['catalog.cattle.io/repo-name'] || '';
-  const chartName = app?.spec?.chart?.metadata?.name || app?.spec?.chartName || '';
-  const chartVersion = app?.spec?.chart?.metadata?.version || app?.spec?.version || '';
-
-  let values: Record<string, unknown> = {};
-
-  // Priority order for Rancher App CRD values:
-  // 1. spec.values - Direct values object
-  // 2. spec.valuesYaml - YAML string values
-  // 3. spec.chart.values - Chart-level values
-  if (app?.spec?.values && typeof app.spec.values === 'object' && Object.keys(app.spec.values).length > 0) {
-    values = app.spec.values;
-  } else if (typeof app?.spec?.valuesYaml === 'string' && app.spec.valuesYaml.trim()) {
-    try {
-      const loaded = yaml.load(app.spec.valuesYaml);
-      if (loaded && typeof loaded === 'object' && Object.keys(loaded as Record<string, unknown>).length > 0) {
-        values = loaded as Record<string, unknown>;
-      }
-    } catch (e) {
-      // Log error but continue with fallback
-      console.warn('[SUSE-AI] Failed to parse valuesYaml:', e);
-    }
-  } else if (app?.spec?.chart?.values && typeof app.spec.chart.values === 'object' && Object.keys(app.spec.chart.values).length > 0) {
-    values = app.spec.chart.values;
-  }
-
-  console.log('[SUSE-AI DEBUG] getInstalledAppDetails returning:', {
-    repoName,
-    chartName,
-    chartVersion,
-    valuesKeys: Object.keys(values),
-    valuesSize: JSON.stringify(values).length
-  });
-
-  return { repoName, chartName, chartVersion, values };
-}
-
 /* ======================== image pull secret helpers ======================== */
 
 // helper: list secrets in a namespace (used to find already-created -dockercfg)
