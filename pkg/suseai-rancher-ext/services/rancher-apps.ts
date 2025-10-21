@@ -28,7 +28,6 @@ import type {
   ClusterResource,
   NamespaceResource,
   HelmSecret,
-  HelmConfigMap,
   HelmReleaseInfo,
   HelmInstallationDetails,
   AppCRD,
@@ -383,13 +382,10 @@ async function listNsHelmSecrets($store: RancherStore, clusterId: string, ns: st
   return res?.data?.items || res?.data || [];
 }
 
-async function listNsHelmConfigMaps($store: RancherStore, clusterId: string, ns: string): Promise<HelmConfigMap[]> {
-  const url = `/k8s/clusters/${encodeURIComponent(clusterId)}/api/v1/namespaces/${encodeURIComponent(ns)}/configmaps?labelSelector=owner%3Dhelm`;
-  const res = await $store.dispatch('rancher/request', { url });
-  return res?.data?.items || res?.data || [];
-}
+// Removed listNsHelmConfigMaps - Helm v3+ uses Secrets exclusively (not ConfigMaps)
+// ConfigMaps were only used by Helm v2 (deprecated)
 
-function extractHelmRelease(obj: HelmSecret | HelmConfigMap): HelmReleaseInfo {
+function extractHelmRelease(obj: HelmSecret): HelmReleaseInfo {
   const meta = obj?.metadata || {};
   const labels = meta?.labels || {};
   const ann    = meta?.annotations || {};
@@ -455,18 +451,6 @@ export async function discoverExistingInstall(
           if (hit) {
             if (!localFound) localFound = { release: release || slug, namespace: ns, chartName: chartBase || slug, version: version || '', clusters: [c.id] };
             else if (!localFound.clusters.includes(c.id)) localFound.clusters.push(c.id);
-          }
-        }
-        if (!localFound) {
-          const cms = await listNsHelmConfigMaps($store, c.id, ns);
-          for (const cm of cms) {
-            const { release, chartBase, version } = extractHelmRelease(cm);
-            const hit = (release && matchesSlug(release, slug, chartNameGuess)) ||
-                        (chartBase && matchesSlug(chartBase, slug, chartNameGuess));
-            if (hit) {
-              if (!localFound) localFound = { release: release || slug, namespace: ns, chartName: chartBase || slug, version: version || '', clusters: [c.id] };
-              else if (!localFound.clusters.includes(c.id)) localFound.clusters.push(c.id);
-            }
           }
         }
         if (localFound) { found = localFound; break; }
@@ -646,7 +630,7 @@ async function findHelmReleaseObjects(
   clusterId: string,
   namespace: string,
   releaseName: string
-): Promise<{ secret?: HelmSecret; configmap?: HelmConfigMap }> {
+): Promise<{ secret?: HelmSecret }> {
   try {
     // First try to find the latest version of the Helm release secret
     // List all secrets to find the highest version number
@@ -686,7 +670,7 @@ async function findHelmReleaseObjects(
       const errorMsg = handleSimpleError(e, 'Failed to find latest Helm secret');
       console.log('[SUSE-AI] Failed to find latest Helm secret, trying fallback:', errorMsg);
     }
-    
+
     // Fallback to generic secret listing (original approach)
     const secs = await listNsHelmSecrets($store, clusterId, namespace);
     const candidates = secs.filter((s: HelmSecret) => {
@@ -698,18 +682,10 @@ async function findHelmReleaseObjects(
     });
     candidates.sort((a: HelmSecret, b: HelmSecret) => (b?.metadata?.name || '').localeCompare(a?.metadata?.name || ''));
     return { secret: candidates[0] };
-  } catch { /* ignore */ }
-  try {
-    const cms = await listNsHelmConfigMaps($store, clusterId, namespace);
-    const candidates = cms.filter((cm: HelmConfigMap) => {
-      const meta = cm?.metadata || {};
-      const { release } = extractHelmRelease(cm);
-      return release && normName(release) === normName(releaseName);
-    });
-    candidates.sort((a: HelmConfigMap, b: HelmConfigMap) => (b?.metadata?.name || '').localeCompare(a?.metadata?.name || ''));
-    return { configmap: candidates[0] };
-  } catch { /* ignore */ }
-  return {};
+  } catch (error) {
+    console.warn(`[SUSE-AI] Failed to find Helm release ${releaseName}:`, error);
+    return {};
+  }
 }
 
 export async function getInstalledHelmDetails(
@@ -718,9 +694,8 @@ export async function getInstalledHelmDetails(
   namespace: string,
   releaseName: string
 ): Promise<{ chartName: string; chartVersion: string; values: Record<string, unknown> }> {
-  const { secret, configmap } = await findHelmReleaseObjects($store, clusterId, namespace, releaseName);
-  const helmObject = secret || configmap;
-  const { chartBase, version } = helmObject ? extractHelmRelease(helmObject) : { chartBase: undefined, version: undefined };
+  const { secret } = await findHelmReleaseObjects($store, clusterId, namespace, releaseName);
+  const { chartBase, version } = secret ? extractHelmRelease(secret) : { chartBase: undefined, version: undefined };
 
   let values: Record<string, unknown> = {};
   
