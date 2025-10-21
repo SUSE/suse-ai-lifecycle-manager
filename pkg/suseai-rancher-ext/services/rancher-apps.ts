@@ -106,15 +106,7 @@ export async function ensureNamespace($store: RancherStore, clusterId: string, n
   }
 }
 
-export async function appExists($store: RancherStore, clusterId: string, namespace: string, release: string): Promise<boolean> {
-  const url = `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/catalog.cattle.io/v1/namespaces/${encodeURIComponent(namespace)}/apps/${encodeURIComponent(release)}`;
-  try {
-    await $store.dispatch('rancher/request', { url });
-    return true;
-  } catch {
-    return false;
-  }
-}
+
 
 export async function createOrUpgradeApp(
   $store: RancherStore,

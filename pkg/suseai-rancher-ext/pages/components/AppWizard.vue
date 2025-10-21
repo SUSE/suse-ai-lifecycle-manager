@@ -19,7 +19,6 @@ import {
   ensurePullSecretOnAllSAs,
   waitForAppInstall,
   getClusters,
-  appExists,
   getInstalledHelmDetails,
   inferClusterRepoForChart
 } from '../../services/rancher-apps';
@@ -248,17 +247,11 @@ async function initializeManageMode() {
     throw new Error('No cluster specified for manage mode');
   }
 
-  // Verify the app exists in the target cluster
-  const exists = await appExists(store, targetCluster, form.value.namespace, form.value.release);
-
-  if (!exists) {
-    throw new Error(`App ${form.value.release} not found in cluster ${targetCluster}`);
-  }
-
   // Set clusters to only the current cluster context
   form.value.clusters = [targetCluster];
 
   // Load app details from the target cluster
+  // If app doesn't exist, loadInstalledAppDetails will throw an error
   await loadInstalledAppDetails(targetCluster);
 }
 
@@ -268,6 +261,11 @@ async function loadInstalledAppDetails(clusterId: string) {
 
   try {
     const helmDetails = await getInstalledHelmDetails(store, clusterId, form.value.namespace, form.value.release);
+
+    // Verify we got valid data - if app doesn't exist, chartName would be missing
+    if (!helmDetails.chartName) {
+      throw new Error(`App ${form.value.release} not found in cluster ${clusterId}`);
+    }
 
     if (helmDetails.chartName) form.value.chartName = helmDetails.chartName;
     if (helmDetails.chartVersion) form.value.chartVersion = helmDetails.chartVersion;
@@ -289,6 +287,7 @@ async function loadInstalledAppDetails(clusterId: string) {
     }
   } catch (helmError) {
     console.warn('Failed to load app details from Helm:', helmError);
+    throw helmError; // Re-throw to fail fast if app doesn't exist
   }
 
   // Infer repo if still unknown
