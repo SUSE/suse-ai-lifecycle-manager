@@ -607,6 +607,8 @@ async function findHelmReleaseObjects(
   namespace: string,
   releaseName: string
 ): Promise<{ secret?: HelmSecret }> {
+  const errorHandler = createErrorHandler($store, 'RancherApps');
+
   try {
     // First try to find the latest version of the Helm release secret
     // List all secrets to find the highest version number
@@ -637,6 +639,7 @@ async function findHelmReleaseObjects(
         // Now fetch the latest secret with includeHelmData=true
         const detailUrl = `/v1/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(secretName)}?exclude=metadata.managedFields&includeHelmData=true`;
         const secret = await $store.dispatch('rancher/request', { url: detailUrl });
+
         if (secret?.data?.release) {
           console.log('[SUSE-AI] Found Helm secret with includeHelmData=true:', secretName);
           return { secret };
@@ -644,20 +647,10 @@ async function findHelmReleaseObjects(
       }
     } catch (e: unknown) {
       const errorMsg = handleSimpleError(e, 'Failed to find latest Helm secret');
-      console.log('[SUSE-AI] Failed to find latest Helm secret, trying fallback:', errorMsg);
+      console.log('[SUSE-AI] Failed to find Helm secret via list+filter:', errorMsg);
     }
 
-    // Fallback to generic secret listing (original approach)
-    const secs = await listNsHelmSecrets($store, clusterId, namespace);
-    const candidates = secs.filter((s: HelmSecret) => {
-      const meta = s?.metadata || {};
-      const { release } = extractHelmRelease(s);
-      if (release && normName(release) === normName(releaseName)) return true;
-      const n = meta?.name || '';
-      return new RegExp(`^sh\\.helm\\.release\\.v1\\.${releaseName}\\.v\\d+$`).test(n);
-    });
-    candidates.sort((a: HelmSecret, b: HelmSecret) => (b?.metadata?.name || '').localeCompare(a?.metadata?.name || ''));
-    return { secret: candidates[0] };
+    return {};
   } catch (error) {
     console.warn(`[SUSE-AI] Failed to find Helm release ${releaseName}:`, error);
     return {};
