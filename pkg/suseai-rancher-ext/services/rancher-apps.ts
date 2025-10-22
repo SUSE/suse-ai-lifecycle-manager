@@ -28,7 +28,6 @@ import type {
   ClusterResource,
   NamespaceResource,
   HelmSecret,
-  HelmConfigMap,
   HelmReleaseInfo,
   HelmInstallationDetails,
   AppCRD,
@@ -107,15 +106,7 @@ export async function ensureNamespace($store: RancherStore, clusterId: string, n
   }
 }
 
-export async function appExists($store: RancherStore, clusterId: string, namespace: string, release: string): Promise<boolean> {
-  const url = `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/catalog.cattle.io/v1/namespaces/${encodeURIComponent(namespace)}/apps/${encodeURIComponent(release)}`;
-  try {
-    await $store.dispatch('rancher/request', { url });
-    return true;
-  } catch {
-    return false;
-  }
-}
+
 
 export async function createOrUpgradeApp(
   $store: RancherStore,
@@ -383,13 +374,10 @@ async function listNsHelmSecrets($store: RancherStore, clusterId: string, ns: st
   return res?.data?.items || res?.data || [];
 }
 
-async function listNsHelmConfigMaps($store: RancherStore, clusterId: string, ns: string): Promise<HelmConfigMap[]> {
-  const url = `/k8s/clusters/${encodeURIComponent(clusterId)}/api/v1/namespaces/${encodeURIComponent(ns)}/configmaps?labelSelector=owner%3Dhelm`;
-  const res = await $store.dispatch('rancher/request', { url });
-  return res?.data?.items || res?.data || [];
-}
+// Removed listNsHelmConfigMaps - Helm v3+ uses Secrets exclusively (not ConfigMaps)
+// ConfigMaps were only used by Helm v2 (deprecated)
 
-function extractHelmRelease(obj: HelmSecret | HelmConfigMap): HelmReleaseInfo {
+function extractHelmRelease(obj: HelmSecret): HelmReleaseInfo {
   const meta = obj?.metadata || {};
   const labels = meta?.labels || {};
   const ann    = meta?.annotations || {};
@@ -442,25 +430,41 @@ export async function discoverExistingInstall(
       }
     } catch { /* ignore */ }
 
-    // 2) Helm v3 storage per namespace
+    // 2) Helm v3 storage - cluster-wide search (optimized)
     try {
-      const nss = await listNamespaces($store, c.id);
-      for (const ns of nss) {
-        const secs = await listNsHelmSecrets($store, c.id, ns);
-        let localFound: FoundInfo | null = found;
-        for (const s of secs) {
+      // Try cluster-wide secret search first (1 API call vs N calls for N namespaces)
+      const clusterWideUrl = `/k8s/clusters/${encodeURIComponent(c.id)}/api/v1/secrets?labelSelector=owner=helm&limit=500`;
+
+      try {
+        const response = await $store.dispatch('rancher/request', { url: clusterWideUrl });
+        const allHelmSecrets = response?.data?.items || [];
+
+        for (const s of allHelmSecrets) {
+          const ns = s?.metadata?.namespace || '';
           const { release, chartBase, version } = extractHelmRelease(s);
           const hit = (release && matchesSlug(release, slug, chartNameGuess)) ||
                       (chartBase && matchesSlug(chartBase, slug, chartNameGuess));
+
           if (hit) {
-            if (!localFound) localFound = { release: release || slug, namespace: ns, chartName: chartBase || slug, version: version || '', clusters: [c.id] };
-            else if (!localFound.clusters.includes(c.id)) localFound.clusters.push(c.id);
+            if (!found) {
+              found = { release: release || slug, namespace: ns, chartName: chartBase || slug, version: version || '', clusters: [c.id] };
+            } else if (!found.clusters.includes(c.id)) {
+              found.clusters.push(c.id);
+            }
+            break; // Found in this cluster, move to next cluster
           }
         }
-        if (!localFound) {
-          const cms = await listNsHelmConfigMaps($store, c.id, ns);
-          for (const cm of cms) {
-            const { release, chartBase, version } = extractHelmRelease(cm);
+      } catch (clusterWideError) {
+        // Fallback to per-namespace search if cluster-wide search fails (RBAC restrictions)
+        // This fallback may not be required so might be deleted in future
+        console.log('[SUSE-AI] Cluster-wide secret search not available, using per-namespace fallback');
+
+        const nss = await listNamespaces($store, c.id);
+        for (const ns of nss) {
+          const secs = await listNsHelmSecrets($store, c.id, ns);
+          let localFound: FoundInfo | null = found;
+          for (const s of secs) {
+            const { release, chartBase, version } = extractHelmRelease(s);
             const hit = (release && matchesSlug(release, slug, chartNameGuess)) ||
                         (chartBase && matchesSlug(chartBase, slug, chartNameGuess));
             if (hit) {
@@ -468,8 +472,8 @@ export async function discoverExistingInstall(
               else if (!localFound.clusters.includes(c.id)) localFound.clusters.push(c.id);
             }
           }
+          if (localFound) { found = localFound; break; }
         }
-        if (localFound) { found = localFound; break; }
       }
     } catch { /* ignore */ }
   }
@@ -624,29 +628,15 @@ export async function inferClusterRepoForChart(
   return best;
 }
 
-async function decodeHelmReleasePayload(b64: string): Promise<unknown | null> {
-  try {
-    // Simplified approach - try direct base64 decode first
-    const txt = atob(b64);
-    try { return JSON.parse(txt); } catch {}
-    try { return yaml.load(txt); } catch {}
-
-    // If direct decode fails, the data might be gzipped
-    // In production, Rancher should handle decompression server-side
-    console.warn('[SUSE-AI] Helm release payload appears to be compressed - consider using server-side decompression');
-    return null;
-  } catch (error) {
-    console.warn('[SUSE-AI] Failed to decode Helm release payload:', error);
-    return null;
-  }
-}
 
 async function findHelmReleaseObjects(
   $store: RancherStore,
   clusterId: string,
   namespace: string,
   releaseName: string
-): Promise<{ secret?: HelmSecret; configmap?: HelmConfigMap }> {
+): Promise<{ secret?: HelmSecret }> {
+  const errorHandler = createErrorHandler($store, 'RancherApps');
+
   try {
     // First try to find the latest version of the Helm release secret
     // List all secrets to find the highest version number
@@ -677,6 +667,7 @@ async function findHelmReleaseObjects(
         // Now fetch the latest secret with includeHelmData=true
         const detailUrl = `/v1/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(secretName)}?exclude=metadata.managedFields&includeHelmData=true`;
         const secret = await $store.dispatch('rancher/request', { url: detailUrl });
+
         if (secret?.data?.release) {
           console.log('[SUSE-AI] Found Helm secret with includeHelmData=true:', secretName);
           return { secret };
@@ -684,32 +675,14 @@ async function findHelmReleaseObjects(
       }
     } catch (e: unknown) {
       const errorMsg = handleSimpleError(e, 'Failed to find latest Helm secret');
-      console.log('[SUSE-AI] Failed to find latest Helm secret, trying fallback:', errorMsg);
+      console.log('[SUSE-AI] Failed to find Helm secret via list+filter:', errorMsg);
     }
-    
-    // Fallback to generic secret listing (original approach)
-    const secs = await listNsHelmSecrets($store, clusterId, namespace);
-    const candidates = secs.filter((s: HelmSecret) => {
-      const meta = s?.metadata || {};
-      const { release } = extractHelmRelease(s);
-      if (release && normName(release) === normName(releaseName)) return true;
-      const n = meta?.name || '';
-      return new RegExp(`^sh\\.helm\\.release\\.v1\\.${releaseName}\\.v\\d+$`).test(n);
-    });
-    candidates.sort((a: HelmSecret, b: HelmSecret) => (b?.metadata?.name || '').localeCompare(a?.metadata?.name || ''));
-    return { secret: candidates[0] };
-  } catch { /* ignore */ }
-  try {
-    const cms = await listNsHelmConfigMaps($store, clusterId, namespace);
-    const candidates = cms.filter((cm: HelmConfigMap) => {
-      const meta = cm?.metadata || {};
-      const { release } = extractHelmRelease(cm);
-      return release && normName(release) === normName(releaseName);
-    });
-    candidates.sort((a: HelmConfigMap, b: HelmConfigMap) => (b?.metadata?.name || '').localeCompare(a?.metadata?.name || ''));
-    return { configmap: candidates[0] };
-  } catch { /* ignore */ }
-  return {};
+
+    return {};
+  } catch (error) {
+    console.warn(`[SUSE-AI] Failed to find Helm release ${releaseName}:`, error);
+    return {};
+  }
 }
 
 export async function getInstalledHelmDetails(
@@ -718,34 +691,42 @@ export async function getInstalledHelmDetails(
   namespace: string,
   releaseName: string
 ): Promise<{ chartName: string; chartVersion: string; values: Record<string, unknown> }> {
-  const { secret, configmap } = await findHelmReleaseObjects($store, clusterId, namespace, releaseName);
-  const helmObject = secret || configmap;
-  const { chartBase, version } = helmObject ? extractHelmRelease(helmObject) : { chartBase: undefined, version: undefined };
+  const { secret } = await findHelmReleaseObjects($store, clusterId, namespace, releaseName);
+  const { chartBase, version } = secret ? extractHelmRelease(secret) : { chartBase: undefined, version: undefined };
 
   let values: Record<string, unknown> = {};
-  
+  let chartVersion = version || '';
+  let chartName = chartBase || releaseName;
+
   // First check if we have the Helm data directly (from includeHelmData=true)
   if (secret?.data?.release && typeof secret.data.release === 'object' && 'config' in secret.data.release) {
     const release = secret.data.release as {
       values?: Record<string, unknown>;
       config?: Record<string, unknown>;
-      chart?: { values?: Record<string, unknown> };
+      chart?: {
+        values?: Record<string, unknown>;
+        metadata?: {
+          name?: string;
+          version?: string;
+        };
+      };
       info?: Record<string, unknown>;
     };
+
+    // Extract chart version from release metadata (most reliable source)
+    if (release.chart?.metadata?.version) {
+      chartVersion = release.chart.metadata.version;
+    }
+
+    // Extract chart name if available
+    if (release.chart?.metadata?.name) {
+      chartName = release.chart.metadata.name;
+    }
 
     // Priority order for values retrieval:
     // 1. release.values - User-provided values (what we want for "Manage" workflow)
     // 2. release.config - Merged values (defaults + user values)
     // 3. release.chart.values - Chart default values
-    console.log('[SUSE-AI DEBUG] Helm release data analysis:', {
-      hasReleaseValues: !!release.values,
-      releaseValuesKeys: Object.keys(release.values || {}),
-      hasReleaseConfig: !!release.config,
-      releaseConfigKeys: Object.keys(release.config || {}),
-      hasChartValues: !!release.chart?.values,
-      chartValuesKeys: Object.keys(release.chart?.values || {}),
-      chartValuesSample: release.chart?.values ? JSON.stringify(release.chart.values, null, 2).substring(0, 500) : null
-    });
 
     // For Manage workflow, we want the complete values structure (defaults + customizations)
     // This matches what native Rancher shows: full schema with applied values
@@ -756,47 +737,24 @@ export async function getInstalledHelmDetails(
       // Merge user customizations on top
       if (release.config && Object.keys(release.config).length > 0) {
         values = deepMerge(values, release.config);
-        console.log('[SUSE-AI DEBUG] Using merged chart defaults + user config (complete structure)');
       } else if (release.values && Object.keys(release.values).length > 0) {
         values = deepMerge(values, release.values);
-        console.log('[SUSE-AI DEBUG] Using merged chart defaults + user values (complete structure)');
-      } else {
-        console.log('[SUSE-AI DEBUG] Using chart defaults only (no user customizations)');
       }
     } else if (release.config && Object.keys(release.config).length > 0) {
       // Fallback: use config if no chart defaults available
       values = release.config;
-      console.log('[SUSE-AI DEBUG] Fallback: using release.config (partial structure)');
     } else if (release.values && Object.keys(release.values).length > 0) {
       // Fallback: use user values if nothing else available
       values = release.values;
-      console.log('[SUSE-AI DEBUG] Fallback: using release.values (user-provided only)');
-    } else {
-      console.log('[SUSE-AI DEBUG] No values found in any location!');
     }
   } else {
-    // Fallback to decoding the blob (original approach)
-    const blob = secret?.data?.release;
-    if (blob) {
-      const decoded = await decodeHelmReleasePayload(blob);
-      const cfg = (decoded as { config?: unknown; values?: unknown; chart?: { values?: unknown } })?.config ||
-                  (decoded as { values?: unknown })?.values ||
-                  (decoded as { chart?: { values?: unknown } })?.chart?.values || null;
-      if (cfg && typeof cfg === 'object') values = cfg as Record<string, unknown>;
-    }
+    // This path should not be reached when using includeHelmData=true
+    console.warn('[SUSE-AI] Helm release data is not in expected object format. Check API response.');
   }
 
-  console.log('[SUSE-AI DEBUG] getInstalledHelmDetails returning:', {
-    chartName: chartBase || releaseName,
-    chartVersion: version || '',
-    valuesKeys: Object.keys(values),
-    valuesSize: JSON.stringify(values).length,
-    valuesSample: JSON.stringify(values, null, 2).substring(0, 300)
-  });
-
   return {
-    chartName: chartBase || releaseName,
-    chartVersion: version || '',
+    chartName,
+    chartVersion,
     values
   };
 }
@@ -833,51 +791,6 @@ export async function getCatalogApp(
     console.log('[SUSE-AI DEBUG] getCatalogApp failed:', error);
     throw error;
   }
-}
-
-export async function getInstalledAppDetails(
-  $store: RancherStore,
-  clusterId: string,
-  namespace: string,
-  releaseName: string
-): Promise<{ repoName: string; chartName: string; chartVersion: string; values: Record<string, unknown> }> {
-  const app = await getCatalogApp($store, clusterId, namespace, releaseName);
-  const labels = app?.metadata?.labels || {};
-  const repoName = labels[CLUSTER_REPO_NAME_LABEL] || labels['catalog.cattle.io/repo-name'] || '';
-  const chartName = app?.spec?.chart?.metadata?.name || app?.spec?.chartName || '';
-  const chartVersion = app?.spec?.chart?.metadata?.version || app?.spec?.version || '';
-
-  let values: Record<string, unknown> = {};
-
-  // Priority order for Rancher App CRD values:
-  // 1. spec.values - Direct values object
-  // 2. spec.valuesYaml - YAML string values
-  // 3. spec.chart.values - Chart-level values
-  if (app?.spec?.values && typeof app.spec.values === 'object' && Object.keys(app.spec.values).length > 0) {
-    values = app.spec.values;
-  } else if (typeof app?.spec?.valuesYaml === 'string' && app.spec.valuesYaml.trim()) {
-    try {
-      const loaded = yaml.load(app.spec.valuesYaml);
-      if (loaded && typeof loaded === 'object' && Object.keys(loaded as Record<string, unknown>).length > 0) {
-        values = loaded as Record<string, unknown>;
-      }
-    } catch (e) {
-      // Log error but continue with fallback
-      console.warn('[SUSE-AI] Failed to parse valuesYaml:', e);
-    }
-  } else if (app?.spec?.chart?.values && typeof app.spec.chart.values === 'object' && Object.keys(app.spec.chart.values).length > 0) {
-    values = app.spec.chart.values;
-  }
-
-  console.log('[SUSE-AI DEBUG] getInstalledAppDetails returning:', {
-    repoName,
-    chartName,
-    chartVersion,
-    valuesKeys: Object.keys(values),
-    valuesSize: JSON.stringify(values).length
-  });
-
-  return { repoName, chartName, chartVersion, values };
 }
 
 /* ======================== image pull secret helpers ======================== */

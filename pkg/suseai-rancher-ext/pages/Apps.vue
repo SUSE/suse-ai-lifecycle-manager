@@ -263,7 +263,7 @@ import { defineComponent, computed, getCurrentInstance, onMounted, ref, watch } 
 // Using basic HTML table instead of ResourceTable to avoid import issues
 import type { AppCollectionItem, AppRepository } from '../services/app-collection';
 import { fetchSuseAiApps, fetchClusterRepositories, fetchAllRepositoryApps, fetchAppsFromRepository, getClusterRepoNameFromUrl } from '../services/app-collection';
-import { discoverExistingInstall, getClusters, deleteApp, getInstalledAppDetails } from '../services/rancher-apps';
+import { discoverExistingInstall, getClusters, deleteApp } from '../services/rancher-apps';
 import { getTableHeaders } from '../config/table-headers';
 import AppResource from '../models/app/app-resource';
 import { PRODUCT } from '../config/suseai';
