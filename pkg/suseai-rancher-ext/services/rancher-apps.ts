@@ -430,22 +430,50 @@ export async function discoverExistingInstall(
       }
     } catch { /* ignore */ }
 
-    // 2) Helm v3 storage per namespace
+    // 2) Helm v3 storage - cluster-wide search (optimized)
     try {
-      const nss = await listNamespaces($store, c.id);
-      for (const ns of nss) {
-        const secs = await listNsHelmSecrets($store, c.id, ns);
-        let localFound: FoundInfo | null = found;
-        for (const s of secs) {
+      // Try cluster-wide secret search first (1 API call vs N calls for N namespaces)
+      const clusterWideUrl = `/k8s/clusters/${encodeURIComponent(c.id)}/api/v1/secrets?labelSelector=owner=helm&limit=500`;
+
+      try {
+        const response = await $store.dispatch('rancher/request', { url: clusterWideUrl });
+        const allHelmSecrets = response?.data?.items || [];
+
+        for (const s of allHelmSecrets) {
+          const ns = s?.metadata?.namespace || '';
           const { release, chartBase, version } = extractHelmRelease(s);
           const hit = (release && matchesSlug(release, slug, chartNameGuess)) ||
                       (chartBase && matchesSlug(chartBase, slug, chartNameGuess));
+
           if (hit) {
-            if (!localFound) localFound = { release: release || slug, namespace: ns, chartName: chartBase || slug, version: version || '', clusters: [c.id] };
-            else if (!localFound.clusters.includes(c.id)) localFound.clusters.push(c.id);
+            if (!found) {
+              found = { release: release || slug, namespace: ns, chartName: chartBase || slug, version: version || '', clusters: [c.id] };
+            } else if (!found.clusters.includes(c.id)) {
+              found.clusters.push(c.id);
+            }
+            break; // Found in this cluster, move to next cluster
           }
         }
-        if (localFound) { found = localFound; break; }
+      } catch (clusterWideError) {
+        // Fallback to per-namespace search if cluster-wide search fails (RBAC restrictions)
+        // This fallback may not be required so might be deleted in future
+        console.log('[SUSE-AI] Cluster-wide secret search not available, using per-namespace fallback');
+
+        const nss = await listNamespaces($store, c.id);
+        for (const ns of nss) {
+          const secs = await listNsHelmSecrets($store, c.id, ns);
+          let localFound: FoundInfo | null = found;
+          for (const s of secs) {
+            const { release, chartBase, version } = extractHelmRelease(s);
+            const hit = (release && matchesSlug(release, slug, chartNameGuess)) ||
+                        (chartBase && matchesSlug(chartBase, slug, chartNameGuess));
+            if (hit) {
+              if (!localFound) localFound = { release: release || slug, namespace: ns, chartName: chartBase || slug, version: version || '', clusters: [c.id] };
+              else if (!localFound.clusters.includes(c.id)) localFound.clusters.push(c.id);
+            }
+          }
+          if (localFound) { found = localFound; break; }
+        }
       }
     } catch { /* ignore */ }
   }
