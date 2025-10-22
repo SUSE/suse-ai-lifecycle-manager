@@ -449,7 +449,13 @@ async function fetchNodesWithFallback(store: RancherStore, clusterId: string): P
     {
       name: 'global',
       url: `/v1/nodes?exclude=metadata.managedFields&clusterId=${encodeURIComponent(clusterId)}`,
-      transform: (res: any) => res?.data?.data || res?.data || []
+      transform: (res: any) => {
+        if (!res?.data?.data) {
+          console.warn('[SUSE-AI] Unexpected API response format from global nodes endpoint');
+          return [];
+        }
+        return res.data.data;
+      }
     },
     {
       name: 'cluster-specific',
@@ -460,7 +466,11 @@ async function fetchNodesWithFallback(store: RancherStore, clusterId: string): P
       name: 'management',
       url: `/v1/management.cattle.io.nodes?clusterId=${encodeURIComponent(clusterId)}&limit=1000`,
       transform: (res: any) => {
-        const managementNodes = res?.data?.data || res?.data || [];
+        if (!res?.data?.data) {
+          console.warn('[SUSE-AI] Unexpected API response format from management nodes endpoint');
+          return [];
+        }
+        const managementNodes = res.data.data;
         return managementNodes.map((n: any) => ({
           metadata: { name: n.metadata?.name || n.id },
           status: {
@@ -501,7 +511,13 @@ async function fetchNodeMetricsWithFallback(store: RancherStore, clusterId: stri
     {
       name: 'global',
       url: `/v1/metrics.k8s.io.nodes?exclude=metadata.managedFields&clusterId=${encodeURIComponent(clusterId)}`,
-      transform: (res: any) => res?.data?.data || res?.data || []
+      transform: (res: any) => {
+        if (!res?.data?.data) {
+          console.warn('[SUSE-AI] Unexpected API response format from global metrics endpoint');
+          return [];
+        }
+        return res.data.data;
+      }
     },
     {
       name: 'cluster-specific',
