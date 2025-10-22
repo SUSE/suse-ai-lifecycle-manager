@@ -695,29 +695,38 @@ export async function getInstalledHelmDetails(
   const { chartBase, version } = secret ? extractHelmRelease(secret) : { chartBase: undefined, version: undefined };
 
   let values: Record<string, unknown> = {};
-  
+  let chartVersion = version || '';
+  let chartName = chartBase || releaseName;
+
   // First check if we have the Helm data directly (from includeHelmData=true)
   if (secret?.data?.release && typeof secret.data.release === 'object' && 'config' in secret.data.release) {
     const release = secret.data.release as {
       values?: Record<string, unknown>;
       config?: Record<string, unknown>;
-      chart?: { values?: Record<string, unknown> };
+      chart?: {
+        values?: Record<string, unknown>;
+        metadata?: {
+          name?: string;
+          version?: string;
+        };
+      };
       info?: Record<string, unknown>;
     };
+
+    // Extract chart version from release metadata (most reliable source)
+    if (release.chart?.metadata?.version) {
+      chartVersion = release.chart.metadata.version;
+    }
+
+    // Extract chart name if available
+    if (release.chart?.metadata?.name) {
+      chartName = release.chart.metadata.name;
+    }
 
     // Priority order for values retrieval:
     // 1. release.values - User-provided values (what we want for "Manage" workflow)
     // 2. release.config - Merged values (defaults + user values)
     // 3. release.chart.values - Chart default values
-    console.log('[SUSE-AI DEBUG] Helm release data analysis:', {
-      hasReleaseValues: !!release.values,
-      releaseValuesKeys: Object.keys(release.values || {}),
-      hasReleaseConfig: !!release.config,
-      releaseConfigKeys: Object.keys(release.config || {}),
-      hasChartValues: !!release.chart?.values,
-      chartValuesKeys: Object.keys(release.chart?.values || {}),
-      chartValuesSample: release.chart?.values ? JSON.stringify(release.chart.values, null, 2).substring(0, 500) : null
-    });
 
     // For Manage workflow, we want the complete values structure (defaults + customizations)
     // This matches what native Rancher shows: full schema with applied values
@@ -728,40 +737,24 @@ export async function getInstalledHelmDetails(
       // Merge user customizations on top
       if (release.config && Object.keys(release.config).length > 0) {
         values = deepMerge(values, release.config);
-        console.log('[SUSE-AI DEBUG] Using merged chart defaults + user config (complete structure)');
       } else if (release.values && Object.keys(release.values).length > 0) {
         values = deepMerge(values, release.values);
-        console.log('[SUSE-AI DEBUG] Using merged chart defaults + user values (complete structure)');
-      } else {
-        console.log('[SUSE-AI DEBUG] Using chart defaults only (no user customizations)');
       }
     } else if (release.config && Object.keys(release.config).length > 0) {
       // Fallback: use config if no chart defaults available
       values = release.config;
-      console.log('[SUSE-AI DEBUG] Fallback: using release.config (partial structure)');
     } else if (release.values && Object.keys(release.values).length > 0) {
       // Fallback: use user values if nothing else available
       values = release.values;
-      console.log('[SUSE-AI DEBUG] Fallback: using release.values (user-provided only)');
-    } else {
-      console.log('[SUSE-AI DEBUG] No values found in any location!');
     }
   } else {
     // This path should not be reached when using includeHelmData=true
     console.warn('[SUSE-AI] Helm release data is not in expected object format. Check API response.');
   }
 
-  console.log('[SUSE-AI DEBUG] getInstalledHelmDetails returning:', {
-    chartName: chartBase || releaseName,
-    chartVersion: version || '',
-    valuesKeys: Object.keys(values),
-    valuesSize: JSON.stringify(values).length,
-    valuesSample: JSON.stringify(values, null, 2).substring(0, 300)
-  });
-
   return {
-    chartName: chartBase || releaseName,
-    chartVersion: version || '',
+    chartName,
+    chartVersion,
     values
   };
 }

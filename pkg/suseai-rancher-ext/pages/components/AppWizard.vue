@@ -268,22 +268,13 @@ async function loadInstalledAppDetails(clusterId: string) {
     }
 
     if (helmDetails.chartName) form.value.chartName = helmDetails.chartName;
-    if (helmDetails.chartVersion) form.value.chartVersion = helmDetails.chartVersion;
-
-    console.log('[SUSE-AI DEBUG] Helm details received in AppWizard:', {
-      hasValues: !!helmDetails.values,
-      valuesKeys: Object.keys(helmDetails.values || {}),
-      valuesLength: Object.keys(helmDetails.values || {}).length
-    });
+    if (helmDetails.chartVersion) {
+      form.value.chartVersion = helmDetails.chartVersion;
+    }
 
     if (helmDetails.values && Object.keys(helmDetails.values).length > 0) {
-      console.log('[SUSE-AI DEBUG] Setting form.values from Helm data');
       form.value.values = helmDetails.values;
       foundValues = true;
-      console.log('[SUSE-AI DEBUG] Form values after assignment:', {
-        formValuesKeys: Object.keys(form.value.values),
-        formValuesLength: Object.keys(form.value.values).length
-      });
     }
   } catch (helmError) {
     console.warn('Failed to load app details from Helm:', helmError);
