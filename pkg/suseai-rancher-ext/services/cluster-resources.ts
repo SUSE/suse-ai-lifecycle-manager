@@ -194,11 +194,11 @@ export async function getClusterResourceMetrics(store: RancherStore, clusterId: 
         (m.metadata?.name === nodeName) || (m as unknown as { name?: string }).name === nodeName
       );
       
-      // Parse capacity (total resources) - handle both formats
-      const capacity = node.status?.capacity || (node as unknown as { capacity?: Record<string, string> }).capacity || {};
-      const allocatable = node.status?.allocatable || (node as unknown as { allocatable?: Record<string, string> }).allocatable || {};
-      
-      // Use allocatable if available (more accurate), fallback to capacity
+      // Kubernetes v1.Node provides status.allocatable and status.capacity
+      const allocatable = node.status?.allocatable ?? {};
+      const capacity = node.status?.capacity ?? {};
+
+      // Prefer allocatable (accounts for system reservations), fallback to capacity if allocatable is empty
       const resourceData = Object.keys(allocatable).length > 0 ? allocatable : capacity;
       
       const nodeTotalCpu = parseFloat(resourceData.cpu || '0');
@@ -449,13 +449,7 @@ async function fetchNodesWithFallback(store: RancherStore, clusterId: string): P
     {
       name: 'global',
       url: `/v1/nodes?exclude=metadata.managedFields&clusterId=${encodeURIComponent(clusterId)}`,
-      transform: (res: any) => {
-        if (!res?.data?.data) {
-          console.warn('[SUSE-AI] Unexpected API response format from global nodes endpoint');
-          return [];
-        }
-        return res.data.data;
-      }
+      transform: (res: any) => res?.data?.data || res?.data || []
     },
     {
       name: 'cluster-specific',
@@ -466,11 +460,7 @@ async function fetchNodesWithFallback(store: RancherStore, clusterId: string): P
       name: 'management',
       url: `/v1/management.cattle.io.nodes?clusterId=${encodeURIComponent(clusterId)}&limit=1000`,
       transform: (res: any) => {
-        if (!res?.data?.data) {
-          console.warn('[SUSE-AI] Unexpected API response format from management nodes endpoint');
-          return [];
-        }
-        const managementNodes = res.data.data;
+        const managementNodes = res?.data?.data || res?.data || [];
         return managementNodes.map((n: any) => ({
           metadata: { name: n.metadata?.name || n.id },
           status: {
@@ -511,13 +501,7 @@ async function fetchNodeMetricsWithFallback(store: RancherStore, clusterId: stri
     {
       name: 'global',
       url: `/v1/metrics.k8s.io.nodes?exclude=metadata.managedFields&clusterId=${encodeURIComponent(clusterId)}`,
-      transform: (res: any) => {
-        if (!res?.data?.data) {
-          console.warn('[SUSE-AI] Unexpected API response format from global metrics endpoint');
-          return [];
-        }
-        return res.data.data;
-      }
+      transform: (res: any) => res?.data?.data || res?.data || []
     },
     {
       name: 'cluster-specific',
