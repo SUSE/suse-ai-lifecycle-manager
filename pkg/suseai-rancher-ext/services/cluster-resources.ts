@@ -194,11 +194,11 @@ export async function getClusterResourceMetrics(store: RancherStore, clusterId: 
         (m.metadata?.name === nodeName) || (m as unknown as { name?: string }).name === nodeName
       );
       
-      // Parse capacity (total resources) - handle both formats
-      const capacity = node.status?.capacity || (node as unknown as { capacity?: Record<string, string> }).capacity || {};
-      const allocatable = node.status?.allocatable || (node as unknown as { allocatable?: Record<string, string> }).allocatable || {};
-      
-      // Use allocatable if available (more accurate), fallback to capacity
+      // Kubernetes v1.Node provides status.allocatable and status.capacity
+      const allocatable = node.status?.allocatable ?? {};
+      const capacity = node.status?.capacity ?? {};
+
+      // Prefer allocatable (accounts for system reservations), fallback to capacity if allocatable is empty
       const resourceData = Object.keys(allocatable).length > 0 ? allocatable : capacity;
       
       const nodeTotalCpu = parseFloat(resourceData.cpu || '0');

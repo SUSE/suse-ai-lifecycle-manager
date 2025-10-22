@@ -249,7 +249,7 @@ import { defineComponent, computed, getCurrentInstance, onMounted, onUnmounted, 
 import type { AppInstallationSummary } from '../types/app-types';
 import type { AppCollectionItem } from '../services/app-collection';
 import { fetchAppsFromRepository } from '../services/app-collection';
-import { discoverExistingInstall, getClusters, listCatalogApps, getInstalledAppDetails, deleteApp } from '../services/rancher-apps';
+import { discoverExistingInstall, getClusters, listCatalogApps, deleteApp } from '../services/rancher-apps';
 import { PRODUCT } from '../config/suseai';
 
 interface InstanceData extends AppInstallationSummary {

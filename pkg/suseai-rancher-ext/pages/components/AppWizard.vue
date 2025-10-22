@@ -19,8 +19,6 @@ import {
   ensurePullSecretOnAllSAs,
   waitForAppInstall,
   getClusters,
-  appExists,
-  getInstalledAppDetails,
   getInstalledHelmDetails,
   inferClusterRepoForChart
 } from '../../services/rancher-apps';
@@ -249,67 +247,38 @@ async function initializeManageMode() {
     throw new Error('No cluster specified for manage mode');
   }
 
-  // Verify the app exists in the target cluster
-  const exists = await appExists(store, targetCluster, form.value.namespace, form.value.release);
-
-  if (!exists) {
-    throw new Error(`App ${form.value.release} not found in cluster ${targetCluster}`);
-  }
-
   // Set clusters to only the current cluster context
   form.value.clusters = [targetCluster];
 
   // Load app details from the target cluster
+  // If app doesn't exist, loadInstalledAppDetails will throw an error
   await loadInstalledAppDetails(targetCluster);
 }
 
 async function loadInstalledAppDetails(clusterId: string) {
+  let foundValues = false;
   if (!store) return;
 
-  let foundValues = false;
-
-  // Try Rancher App first
   try {
-    const appDetails = await getInstalledAppDetails(store, clusterId, form.value.namespace, form.value.release);
+    const helmDetails = await getInstalledHelmDetails(store, clusterId, form.value.namespace, form.value.release);
 
-    if (appDetails.repoName) form.value.chartRepo = appDetails.repoName;
-    if (appDetails.chartName) form.value.chartName = appDetails.chartName;
-    if (appDetails.chartVersion) form.value.chartVersion = appDetails.chartVersion;
+    // Verify we got valid data - if app doesn't exist, chartName would be missing
+    if (!helmDetails.chartName) {
+      throw new Error(`App ${form.value.release} not found in cluster ${clusterId}`);
+    }
 
-    if (appDetails.values && Object.keys(appDetails.values).length > 0) {
-      form.value.values = appDetails.values;
+    if (helmDetails.chartName) form.value.chartName = helmDetails.chartName;
+    if (helmDetails.chartVersion) {
+      form.value.chartVersion = helmDetails.chartVersion;
+    }
+
+    if (helmDetails.values && Object.keys(helmDetails.values).length > 0) {
+      form.value.values = helmDetails.values;
       foundValues = true;
     }
-  } catch (rancherError) {
-    console.log('Rancher App not found, trying Helm fallback:', rancherError);
-  }
-
-  // Try Helm if Rancher App didn't provide values or failed
-  if (!foundValues) {
-    try {
-      const helmDetails = await getInstalledHelmDetails(store, clusterId, form.value.namespace, form.value.release);
-
-      if (helmDetails.chartName) form.value.chartName = helmDetails.chartName;
-      if (helmDetails.chartVersion) form.value.chartVersion = helmDetails.chartVersion;
-
-      console.log('[SUSE-AI DEBUG] Helm details received in AppWizard:', {
-        hasValues: !!helmDetails.values,
-        valuesKeys: Object.keys(helmDetails.values || {}),
-        valuesLength: Object.keys(helmDetails.values || {}).length
-      });
-
-      if (helmDetails.values && Object.keys(helmDetails.values).length > 0) {
-        console.log('[SUSE-AI DEBUG] Setting form.values from Helm data');
-        form.value.values = helmDetails.values;
-        foundValues = true;
-        console.log('[SUSE-AI DEBUG] Form values after assignment:', {
-          formValuesKeys: Object.keys(form.value.values),
-          formValuesLength: Object.keys(form.value.values).length
-        });
-      }
-    } catch (helmError) {
-      console.warn('Failed to load app details from Helm:', helmError);
-    }
+  } catch (helmError) {
+    console.warn('Failed to load app details from Helm:', helmError);
+    throw helmError; // Re-throw to fail fast if app doesn't exist
   }
 
   // Infer repo if still unknown
