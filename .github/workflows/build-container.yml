@@ -4,7 +4,7 @@ on: [push, pull_request, workflow_dispatch]
   
 jobs:
   build-extension-catalog:
-    name: Build container image
+    name: Build Container Image
     runs-on: ubuntu-latest
     permissions:
       actions: write
