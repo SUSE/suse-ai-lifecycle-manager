@@ -130,6 +130,19 @@ const RAW_APPS = [
       "last_updated_at": "2025-07-29T11:56:35.688301Z",
       "packaging_format": "HELM_CHART",
       "repository_url": "oci://dp.apps.rancher.io/charts"    
+    },
+    {
+      "name": "vLLM",
+      "slug_name": "vllm",
+      "description": "A high-throughput and memory-efficient inference and serving engine for LLMs.",
+      "project_url": "https://github.com/vllm-project/vllm",
+      "documentation_url": "https://docs.vllm.ai/en/stable",
+      "source_code_url": "https://github.com/vllm-project/vllm",
+      "logo_url": "https://apps.rancher.io//logos/vllm.png",
+      "changelog_url": "https://github.com/vllm-project/vllm/releases",
+      "last_updated_at": "2025-09-30T08:22:20.607991Z",
+      "packaging_format": "HELM_CHART",
+      "repository_url": "oci://dp.apps.rancher.io/charts"    
     }
 ] as const;
 

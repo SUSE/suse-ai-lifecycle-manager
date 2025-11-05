@@ -80,6 +80,11 @@ const APP_RESOURCE_PROFILES: Record<string, AppResourceProfile> = {
     slug: 'suse-ai-observability-extension',
     name: 'SUSE AI Observability Extension',
     requirements: { cpu: 2, memory: 4, storage: 20 }
+  },
+  'vllm': {
+    slug: 'vllm',
+    name: 'vLLM',
+    requirements: { cpu: 4, memory: 16, gpu: 2, storage: 40 }
   }
 };
 
