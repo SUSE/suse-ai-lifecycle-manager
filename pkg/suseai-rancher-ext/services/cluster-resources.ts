@@ -447,14 +447,14 @@ async function fetchNodesWithFallback(store: RancherStore, clusterId: string): P
   // Define API endpoints in order of preference
   const nodeEndpoints = [
     {
-      name: 'global',
-      url: `/v1/nodes?exclude=metadata.managedFields&clusterId=${encodeURIComponent(clusterId)}`,
-      transform: (res: any) => res?.data?.data || res?.data || []
-    },
-    {
       name: 'cluster-specific',
       url: `/k8s/clusters/${encodeURIComponent(clusterId)}/api/v1/nodes`,
       transform: (res: any) => res?.data?.items || []
+    },
+    {
+      name: 'global',
+      url: `/v1/nodes?exclude=metadata.managedFields&clusterId=${encodeURIComponent(clusterId)}`,
+      transform: (res: any) => res?.data?.data || res?.data || []
     },
     {
       name: 'management',
@@ -499,14 +499,14 @@ async function fetchNodesWithFallback(store: RancherStore, clusterId: string): P
 async function fetchNodeMetricsWithFallback(store: RancherStore, clusterId: string): Promise<NodeMetric[]> {
   const metricsEndpoints = [
     {
-      name: 'global',
-      url: `/v1/metrics.k8s.io.nodes?exclude=metadata.managedFields&clusterId=${encodeURIComponent(clusterId)}`,
-      transform: (res: any) => res?.data?.data || res?.data || []
-    },
-    {
       name: 'cluster-specific',
       url: `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/metrics.k8s.io/v1beta1/nodes`,
       transform: (res: any) => res?.data?.items || []
+    },
+        {
+      name: 'global',
+      url: `/v1/metrics.k8s.io.nodes?exclude=metadata.managedFields&clusterId=${encodeURIComponent(clusterId)}`,
+      transform: (res: any) => res?.data?.data || res?.data || []
     }
   ];
 
