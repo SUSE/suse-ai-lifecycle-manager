@@ -189,7 +189,7 @@ export async function getClusterResourceMetrics(store: RancherStore, clusterId: 
     
     for (const node of nodes) {
       // Handle different data formats: global API vs cluster-specific API
-      const nodeName = node.metadata?.name || (node as unknown as { name?: string }).name || '';
+      const nodeName = node.metadata?.name || (node as any).id || (node as unknown as { name?: string }).name || '';
       const nodeMetric = nodeMetrics.find((m: NodeMetric) =>
         (m.metadata?.name === nodeName) || (m as unknown as { name?: string }).name === nodeName
       );
