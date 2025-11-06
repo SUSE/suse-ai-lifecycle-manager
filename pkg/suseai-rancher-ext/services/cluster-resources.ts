@@ -497,23 +497,38 @@ async function fetchNodesWithFallback(store: RancherStore, clusterId: string): P
  * Fetch node metrics with fallback API endpoints
  */
 async function fetchNodeMetricsWithFallback(store: RancherStore, clusterId: string): Promise<NodeMetric[]> {
-  const metricsEndpoints = [
-    {
-      name: 'global',
-      url: `/v1/metrics.k8s.io.nodes?exclude=metadata.managedFields&clusterId=${encodeURIComponent(clusterId)}`,
-      transform: (res: any) => res?.data?.data || res?.data || []
-    },
-    {
-      name: 'cluster-specific',
-      url: `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/metrics.k8s.io/v1beta1/nodes`,
-      transform: (res: any) => res?.data?.items || []
-    }
-  ];
+  const isLocalCluster = clusterId === 'local';
+
+  const metricsEndpoints = isLocalCluster 
+  ? [
+      {
+        name: 'global',
+        url: `/v1/metrics.k8s.io.nodes`,
+        transform: (res: any) => res?.data?.data || res?.data || []
+      },
+      {
+        name: 'cluster-specific',
+        url: `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/metrics.k8s.io/v1beta1/nodes`,
+        transform: (res: any) => res?.data?.items || []
+      }
+    ]
+  : [
+      {
+        name: 'cluster-specific',
+        url: `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/metrics.k8s.io/v1beta1/nodes`,
+        transform: (res: any) => res?.data?.items || []
+      },
+      {
+        name: 'global',
+        url: `/v1/metrics.k8s.io.nodes`,
+        transform: (res: any) => res?.data?.data || res?.data || []
+      }
+    ];
 
   for (const endpoint of metricsEndpoints) {
     try {
       const res = await store.dispatch('rancher/request', { url: endpoint.url });
-      const metrics = endpoint.transform(res);
+      const metrics = endpoint.transform(res); // how metrics validation is occurring?
       if (metrics && Array.isArray(metrics)) {
         console.log(`[SUSE-AI] getClusterResourceMetrics: Got ${metrics.length} node metrics from ${endpoint.name} API`);
         return metrics;
