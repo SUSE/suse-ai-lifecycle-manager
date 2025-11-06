@@ -455,23 +455,6 @@ async function fetchNodesWithFallback(store: RancherStore, clusterId: string): P
       name: 'cluster-specific',
       url: `/k8s/clusters/${encodeURIComponent(clusterId)}/api/v1/nodes`,
       transform: (res: any) => res?.data?.items || []
-    },
-    {
-      name: 'management',
-      url: `/v1/management.cattle.io.nodes?clusterId=${encodeURIComponent(clusterId)}&limit=1000`,
-      transform: (res: any) => {
-        const managementNodes = res?.data?.data || res?.data || [];
-        return managementNodes.map((n: any) => ({
-          metadata: { name: n.metadata?.name || n.id },
-          status: {
-            capacity: {
-              cpu: n.status?.capacity?.cpu || n.allocatable?.cpu || '0',
-              memory: n.status?.capacity?.memory || n.allocatable?.memory || '0Ki',
-              'nvidia.com/gpu': n.status?.capacity?.['nvidia.com/gpu'] || n.allocatable?.['nvidia.com/gpu']
-            }
-          }
-        }));
-      }
     }
   ];
 
@@ -517,11 +500,6 @@ async function fetchNodeMetricsWithFallback(store: RancherStore, clusterId: stri
         name: 'cluster-specific',
         url: `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/metrics.k8s.io/v1beta1/nodes`,
         transform: (res: any) => res?.data?.items || []
-      },
-      {
-        name: 'global',
-        url: `/v1/metrics.k8s.io.nodes`,
-        transform: (res: any) => res?.data?.data || res?.data || []
       }
     ];
 
