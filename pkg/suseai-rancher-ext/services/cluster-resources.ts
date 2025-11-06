@@ -444,18 +444,28 @@ function parseK8sMemory(memoryStr: string): number {
 async function fetchNodesWithFallback(store: RancherStore, clusterId: string): Promise<NodeResource[]> {
   const errorHandler = createErrorHandler(store, 'ClusterResources');
 
+  const isLocalCluster = clusterId === 'local';
+
   // Define API endpoints in order of preference
-  const nodeEndpoints = [
-    {
-      name: 'global',
-      url: `/v1/nodes?exclude=metadata.managedFields&clusterId=${encodeURIComponent(clusterId)}`,
-      transform: (res: any) => res?.data?.data || res?.data || []
-    },
-    {
-      name: 'cluster-specific',
-      url: `/k8s/clusters/${encodeURIComponent(clusterId)}/api/v1/nodes`,
-      transform: (res: any) => res?.data?.items || []
-    }
+  const nodeEndpoints = isLocalCluster 
+  ? [
+      {
+        name: 'global',
+        url: `/v1/nodes?exclude=metadata.managedFields`,
+        transform: (res: any) => res?.data?.data || res?.data || []
+      },
+      {
+        name: 'cluster-specific',
+        url: `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/nodes?exclude=metadata.managedFields`,
+        transform: (res: any) => res?.data?.items || []
+      }
+    ] 
+  : [
+      {
+        name: 'cluster-specific',
+        url: `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/nodes?exclude=metadata.managedFields`,
+        transform: (res: any) => res?.data?.items || []
+      }
   ];
 
   for (const endpoint of nodeEndpoints) {
@@ -491,14 +501,14 @@ async function fetchNodeMetricsWithFallback(store: RancherStore, clusterId: stri
       },
       {
         name: 'cluster-specific',
-        url: `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/metrics.k8s.io/v1beta1/nodes`,
+        url: `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/metrics.k8s.io.nodes?exclude=metadata.managedFields`,
         transform: (res: any) => res?.data?.items || []
       }
     ]
   : [
       {
         name: 'cluster-specific',
-        url: `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/metrics.k8s.io/v1beta1/nodes`,
+        url: `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/metrics.k8s.io.nodes?exclude=metadata.managedFields`,
         transform: (res: any) => res?.data?.items || []
       }
     ];
