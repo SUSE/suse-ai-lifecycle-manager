@@ -449,11 +449,11 @@ async function fetchNodesWithFallback(store: RancherStore, clusterId: string): P
   // Define API endpoints in order of preference
   const nodeEndpoints = isLocalCluster 
   ? [
-      {
-        name: 'global',
-        url: `/v1/nodes?exclude=metadata.managedFields`,
-        transform: (res: any) => res?.data?.data || res?.data || []
-      },
+      // {
+      //   name: 'global',
+      //   url: `/v1/nodes?exclude=metadata.managedFields`,
+      //   transform: (res: any) => res?.data?.data || res?.data || []
+      // },
       {
         name: 'cluster-specific',
         url: `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/nodes?exclude=metadata.managedFields`,
@@ -494,11 +494,11 @@ async function fetchNodeMetricsWithFallback(store: RancherStore, clusterId: stri
 
   const metricsEndpoints = isLocalCluster 
   ? [
-      {
-        name: 'global',
-        url: `/v1/metrics.k8s.io.nodes`,
-        transform: (res: any) => res?.data?.data || res?.data || []
-      },
+      // {
+      //   name: 'global',
+      //   url: `/v1/metrics.k8s.io.nodes?exclude=metadata.managedFields`,
+      //   transform: (res: any) => res?.data?.data || res?.data || []
+      // },
       {
         name: 'cluster-specific',
         url: `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/metrics.k8s.io.nodes?exclude=metadata.managedFields`,
