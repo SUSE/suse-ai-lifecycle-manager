@@ -146,14 +146,14 @@ export async function getClusterResourceMetrics(store: RancherStore, clusterId: 
           {
             name: 'cluster-specific',
             url: `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/storage.k8s.io/v1/storageclasses`,
-            transform: (res: any) => res?.data?.items || []
+            transform: (res: any) => res?.data?.data || res?.data || []
           }
         ]
       : [
           {
             name: 'cluster-specific',
             url: `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/storage.k8s.io/v1/storageclasses`,
-            transform: (res: any) => res?.data?.items || []
+            transform: (res: any) => res?.data?.data || res?.data || []
           }
         ];
 
