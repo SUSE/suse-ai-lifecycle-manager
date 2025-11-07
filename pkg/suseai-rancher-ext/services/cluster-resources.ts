@@ -133,26 +133,44 @@ export async function getClusterResourceMetrics(store: RancherStore, clusterId: 
     nodeMetrics = await fetchNodeMetricsWithFallback(store, clusterId);
 
     // Get storage classes using the same API that works in Rancher
+
+    const isLocalCluster = clusterId === 'local';
+
+    const storageEndpoints = isLocalCluster
+      ? [
+          {
+            name: 'global',
+            url: `/v1/storage.k8s.io.storageclasses?exclude=metadata.managedFields`,
+            transform: (res: any) => res?.data?.data || res?.data || []
+          },
+          {
+            name: 'cluster-specific',
+            url: `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/storage.k8s.io/v1/storageclasses`,
+            transform: (res: any) => res?.data?.items || []
+          }
+        ]
+      : [
+          {
+            name: 'cluster-specific',
+            url: `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/storage.k8s.io/v1/storageclasses`,
+            transform: (res: any) => res?.data?.items || []
+          }
+        ];
+
     let storageClasses: string[] = [];
-    try {
-      // Use the global API endpoint that Rancher uses
-      const storageClassesUrl = `/v1/storage.k8s.io.storageclasses?exclude=metadata.managedFields&clusterId=${encodeURIComponent(clusterId)}`;
-      const storageRes = await store.dispatch('rancher/request', { url: storageClassesUrl });
-      storageClasses = (storageRes?.data?.data || storageRes?.data || []).map((sc: { metadata?: { name?: string }; name?: string; id?: string }) => sc.metadata?.name || sc.name || sc.id).filter(Boolean);
-      console.log(`[SUSE-AI] getClusterResourceMetrics: Got ${storageClasses.length} storage classes from global API for ${clusterId}`);
-    } catch (e: unknown) {
-      const error = e as { message?: string };
-      console.warn(`[SUSE-AI] getClusterResourceMetrics: Global storage classes API failed for ${clusterId}:`, error?.message);
-      
-      // Fallback to cluster-specific API
+    for (const endpoint of storageEndpoints) {
       try {
-        const storageClassesUrl = `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/storage.k8s.io/v1/storageclasses`;
-        const storageRes = await store.dispatch('rancher/request', { url: storageClassesUrl });
-        storageClasses = (storageRes?.data?.items || []).map((sc: { metadata?: { name?: string } }) => sc.metadata?.name).filter(Boolean);
-        console.log(`[SUSE-AI] getClusterResourceMetrics: Got ${storageClasses.length} storage classes from cluster-specific API for ${clusterId}`);
-      } catch (fallbackError: unknown) {
-        const error = fallbackError as { message?: string };
-        console.warn(`[SUSE-AI] getClusterResourceMetrics: All storage class API attempts failed for ${clusterId}:`, error?.message);
+        const res = await store.dispatch('rancher/request', { url: endpoint.url });
+        const data = endpoint.transform(res);
+        if (data && data.length > 0) {
+          storageClasses = data
+            .map((sc: any) => sc.metadata?.name || sc.name || sc.id)
+            .filter(Boolean);
+          console.log(`[SUSE-AI] Got ${storageClasses.length} storage classes from ${endpoint.name} API for ${clusterId}`);
+          break;
+        }
+      } catch (error) {
+        console.warn(`[SUSE-AI] ${endpoint.name} API failed for ${clusterId}:`, handleSimpleError(error));
       }
     }
 
