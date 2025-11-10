@@ -46,4 +46,4 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             https://api.github.com/repos/${{ github.repository }}/dispatches \
-            -d '{"event_type":"build_container","client_payload":{"tag":"${{ steps.pkg_version.outputs.app_tag }}"}}' 
+            -d '{"event_type":"build_container","client_payload":{"tag":"${{ steps.pkg_version.outputs.app_tag }}"}}'
