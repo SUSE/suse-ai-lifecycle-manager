@@ -170,15 +170,12 @@ function parseRegistryHostFromOciUrl(url?: string): string {
 /**
  * Resolve creds + registry host for a specific ClusterRepo (by metadata.name).
  */
-export async function getRepoAuthForClusterRepo(
-  store: any,
-  clusterRepoName: string,
-  clusterId: string
-): Promise<RepoInstallContext> {
+export async function getRepoAuthForClusterRepo( store: any, clusterRepoName: string): Promise<RepoInstallContext> {
   if (!clusterRepoName) throw new Error('ClusterRepo name is required');
 
-  let isLocalCluster = clusterId === 'local';
   let cluster: any = null;
+  let clusterId: any = null;
+  let isLocalCluster;
 
   try {
     const { getClusters } = await import('./rancher-apps');
@@ -195,6 +192,8 @@ export async function getRepoAuthForClusterRepo(
   } catch (error) {
     console.error('[SUSE-AI] getRepoAuthForClusterRepo: Failed to get clusters:', error);
   }
+
+  // let isLocalCluster = clusterId === 'local';
 
   // Construct the correct Rancher API path
   const url = isLocalCluster
