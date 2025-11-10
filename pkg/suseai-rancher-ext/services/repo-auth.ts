@@ -174,31 +174,39 @@ export async function getRepoAuthForClusterRepo( store: any, clusterRepoName: st
   if (!clusterRepoName) throw new Error('ClusterRepo name is required');
 
   let cluster: any = null;
-  let clusterId: any = null;
-  let isLocalCluster;
+  let clusterId: string | null = null;
+  let isLocalCluster = false;
 
   try {
     const { getClusters } = await import('./rancher-apps');
     const clusters = await getClusters(store);
     console.log(`[SUSE-AI] getRepoAuthForClusterRepo: Found ${clusters.length} clusters`);
 
-    cluster = clusters.find((c: any) => c.id === clusterId);
+    // 🧩 Pick first cluster or prefer 'local' if available
+    cluster =
+      clusters.find((c: any) => c.id === 'local') ||
+      clusters[0];
+
     if (cluster) {
-      console.log(`[SUSE-AI] Matched cluster: ${cluster.id} (${cluster.spec?.displayName || 'no name'})`);
+      clusterId = cluster.id;
       isLocalCluster = cluster.id === 'local';
+      console.log(`[SUSE-AI] Matched cluster: ${cluster.id} (${cluster.spec?.displayName || 'no name'})`);
     } else {
-      console.warn(`[SUSE-AI] Cluster ${clusterId} not found in getClusters() result. Falling back to clusterId param.`);
+      console.warn('[SUSE-AI] No clusters found. Falling back to local.');
+      clusterId = 'local';
+      isLocalCluster = true;
     }
   } catch (error) {
     console.error('[SUSE-AI] getRepoAuthForClusterRepo: Failed to get clusters:', error);
+    // fallback when cluster list fails
+    clusterId = 'local';
+    isLocalCluster = true;
   }
 
-  // let isLocalCluster = clusterId === 'local';
-
-  // Construct the correct Rancher API path
+  // 🧠 Build Rancher API path
   const url = isLocalCluster
     ? `/k8s/clusters/local/apis/catalog.cattle.io/v1/clusterrepos/${encodeURIComponent(clusterRepoName)}`
-    : `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/catalog.cattle.io/v1/clusterrepos/${encodeURIComponent(clusterRepoName)}`;
+    : `/k8s/clusters/${encodeURIComponent(clusterId!)}/apis/catalog.cattle.io/v1/clusterrepos/${encodeURIComponent(clusterRepoName)}`;
 
   const r = await store.dispatch('rancher/request', { url });
   const repo = r?.data ?? r;
@@ -206,7 +214,7 @@ export async function getRepoAuthForClusterRepo( store: any, clusterRepoName: st
 
   const registryHost = parseRegistryHost(repo?.spec?.url) || 'docker.io';
 
-  // Resolve secret reference (same logic as getDpRepoAuth)
+  // 🔐 Resolve secret reference (same logic as getDpRepoAuth)
   const ref = repo?.spec?.clientSecret
     ? { name: repo.spec.clientSecret.name, namespace: repo.spec.clientSecret.namespace }
     : null;
@@ -232,6 +240,7 @@ export async function getRepoAuthForClusterRepo( store: any, clusterRepoName: st
     auth,
   };
 }
+
 
 
 // Optional alias to satisfy any lingering import:
