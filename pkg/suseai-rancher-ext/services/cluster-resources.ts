@@ -126,53 +126,20 @@ export async function getClusterResourceMetrics(store: RancherStore, clusterId: 
     // Get node information using simplified API pattern with fallbacks
     let nodes: NodeResource[] = [];
     let nodeMetrics: NodeMetric[] = [];
+    let storageClasses: string[] = [];
+    
 
-    nodes = await fetchNodesWithFallback(store, clusterId);
+    // nodes = await fetchNodesWithFallback(store, clusterId);
+    nodes = await fetchNodes(store, clusterId);
 
     // Get node metrics using simplified API pattern with fallbacks
-    nodeMetrics = await fetchNodeMetricsWithFallback(store, clusterId);
+    // nodeMetrics = await fetchNodeMetricsWithFallback(store, clusterId);
+    nodeMetrics = await fetchNodeMetrics(store, clusterId);
+
 
     // Get storage classes using the same API that works in Rancher
 
-    const isLocalCluster = clusterId === 'local';
-
-    const storageEndpoints = isLocalCluster
-      ? [
-          {
-            name: 'global',
-            url: `/v1/storage.k8s.io.storageclasses?exclude=metadata.managedFields`,
-            transform: (res: any) => res?.data?.data || res?.data || []
-          },
-          {
-            name: 'cluster-specific',
-            url: `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/storage.k8s.io.storageclasses?exclude=metadata.managedFields`,
-            transform: (res: any) => res?.data?.data || res?.data || []
-          }
-        ]
-      : [
-          {
-            name: 'cluster-specific',
-            url: `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/storage.k8s.io.storageclasses?exclude=metadata.managedFields`,
-            transform: (res: any) => res?.data?.data || res?.data || []
-          }
-        ];
-
-    let storageClasses: string[] = [];
-    for (const endpoint of storageEndpoints) {
-      try {
-        const res = await store.dispatch('rancher/request', { url: endpoint.url });
-        const data = endpoint.transform(res);
-        if (data && data.length > 0) {
-          storageClasses = data
-            .map((sc: any) => sc.metadata?.name || sc.name || sc.id)
-            .filter(Boolean);
-          console.log(`[SUSE-AI] Got ${storageClasses.length} storage classes from ${endpoint.name} API for ${clusterId}`);
-          break;
-        }
-      } catch (error) {
-        console.warn(`[SUSE-AI] ${endpoint.name} API failed for ${clusterId}:`, handleSimpleError(error));
-      }
-    }
+    storageClasses = await fetchStorageClasses(store, clusterId);
 
     // Process nodes and calculate resources
     const nodeInfos: NodeResourceInfo[] = [];
@@ -456,97 +423,47 @@ function parseK8sMemory(memoryStr: string): number {
   }
 }
 
-/**
- * Fetch nodes with fallback API endpoints
- */
-async function fetchNodesWithFallback(store: RancherStore, clusterId: string): Promise<NodeResource[]> {
-  const errorHandler = createErrorHandler(store, 'ClusterResources');
-
-  const isLocalCluster = clusterId === 'local';
-
-  // Define API endpoints in order of preference
-  const nodeEndpoints = isLocalCluster 
-  ? [
-      {
-        name: 'global',
-        url: `/v1/nodes?exclude=metadata.managedFields`,
-        transform: (res: any) => res?.data?.data || res?.data || []
-      },
-      {
-        name: 'cluster-specific',
-        url: `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/nodes?exclude=metadata.managedFields`,
-        transform: (res: any) => res?.data?.data || res?.data || []
-      }
-    ] 
-  : [
-      {
-        name: 'cluster-specific',
-        url: `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/nodes?exclude=metadata.managedFields`,
-        transform: (res: any) => res?.data?.data || res?.data || []
-      }
-  ];
-
-  for (const endpoint of nodeEndpoints) {
-    try {
-      const res = await store.dispatch('rancher/request', { url: endpoint.url });
-      const nodes = endpoint.transform(res);
-      if (nodes && nodes.length > 0) {
-        console.log(`[SUSE-AI] getClusterResourceMetrics: Got ${nodes.length} nodes from ${endpoint.name} API`);
-        return nodes;
-      }
-    } catch (error) {
-      console.warn(`[SUSE-AI] getClusterResourceMetrics: ${endpoint.name} API failed for ${clusterId}:`, handleSimpleError(error));
-      // Continue to next endpoint
-    }
-  }
-
-  console.warn(`[SUSE-AI] getClusterResourceMetrics: All node API attempts failed for ${clusterId}`);
-  return [];
+async function fetchNodes(store: RancherStore, clusterId: string): Promise<NodeResource[]> {
+  return fetchClusterData<NodeResource>(store, clusterId, 'nodes', 'nodes');
 }
 
-/**
- * Fetch node metrics with fallback API endpoints
- */
-async function fetchNodeMetricsWithFallback(store: RancherStore, clusterId: string): Promise<NodeMetric[]> {
+async function fetchNodeMetrics(store: RancherStore, clusterId: string): Promise<NodeMetric[]> {
+  return fetchClusterData<NodeMetric>(store, clusterId, 'metrics.k8s.io.nodes', 'node metrics');
+}
+
+async function fetchClusterData<T>(
+  store: RancherStore,
+  clusterId: string,
+  resourcePath: string,
+  label: string
+): Promise<T[]> {
   const isLocalCluster = clusterId === 'local';
+  const baseUrl = isLocalCluster
+    ? `/v1/${resourcePath}?exclude=metadata.managedFields`
+    : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/${resourcePath}?exclude=metadata.managedFields`;
 
-  const metricsEndpoints = isLocalCluster 
-  ? [
-      {
-        name: 'global',
-        url: `/v1/metrics.k8s.io.nodes?exclude=metadata.managedFields`,
-        transform: (res: any) => res?.data?.data || res?.data || []
-      },
-      {
-        name: 'cluster-specific',
-        url: `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/metrics.k8s.io.nodes?exclude=metadata.managedFields`,
-        transform: (res: any) => res?.data?.data || res?.data || []
-      }
-    ]
-  : [
-      {
-        name: 'cluster-specific',
-        url: `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/metrics.k8s.io.nodes?exclude=metadata.managedFields`,
-        transform: (res: any) => res?.data?.data || res?.data || []
-      }
-    ];
-
-  for (const endpoint of metricsEndpoints) {
-    try {
-      const res = await store.dispatch('rancher/request', { url: endpoint.url });
-      const metrics = endpoint.transform(res); 
-      if (metrics && Array.isArray(metrics)) {
-        console.log(`[SUSE-AI] getClusterResourceMetrics: Got ${metrics.length} node metrics from ${endpoint.name} API`);
-        return metrics;
-      }
-    } catch (error) {
-      console.warn(`[SUSE-AI] getClusterResourceMetrics: ${endpoint.name} metrics API failed for ${clusterId}:`, handleSimpleError(error));
-      // Continue to next endpoint
-    }
+  try {
+    const res = await store.dispatch('rancher/request', { url: baseUrl });
+    const data = res?.data?.data || res?.data || [];
+    console.log(`[SUSE-AI] getClusterResourceMetrics: Got ${data.length} ${label} from ${isLocalCluster ? 'global' : 'cluster-specific'} API`);
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.warn(`[SUSE-AI] getClusterResourceMetrics: ${label} API failed for ${clusterId}:`, handleSimpleError(error));
+    return [];
   }
+}
 
-  console.warn(`[SUSE-AI] getClusterResourceMetrics: All metrics API attempts failed for ${clusterId}, using capacity only`);
-  return [];
+async function fetchStorageClasses(store: RancherStore, clusterId: string): Promise<string[]> {
+  const storageClasses = await fetchClusterData<any>(
+    store,
+    clusterId,
+    'storage.k8s.io.storageclasses',
+    'storage classes'
+  );
+
+  return storageClasses
+    .map((sc: any) => sc.metadata?.name || sc.name || sc.id)
+    .filter(Boolean);
 }
 
 function estimateGpuMemory(node: NodeResource, gpuCount: number): number {
