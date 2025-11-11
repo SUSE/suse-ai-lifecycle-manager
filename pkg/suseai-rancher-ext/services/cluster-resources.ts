@@ -534,7 +534,7 @@ async function fetchNodeMetricsWithFallback(store: RancherStore, clusterId: stri
   for (const endpoint of metricsEndpoints) {
     try {
       const res = await store.dispatch('rancher/request', { url: endpoint.url });
-      const metrics = endpoint.transform(res); // how metrics validation is occurring?
+      const metrics = endpoint.transform(res); 
       if (metrics && Array.isArray(metrics)) {
         console.log(`[SUSE-AI] getClusterResourceMetrics: Got ${metrics.length} node metrics from ${endpoint.name} API`);
         return metrics;
