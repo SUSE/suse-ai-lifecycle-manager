@@ -113,13 +113,48 @@ export class ChartService {
     }
   }
 
+  private static async getClusterContext(store: RancherStore) {
+    let cluster: any = null;
+    let clusterId = 'local';
+    let isLocalCluster = true;
+    let baseApi = '/v1';
+
+    try {
+      const { getClusters } = await import('./rancher-apps');
+      const clusters = await getClusters(store);
+      console.log(`[SUSE-AI] Found ${clusters.length} clusters`);
+
+      if (clusters.length > 0) {
+
+        cluster = clusters.find((c: any) => c.id === 'local') || clusters[0];
+        clusterId = cluster.id;
+        isLocalCluster = cluster.id === 'local';
+        baseApi = isLocalCluster
+        ? '/v1'
+        : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1`;
+
+        logger.debug(`[SUSE-AI] Selected cluster: ${cluster.id} (${cluster.spec?.displayName || 'no name'})`);
+      } else {
+        logger.warn('[SUSE-AI] No clusters found — defaulting to local.');
+      }
+    } catch (error) {
+      console.error('[SUSE-AI] getActiveClusterContext: Failed to get clusters:', error);
+      baseApi = '/v1';
+      clusterId = 'local';
+      isLocalCluster = true;
+    }
+    return { cluster, clusterId, isLocalCluster , baseApi};
+  }
+
   /**
    * List cluster repositories
    */
   private static async listClusterRepos($store: RancherStore): Promise<ClusterResource[]> {
+    const { baseApi } = await this.getClusterContext($store);
+
     try {
       const res = await $store.dispatch('rancher/request', {
-        url: '/k8s/clusters/local/apis/catalog.cattle.io/v1/clusterrepos?limit=1000'
+        url: `${baseApi}/catalog.cattle.io/v1/clusterrepos?limit=1000`
       });
       return res?.data?.items || res?.data || res?.items || [];
     } catch (err) {

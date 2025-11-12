@@ -57,12 +57,47 @@ export class ChartValuesService {
     }
   }
 
+  private async getActiveClusterContext(store: RancherStore) {
+    let cluster: any = null;
+    let clusterId = 'local';
+    let isLocalCluster = true;
+    let baseApi = '/v1';
+
+    try {
+      const { getClusters } = await import('./rancher-apps');
+      const clusters = await getClusters(store);
+      console.log(`[SUSE-AI] Found ${clusters.length} clusters`);
+
+      if (clusters.length > 0) {
+
+        cluster = clusters.find((c: any) => c.id === 'local') || clusters[0];
+        clusterId = cluster.id;
+        isLocalCluster = cluster.id === 'local';
+        baseApi = isLocalCluster
+        ? '/v1'
+        : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1`;
+
+        logger.debug(`[SUSE-AI] Selected cluster: ${cluster.id} (${cluster.spec?.displayName || 'no name'})`);
+      } else {
+        logger.warn('[SUSE-AI] No clusters found — defaulting to local.');
+      }
+    } catch (error) {
+      console.error('[SUSE-AI] getActiveClusterContext: Failed to get clusters:', error);
+      baseApi = '/v1';
+      clusterId = 'local';
+      isLocalCluster = true;
+    }
+    return { cluster, clusterId, isLocalCluster , baseApi};
+  }
+
   /**
    * Try fetching via ?link=files approach
    */
   private async tryFilesLink(repo: string, chart: string, version: string): Promise<string | null> {
+    const { baseApi } = await this.getActiveClusterContext(this.store);
+
     try {
-      const url = `/v1/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}?link=files&chartName=${encodeURIComponent(chart)}&version=${encodeURIComponent(version)}`;
+      const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}?link=files&chartName=${encodeURIComponent(chart)}&version=${encodeURIComponent(version)}`;
       const response = await this.store.dispatch('rancher/request', { url });
       const filesDetail = response?.data ?? response;
 
@@ -88,10 +123,11 @@ export class ChartValuesService {
    */
   private async tryFileLink(repo: string, chart: string, version: string): Promise<string | null> {
     const filenames = ['values.yaml', 'values.yml'];
+    const { baseApi } = await this.getActiveClusterContext(this.store);
 
     for (const filename of filenames) {
       try {
-        const url = `/v1/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}?link=file&chartName=${encodeURIComponent(chart)}&version=${encodeURIComponent(version)}&name=${encodeURIComponent(filename)}`;
+        const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}?link=file&chartName=${encodeURIComponent(chart)}&version=${encodeURIComponent(version)}&name=${encodeURIComponent(filename)}`;
         const response = await this.store.dispatch('rancher/request', { url });
         const text = this.extractTextFromFileEntry(response?.data ?? response);
 
@@ -114,8 +150,10 @@ export class ChartValuesService {
    * Try fetching via ?link=chart tar.gz approach
    */
   private async tryTarGzLink(repo: string, chart: string, version: string): Promise<string | null> {
+    const { baseApi } = await this.getActiveClusterContext(this.store);
+
     try {
-      const url = `/v1/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}?link=chart&chartName=${encodeURIComponent(chart)}&version=${encodeURIComponent(version)}`;
+      const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}?link=chart&chartName=${encodeURIComponent(chart)}&version=${encodeURIComponent(version)}`;
       const response = await this.store.dispatch('rancher/request', {
         url,
         responseType: 'arraybuffer',
@@ -358,9 +396,11 @@ export class ChartValuesService {
    * Get available chart versions for a repository
    */
   async getChartVersions(repo: string, chart: string): Promise<string[]> {
+    const { baseApi } = await this.getActiveClusterContext(this.store);
+
     try {
       const response = await this.store.dispatch('rancher/request', {
-        url: `/v1/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}/charts/${encodeURIComponent(chart)}/versions`
+        url: `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}/charts/${encodeURIComponent(chart)}/versions`
       });
 
       const versions = response?.data || response || [];
