@@ -123,17 +123,14 @@ export async function getClusterResourceMetrics(store: RancherStore, clusterId: 
 
     console.log(`[SUSE-AI] getClusterResourceMetrics: Found cluster ${clusterName}`);
 
-    // Get node information using simplified API pattern with fallbacks
+    // Get node information using simplified API pattern
     let nodes: NodeResource[] = [];
     let nodeMetrics: NodeMetric[] = [];
     let storageClasses: string[] = [];
     
-
-    // nodes = await fetchNodesWithFallback(store, clusterId);
     nodes = await fetchNodes(store, clusterId);
 
-    // Get node metrics using simplified API pattern with fallbacks
-    // nodeMetrics = await fetchNodeMetricsWithFallback(store, clusterId);
+    // Get node metrics using simplified API pattern
     nodeMetrics = await fetchNodeMetrics(store, clusterId);
 
 
