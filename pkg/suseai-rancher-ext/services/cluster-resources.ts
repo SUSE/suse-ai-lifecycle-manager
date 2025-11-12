@@ -128,38 +128,20 @@ export async function getClusterResourceMetrics(store: RancherStore, clusterId: 
 
     console.log(`[SUSE-AI] getClusterResourceMetrics: Found cluster ${clusterName}`);
 
-    // Get node information using simplified API pattern with fallbacks
+    // Get node information using simplified API pattern
     let nodes: NodeResource[] = [];
     let nodeMetrics: NodeMetric[] = [];
+    let storageClasses: string[] = [];
+    
+    nodes = await fetchNodes(store, clusterId);
 
-    nodes = await fetchNodesWithFallback(store, clusterId);
+    // Get node metrics using simplified API pattern
+    nodeMetrics = await fetchNodeMetrics(store, clusterId);
 
-    // Get node metrics using simplified API pattern with fallbacks
-    nodeMetrics = await fetchNodeMetricsWithFallback(store, clusterId);
 
     // Get storage classes using the same API that works in Rancher
-    let storageClasses: string[] = [];
-    try {
-      // Use the global API endpoint that Rancher uses
-      const storageClassesUrl = `/v1/storage.k8s.io.storageclasses?exclude=metadata.managedFields&clusterId=${encodeURIComponent(clusterId)}`;
-      const storageRes = await store.dispatch('rancher/request', { url: storageClassesUrl });
-      storageClasses = (storageRes?.data?.data || storageRes?.data || []).map((sc: { metadata?: { name?: string }; name?: string; id?: string }) => sc.metadata?.name || sc.name || sc.id).filter(Boolean);
-      console.log(`[SUSE-AI] getClusterResourceMetrics: Got ${storageClasses.length} storage classes from global API for ${clusterId}`);
-    } catch (e: unknown) {
-      const error = e as { message?: string };
-      console.warn(`[SUSE-AI] getClusterResourceMetrics: Global storage classes API failed for ${clusterId}:`, error?.message);
-      
-      // Fallback to cluster-specific API
-      try {
-        const storageClassesUrl = `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/storage.k8s.io/v1/storageclasses`;
-        const storageRes = await store.dispatch('rancher/request', { url: storageClassesUrl });
-        storageClasses = (storageRes?.data?.items || []).map((sc: { metadata?: { name?: string } }) => sc.metadata?.name).filter(Boolean);
-        console.log(`[SUSE-AI] getClusterResourceMetrics: Got ${storageClasses.length} storage classes from cluster-specific API for ${clusterId}`);
-      } catch (fallbackError: unknown) {
-        const error = fallbackError as { message?: string };
-        console.warn(`[SUSE-AI] getClusterResourceMetrics: All storage class API attempts failed for ${clusterId}:`, error?.message);
-      }
-    }
+
+    storageClasses = await fetchStorageClasses(store, clusterId);
 
     // Process nodes and calculate resources
     const nodeInfos: NodeResourceInfo[] = [];
@@ -194,7 +176,7 @@ export async function getClusterResourceMetrics(store: RancherStore, clusterId: 
     
     for (const node of nodes) {
       // Handle different data formats: global API vs cluster-specific API
-      const nodeName = node.metadata?.name || (node as unknown as { name?: string }).name || '';
+      const nodeName = node.metadata?.name || (node as any).id || (node as unknown as { name?: string }).name || '';
       const nodeMetric = nodeMetrics.find((m: NodeMetric) =>
         (m.metadata?.name === nodeName) || (m as unknown as { name?: string }).name === nodeName
       );
@@ -443,94 +425,47 @@ function parseK8sMemory(memoryStr: string): number {
   }
 }
 
-/**
- * Fetch nodes with fallback API endpoints
- */
-async function fetchNodesWithFallback(store: RancherStore, clusterId: string): Promise<NodeResource[]> {
-  const errorHandler = createErrorHandler(store, 'ClusterResources');
-
-  // Define API endpoints in order of preference
-  const nodeEndpoints = [
-    {
-      name: 'global',
-      url: `/v1/nodes?exclude=metadata.managedFields&clusterId=${encodeURIComponent(clusterId)}`,
-      transform: (res: any) => res?.data?.data || res?.data || []
-    },
-    {
-      name: 'cluster-specific',
-      url: `/k8s/clusters/${encodeURIComponent(clusterId)}/api/v1/nodes`,
-      transform: (res: any) => res?.data?.items || []
-    },
-    {
-      name: 'management',
-      url: `/v1/management.cattle.io.nodes?clusterId=${encodeURIComponent(clusterId)}&limit=1000`,
-      transform: (res: any) => {
-        const managementNodes = res?.data?.data || res?.data || [];
-        return managementNodes.map((n: any) => ({
-          metadata: { name: n.metadata?.name || n.id },
-          status: {
-            capacity: {
-              cpu: n.status?.capacity?.cpu || n.allocatable?.cpu || '0',
-              memory: n.status?.capacity?.memory || n.allocatable?.memory || '0Ki',
-              'nvidia.com/gpu': n.status?.capacity?.['nvidia.com/gpu'] || n.allocatable?.['nvidia.com/gpu']
-            }
-          }
-        }));
-      }
-    }
-  ];
-
-  for (const endpoint of nodeEndpoints) {
-    try {
-      const res = await store.dispatch('rancher/request', { url: endpoint.url });
-      const nodes = endpoint.transform(res);
-      if (nodes && nodes.length > 0) {
-        console.log(`[SUSE-AI] getClusterResourceMetrics: Got ${nodes.length} nodes from ${endpoint.name} API`);
-        return nodes;
-      }
-    } catch (error) {
-      console.warn(`[SUSE-AI] getClusterResourceMetrics: ${endpoint.name} API failed for ${clusterId}:`, handleSimpleError(error));
-      // Continue to next endpoint
-    }
-  }
-
-  console.warn(`[SUSE-AI] getClusterResourceMetrics: All node API attempts failed for ${clusterId}`);
-  return [];
+async function fetchNodes(store: RancherStore, clusterId: string): Promise<NodeResource[]> {
+  return fetchClusterData<NodeResource>(store, clusterId, 'nodes', 'nodes');
 }
 
-/**
- * Fetch node metrics with fallback API endpoints
- */
-async function fetchNodeMetricsWithFallback(store: RancherStore, clusterId: string): Promise<NodeMetric[]> {
-  const metricsEndpoints = [
-    {
-      name: 'global',
-      url: `/v1/metrics.k8s.io.nodes?exclude=metadata.managedFields&clusterId=${encodeURIComponent(clusterId)}`,
-      transform: (res: any) => res?.data?.data || res?.data || []
-    },
-    {
-      name: 'cluster-specific',
-      url: `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/metrics.k8s.io/v1beta1/nodes`,
-      transform: (res: any) => res?.data?.items || []
-    }
-  ];
+async function fetchNodeMetrics(store: RancherStore, clusterId: string): Promise<NodeMetric[]> {
+  return fetchClusterData<NodeMetric>(store, clusterId, 'metrics.k8s.io.nodes', 'node metrics');
+}
 
-  for (const endpoint of metricsEndpoints) {
-    try {
-      const res = await store.dispatch('rancher/request', { url: endpoint.url });
-      const metrics = endpoint.transform(res);
-      if (metrics && Array.isArray(metrics)) {
-        console.log(`[SUSE-AI] getClusterResourceMetrics: Got ${metrics.length} node metrics from ${endpoint.name} API`);
-        return metrics;
-      }
-    } catch (error) {
-      console.warn(`[SUSE-AI] getClusterResourceMetrics: ${endpoint.name} metrics API failed for ${clusterId}:`, handleSimpleError(error));
-      // Continue to next endpoint
-    }
+async function fetchClusterData<T>(
+  store: RancherStore,
+  clusterId: string,
+  resourcePath: string,
+  label: string
+): Promise<T[]> {
+  const isLocalCluster = clusterId === 'local';
+  const baseUrl = isLocalCluster
+    ? `/v1/${resourcePath}?exclude=metadata.managedFields`
+    : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/${resourcePath}?exclude=metadata.managedFields`;
+
+  try {
+    const res = await store.dispatch('rancher/request', { url: baseUrl });
+    const data = res?.data?.data || res?.data || [];
+    console.log(`[SUSE-AI] getClusterResourceMetrics: Got ${data.length} ${label} from ${isLocalCluster ? 'global' : 'cluster-specific'} API`);
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.warn(`[SUSE-AI] getClusterResourceMetrics: ${label} API failed for ${clusterId}:`, handleSimpleError(error));
+    return [];
   }
+}
 
-  console.warn(`[SUSE-AI] getClusterResourceMetrics: All metrics API attempts failed for ${clusterId}, using capacity only`);
-  return [];
+async function fetchStorageClasses(store: RancherStore, clusterId: string): Promise<string[]> {
+  const storageClasses = await fetchClusterData<any>(
+    store,
+    clusterId,
+    'storage.k8s.io.storageclasses',
+    'storage classes'
+  );
+
+  return storageClasses
+    .map((sc: any) => sc.metadata?.name || sc.name || sc.id)
+    .filter(Boolean);
 }
 
 function estimateGpuMemory(node: NodeResource, gpuCount: number): number {
