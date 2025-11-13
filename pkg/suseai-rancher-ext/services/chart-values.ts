@@ -57,46 +57,57 @@ export class ChartValuesService {
     }
   }
 
-  private async getActiveClusterContext(store: RancherStore) {
-    let cluster: any = null;
-    let clusterId = 'local';
-    let isLocalCluster = true;
-    let baseApi = '/v1';
+  private static async getClusterRepo(store: RancherStore, repoName: string) {
 
     try {
       const { getClusters } = await import('./rancher-apps');
       const clusters = await getClusters(store);
       console.log(`[SUSE-AI] Found ${clusters.length} clusters`);
 
-      if (clusters.length > 0) {
+      console.log(`[SUSE-AI] Searching for repo "${repoName}" across ${clusters.length} clusters...`);
 
-        cluster = clusters.find((c: any) => c.id === 'local') || clusters[0];
-        clusterId = cluster.id;
-        isLocalCluster = cluster.id === 'local';
-        baseApi = isLocalCluster
-        ? '/v1'
-        : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1`;
+      for (const cluster of clusters) {
+        const clusterId = cluster.id;
+        const baseApi = clusterId === 'local'
+          ? '/v1'
+          : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1`;
 
-        logger.debug(`[SUSE-AI] Selected cluster: ${cluster.id} (${cluster.spec?.displayName || 'no name'})`);
-      } else {
-        logger.warn('[SUSE-AI] No clusters found — defaulting to local.');
+        try {
+          const response = await store.dispatch('rancher/request', {
+            url: `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repoName)}`,
+          });
+
+          if (response) {
+            console.log(`[SUSE-AI] Found repo "${repoName}" in cluster "${clusterId}"`);
+            return { cluster, clusterId, baseApi, repo: response };
+          }
+        } catch (err) {
+          // 404 or permission denied — just continue to next cluster
+          console.debug(`[SUSE-AI] Repo "${repoName}" not found in cluster "${clusterId}"`);
+        }
       }
+
+      console.warn(`[SUSE-AI] Repo "${repoName}" not found in any accessible cluster`);
+      return null;
     } catch (error) {
-      console.error('[SUSE-AI] getActiveClusterContext: Failed to get clusters:', error);
-      baseApi = '/v1';
-      clusterId = 'local';
-      isLocalCluster = true;
+      console.error('[SUSE-AI] Failed to enumerate clusters:', error);
+      return null;
     }
-    return { cluster, clusterId, isLocalCluster , baseApi};
   }
 
   /**
    * Try fetching via ?link=files approach
    */
   private async tryFilesLink(repo: string, chart: string, version: string): Promise<string | null> {
-    const { baseApi } = await this.getActiveClusterContext(this.store);
+
+    const found = await ChartValuesService.getClusterRepo(this.store, repo);
+    if (!found) {
+      logger.warn(`ClusterRepo "${repo}" not found in any cluster`);
+      return null;
+    }
 
     try {
+      const { baseApi } = found;
       const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}?link=files&chartName=${encodeURIComponent(chart)}&version=${encodeURIComponent(version)}`;
       const response = await this.store.dispatch('rancher/request', { url });
       const filesDetail = response?.data ?? response;
@@ -123,10 +134,15 @@ export class ChartValuesService {
    */
   private async tryFileLink(repo: string, chart: string, version: string): Promise<string | null> {
     const filenames = ['values.yaml', 'values.yml'];
-    const { baseApi } = await this.getActiveClusterContext(this.store);
+    const found = await ChartValuesService.getClusterRepo(this.store, repo);
+    if (!found) {
+      logger.warn(`ClusterRepo "${repo}" not found in any cluster`);
+      return null;
+    }
 
     for (const filename of filenames) {
       try {
+        const { baseApi } = found;
         const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}?link=file&chartName=${encodeURIComponent(chart)}&version=${encodeURIComponent(version)}&name=${encodeURIComponent(filename)}`;
         const response = await this.store.dispatch('rancher/request', { url });
         const text = this.extractTextFromFileEntry(response?.data ?? response);
@@ -150,9 +166,14 @@ export class ChartValuesService {
    * Try fetching via ?link=chart tar.gz approach
    */
   private async tryTarGzLink(repo: string, chart: string, version: string): Promise<string | null> {
-    const { baseApi } = await this.getActiveClusterContext(this.store);
+    const found = await ChartValuesService.getClusterRepo(this.store, repo);
+    if (!found) {
+      logger.warn(`ClusterRepo "${repo}" not found in any cluster`);
+      return null;
+    }
 
     try {
+      const { baseApi } = found;
       const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}?link=chart&chartName=${encodeURIComponent(chart)}&version=${encodeURIComponent(version)}`;
       const response = await this.store.dispatch('rancher/request', {
         url,
@@ -396,9 +417,14 @@ export class ChartValuesService {
    * Get available chart versions for a repository
    */
   async getChartVersions(repo: string, chart: string): Promise<string[]> {
-    const { baseApi } = await this.getActiveClusterContext(this.store);
+    const found = await ChartValuesService.getClusterRepo(this.store, repo);
+    if (!found) {
+      logger.warn(`ClusterRepo "${repo}" not found in any cluster`);
+      return [];
+    }
 
     try {
+      const { baseApi } = found;
       const response = await this.store.dispatch('rancher/request', {
         url: `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}/charts/${encodeURIComponent(chart)}/versions`
       });
