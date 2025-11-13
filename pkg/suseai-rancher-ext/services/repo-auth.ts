@@ -1,3 +1,5 @@
+import logger from '../utils/logger';
+
 export interface RepoAuth { username: string; password: string; }
 type SecretRef = string | { name?: string; namespace?: string } | null | undefined;
 
@@ -162,12 +164,96 @@ function parseRegistryHostFromOciUrl(url?: string): string {
   return host;
 }
 
+async function getClusterContext(store: any) {
+  let cluster: any = null;
+  let clusterId = 'local';
+  let isLocalCluster = true;
+  let baseApi = '/v1';
+
+  try {
+    const { getClusters } = await import('./rancher-apps');
+    const clusters = await getClusters(store);
+    console.log(`[SUSE-AI] Found ${clusters.length} clusters`);
+
+    if (clusters.length > 0) {
+
+      cluster = clusters.find((c: any) => c.id === 'local') || clusters[0];
+      clusterId = cluster.id;
+      isLocalCluster = cluster.id === 'local';
+      baseApi = isLocalCluster
+      ? '/v1'
+      : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1`;
+
+      logger.debug(`[SUSE-AI] Selected cluster: ${cluster.id} (${cluster.spec?.displayName || 'no name'})`);
+    } else {
+      logger.warn('[SUSE-AI] No clusters found — defaulting to local.');
+    }
+  } catch (error) {
+    console.error('[SUSE-AI] getActiveClusterContext: Failed to get clusters:', error);
+    baseApi = '/v1';
+    clusterId = 'local';
+    isLocalCluster = true;
+  }
+  return { cluster, clusterId, isLocalCluster , baseApi};
+}
+
+async function getClusterRepo(store: any, repoName: string) {
+
+  try {
+    const { getClusters } = await import('./rancher-apps');
+    const clusters = await getClusters(store);
+    console.log(`[SUSE-AI] Found ${clusters.length} clusters`);
+
+    console.log(`[SUSE-AI] Searching for repo "${repoName}" across ${clusters.length} clusters...`);
+
+    for (const cluster of clusters) {
+      const clusterId = cluster.id;
+      const baseApi = clusterId === 'local'
+        ? '/v1'
+        : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1`;
+
+      try {
+        const response = await store.dispatch('rancher/request', {
+          url: `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repoName)}`,
+        });
+
+        if (response) {
+          console.log(`[SUSE-AI] Found repo "${repoName}" in cluster "${clusterId}"`);
+          return { cluster, clusterId, baseApi, repo: response };
+        }
+      } catch (err) {
+        // 404 or permission denied — just continue to next cluster
+        console.debug(`[SUSE-AI] Repo "${repoName}" not found in cluster "${clusterId}"`);
+      }
+    }
+
+    console.warn(`[SUSE-AI] Repo "${repoName}" not found in any accessible cluster`);
+    return null;
+  } catch (error) {
+    console.error('[SUSE-AI] Failed to enumerate clusters:', error);
+    return null;
+  }
+}
+
 /**
  * Resolve creds + registry host for a specific ClusterRepo (by metadata.name).
  */
 export async function getRepoAuthForClusterRepo(store: any, clusterRepoName: string): Promise<RepoInstallContext> {
   if (!clusterRepoName) throw new Error('ClusterRepo name is required');
-  const url = `/k8s/clusters/local/apis/catalog.cattle.io/v1/clusterrepos/${encodeURIComponent(clusterRepoName)}`;
+
+  const found = await getClusterRepo(store, clusterRepoName);
+  if (!found) {
+    logger.warn(`ClusterRepo "${clusterRepoName}" not found in any cluster`);
+    return {
+      registryHost: '',
+      secretName: undefined,
+      auth: undefined
+    };
+  }
+
+  const { baseApi } = found;
+
+  const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(clusterRepoName)}`;
   const r   = await store.dispatch('rancher/request', { url });
   const repo = r?.data ?? r;
   if (!repo?.spec) throw new Error(`ClusterRepo ${clusterRepoName} not found`);
