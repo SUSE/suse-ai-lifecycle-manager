@@ -44,47 +44,47 @@ const APP_RESOURCE_PROFILES: Record<string, AppResourceProfile> = {
   'ollama': {
     slug: 'ollama',
     name: 'Ollama',
-    requirements: { cpu: 2, memory: 4, gpu: 4, storage: 100 }
+    requirements: { cpu: 4, memory: 16, gpu: 8, storage: 100 }
   },
   'mlflow': {
     slug: 'mlflow',
     name: 'MLflow',
-    requirements: { cpu: 1, memory: 2, storage: 10 }
+    requirements: { cpu: 2, memory: 4, storage: 10 }
   },
   'pytorch': {
     slug: 'pytorch',
     name: 'PyTorch',
-    requirements: { cpu: 4, memory: 8, gpu: 8, storage: 100 }
+    requirements: { cpu: 4, memory: 16, gpu: 8, storage: 100 }
   },
   'open-webui': {
     slug: 'open-webui',
     name: 'Open WebUI',
-    requirements: { cpu: 1, memory: 2, storage: 100 }
+    requirements: { cpu: 2, memory: 4, storage: 10 }
   },
   'open-webui-pipelines': {
     slug: 'open-webui-pipelines',
     name: 'Open WebUI Pipelines',
-    requirements: { cpu: 2, memory: 4, storage: 10 }
+    requirements: { cpu: 2, memory: 4, storage: 2 }
   },
   'milvus': {
     slug: 'milvus',
     name: 'Milvus',
-    requirements: { cpu: 2, memory: 8, storage: 100 }
+    requirements: { cpu: 4, memory: 8, storage: 100 }
   },
   'suse-ai-deployer': {
     slug: 'suse-ai-deployer',
     name: 'SUSE AI Deployer',
-    requirements: { cpu: 1, memory: 2, gpu: 4, storage: 100 }
+    requirements: { cpu: 4, memory: 16, gpu: 12, storage: 100 }
   },
   'suse-ai-observability-extension': {
     slug: 'suse-ai-observability-extension',
     name: 'SUSE AI Observability Extension',
-    requirements: { cpu: 2, memory: 4, storage: 20 }
+    requirements: { cpu: 1, memory: 2, storage: 2 }
   },
   'vllm': {
     slug: 'vllm',
     name: 'vLLM',
-    requirements: { cpu: 4, memory: 16, gpu: 2, storage: 40 }
+    requirements: { cpu: 4, memory: 16, gpu: 12, storage: 100 }
   }
 };
 
