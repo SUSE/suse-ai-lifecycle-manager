@@ -79,54 +79,54 @@ function extract(sec: any): RepoAuth | null {
 }
 
 /** Try multiple Rancher paths to get a Secret that actually contains `.data` */
-async function fetchSecret(store: any, ns: string, name: string) {
-  try {
-    const r3 = await store.dispatch('rancher/request', { url: `/v1/secrets/${encodeURIComponent(ns)}/${encodeURIComponent(name)}` });
-    const s3 = r3?.data || r3 || {};
+// async function fetchSecret(store: any, ns: string, name: string) {
+//   try {
+//     const r3 = await store.dispatch('rancher/request', { url: `/v1/secrets/${encodeURIComponent(ns)}/${encodeURIComponent(name)}` });
+//     const s3 = r3?.data || r3 || {};
 
-    if (Object.keys(s3 || {}).length) return s3;
-  } catch {}
+//     if (Object.keys(s3 || {}).length) return s3;
+//   } catch {}
 
-  return {};
-}
+//   return {};
+// }
 
 // -------------------- existing export kept (used earlier) --------------------
 
 /** Resolve credentials from the default Application Collection repo. */
-export async function getDpRepoAuth(store: any): Promise<RepoAuth> {
-  // Find the repo
-  const res = await store.dispatch('rancher/request', {
-    url: '/k8s/clusters/local/apis/catalog.cattle.io/v1/clusterrepos?limit=1000'
-  });
-  const items = res?.data?.items || res?.data || res?.items || [];
-  const repo = items.find((r: any) => norm(r?.spec?.url) === WANT_URL);
-  if (!repo) {
-    throw new Error(`Repository "${WANT_URL}" not found on the local cluster. Go to Cluster Management → local → Apps → Repositories and create it (Target: OCI Repository, Auth: BasicAuth).`);
-  }
+// export async function getDpRepoAuth(store: any): Promise<RepoAuth> {
+//   // Find the repo
+//   const res = await store.dispatch('rancher/request', {
+//     url: '/k8s/clusters/local/apis/catalog.cattle.io/v1/clusterrepos?limit=1000'
+//   });
+//   const items = res?.data?.items || res?.data || res?.items || [];
+//   const repo = items.find((r: any) => norm(r?.spec?.url) === WANT_URL);
+//   if (!repo) {
+//     throw new Error(`Repository "${WANT_URL}" not found on the local cluster. Go to Cluster Management → local → Apps → Repositories and create it (Target: OCI Repository, Auth: BasicAuth).`);
+//   }
 
-  // Resolve secret reference (supports object/string + legacy fields)
-  const ref =
-    parseRef(repo?.spec?.clientSecret) ||
-    parseRef(repo?.spec?.clientSecretName) ||
-    parseRef(repo?.spec?.authSecret) ||
-    parseRef(repo?.spec?.authSecretName);
+//   // Resolve secret reference (supports object/string + legacy fields)
+//   const ref =
+//     parseRef(repo?.spec?.clientSecret) ||
+//     parseRef(repo?.spec?.clientSecretName) ||
+//     parseRef(repo?.spec?.authSecret) ||
+//     parseRef(repo?.spec?.authSecretName);
 
-  if (!ref) {
-    throw new Error(`Credentials not found. Edit repository "${repo?.metadata?.name}" and set Authentication to BasicAuth (username/password or a Secret).`);
-  }
+//   if (!ref) {
+//     throw new Error(`Credentials not found. Edit repository "${repo?.metadata?.name}" and set Authentication to BasicAuth (username/password or a Secret).`);
+//   }
 
-  // Read secret via any working path
-  const sec = await fetchSecret(store, ref.namespace, ref.name);
-  const auth = extract(sec);
+//   // Read secret via any working path
+//   const sec = await fetchSecret(store, ref.namespace, ref.name);
+//   const auth = extract(sec);
 
-  if (!auth) {
-    const keys = Object.keys(sec?.data || {});
-    const hint = keys.length ? ` (found keys: ${keys.join(', ')})` : '';
-    throw new Error(`Credentials not found. Secret ${ref.namespace}/${ref.name} must contain base64-encoded "username" and "password", a single "auth" (b64 "user:pass"), a "token", "accessKey/secretKey", or a valid ".dockerconfigjson" with auth${hint}.`);
-  }
+//   if (!auth) {
+//     const keys = Object.keys(sec?.data || {});
+//     const hint = keys.length ? ` (found keys: ${keys.join(', ')})` : '';
+//     throw new Error(`Credentials not found. Secret ${ref.namespace}/${ref.name} must contain base64-encoded "username" and "password", a single "auth" (b64 "user:pass"), a "token", "accessKey/secretKey", or a valid ".dockerconfigjson" with auth${hint}.`);
+//   }
 
-  return auth;
-}
+//   return auth;
+// }
 
 // -------------------- NEW: repo → host + secret + creds --------------------
 
@@ -238,52 +238,52 @@ async function getClusterRepo(store: any, repoName: string) {
 /**
  * Resolve creds + registry host for a specific ClusterRepo (by metadata.name).
  */
-export async function getRepoAuthForClusterRepo(store: any, clusterRepoName: string): Promise<RepoInstallContext> {
-  if (!clusterRepoName) throw new Error('ClusterRepo name is required');
+// export async function getRepoAuthForClusterRepo(store: any, clusterRepoName: string): Promise<RepoInstallContext> {
+//   if (!clusterRepoName) throw new Error('ClusterRepo name is required');
 
-  const found = await getClusterRepo(store, clusterRepoName);
-  if (!found) {
-    logger.warn(`ClusterRepo "${clusterRepoName}" not found in any cluster`);
-    return {
-      registryHost: '',
-      secretName: undefined,
-      auth: undefined
-    };
-  }
+//   const found = await getClusterRepo(store, clusterRepoName);
+//   if (!found) {
+//     logger.warn(`ClusterRepo "${clusterRepoName}" not found in any cluster`);
+//     return {
+//       registryHost: '',
+//       secretName: undefined,
+//       auth: undefined
+//     };
+//   }
 
-  const { baseApi } = found;
+//   const { baseApi } = found;
 
-  const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(clusterRepoName)}`;
-  const r   = await store.dispatch('rancher/request', { url });
-  const repo = r?.data ?? r;
-  if (!repo?.spec) throw new Error(`ClusterRepo ${clusterRepoName} not found`);
+//   const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(clusterRepoName)}`;
+//   const r   = await store.dispatch('rancher/request', { url });
+//   const repo = r?.data ?? r;
+//   if (!repo?.spec) throw new Error(`ClusterRepo ${clusterRepoName} not found`);
 
-  const registryHost = parseRegistryHost(repo?.spec?.url) || 'docker.io';
+//   const registryHost = parseRegistryHost(repo?.spec?.url) || 'docker.io';
 
-  // Resolve the referenced secret, same logic as getDpRepoAuth()
-  const ref =
-    (repo?.spec?.clientSecret ? { name: repo.spec.clientSecret.name, namespace: repo.spec.clientSecret.namespace } : null)
+//   // Resolve the referenced secret, same logic as getDpRepoAuth()
+//   const ref =
+//     (repo?.spec?.clientSecret ? { name: repo.spec.clientSecret.name, namespace: repo.spec.clientSecret.namespace } : null)
 
-  if (!ref) {
-    return {
-      registryHost,
-      secretName: undefined,
-      auth: undefined
-    };
-  } else {
-    const sec = await fetchSecret(store, ref.namespace, ref.name) || {};
-    const auth = extract(sec);
-    if (!auth) {
-      const keys = Object.keys(sec?.data || {});
-      throw new Error(`Credentials not found in ${ref.namespace}/${ref.name}. Found keys: ${keys.join(', ') || 'none'}.`);
-    }
-    return {
-      registryHost,
-      secretName: ref.name,
-      auth
-    };
-  }
-}
+//   if (!ref) {
+//     return {
+//       registryHost,
+//       secretName: undefined,
+//       auth: undefined
+//     };
+//   } else {
+//     // const sec = await fetchSecret(store, ref.namespace, ref.name) || {};
+//     // const auth = extract(sec);
+//     // if (!auth) {
+//     //   const keys = Object.keys(sec?.data || {});
+//     //   throw new Error(`Credentials not found in ${ref.namespace}/${ref.name}. Found keys: ${keys.join(', ') || 'none'}.`);
+//     // }
+//     return {
+//       registryHost,
+//       secretName: ref.name,
+      
+//     };
+//   }
+// }
 
 // Optional alias to satisfy any lingering import:
-export const getRepoInstallContext = getRepoAuthForClusterRepo;
+// export const getRepoInstallContext = getRepoAuthForClusterRepo;

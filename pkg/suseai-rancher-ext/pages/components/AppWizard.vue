@@ -450,9 +450,9 @@ async function submit() {
 
 async function performInstall() {
   // Resolve creds from SELECTED ClusterRepo
-  const repoCtx = await getRepoAuthForClusterRepo(store, form.value.chartRepo);
-  const desiredSecretBase = repoCtx.secretName || `repo-${form.value.chartRepo}`;
-  const hasRepoCredentials = !!repoCtx.auth?.username && !!repoCtx.auth?.password;
+  // const repoCtx = await getRepoAuthForClusterRepo(store, form.value.chartRepo);
+  // const desiredSecretBase = repoCtx.secretName || `repo-${form.value.chartRepo}`;
+  // const hasRepoCredentials = !!repoCtx.auth?.username && !!repoCtx.auth?.password;
 
   const cid = form.value.cluster;
   await ensureNamespace(store, cid, form.value.namespace);
