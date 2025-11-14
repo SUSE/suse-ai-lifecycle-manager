@@ -457,43 +457,43 @@ async function performInstall() {
   const cid = form.value.cluster;
   await ensureNamespace(store, cid, form.value.namespace);
 
-  let finalSecretName = '';
-  if (hasRepoCredentials) {
-    try {
-      finalSecretName = await ensureRegistrySecretSimple(
-        store, cid, form.value.namespace,
-        repoCtx.registryHost, desiredSecretBase,
-        repoCtx.auth!.username, repoCtx.auth!.password
-      );
-    } catch (e: any) {
-      console.error('[SUSE-AI] pull-secret creation skipped:', e?.message || e);
-    }
-  }
+  // let finalSecretName = '';
+  // if (hasRepoCredentials) {
+  //   try {
+  //     finalSecretName = await ensureRegistrySecretSimple(
+  //       store, cid, form.value.namespace,
+  //       repoCtx.registryHost, desiredSecretBase,
+  //       repoCtx.auth!.username, repoCtx.auth!.password
+  //     );
+  //   } catch (e: any) {
+  //     console.error('[SUSE-AI] pull-secret creation skipped:', e?.message || e);
+  //   }
+  // }
 
   const v = JSON.parse(JSON.stringify(form.value.values || {}));
 
   // Only add imagePullSecrets if we have a secret name (i.e., repo has authentication)
-  if (finalSecretName) {
-    const addSecret = (arr: any): any[] => {
-      const list = Array.isArray(arr) ? arr.slice() : [];
-      const hasStr = list.some((e: any) => e === finalSecretName);
-      const hasObj = list.some((e: any) => e && typeof e === 'object' && e.name === finalSecretName);
-      if (!hasStr && !hasObj) list.push({ name: finalSecretName });
-      return list;
-    };
-    v.global = v.global || {};
-    v.global.imagePullSecrets = addSecret(v.global.imagePullSecrets);
-    v.imagePullSecrets = addSecret(v.imagePullSecrets);
+  // if (finalSecretName) {
+  //   // const addSecret = (arr: any): any[] => {
+  //   //   const list = Array.isArray(arr) ? arr.slice() : [];
+  //   //   const hasStr = list.some((e: any) => e === finalSecretName);
+  //   //   const hasObj = list.some((e: any) => e && typeof e === 'object' && e.name === finalSecretName);
+  //   //   if (!hasStr && !hasObj) list.push({ name: finalSecretName });
+  //   //   return list;
+  //   // };
+  //   // v.global = v.global || {};
+  //   // v.global.imagePullSecrets = addSecret(v.global.imagePullSecrets);
+  //   // v.imagePullSecrets = addSecret(v.imagePullSecrets);
 
-    const saCandidates = new Set<string>(['default']);
-    const vs = (v as any).serviceAccount || {};
-    if (typeof vs?.name === 'string' && vs.name.trim()) saCandidates.add(vs.name.trim());
-    else if (vs.create === undefined || !!vs.create) saCandidates.add(form.value.release);
-    for (const sa of saCandidates) {
-      try { await ensureServiceAccountPullSecret(store, cid, form.value.namespace, sa, finalSecretName); }
-      catch (e) { console.warn('[SUSE-AI] SA pull-secret attach (pre) failed', { sa, ns: form.value.namespace, e }); }
-    }
-  }
+  //   const saCandidates = new Set<string>(['default']);
+  //   const vs = (v as any).serviceAccount || {};
+  //   if (typeof vs?.name === 'string' && vs.name.trim()) saCandidates.add(vs.name.trim());
+  //   else if (vs.create === undefined || !!vs.create) saCandidates.add(form.value.release);
+  //   for (const sa of saCandidates) {
+  //     try { await ensureServiceAccountPullSecret(store, cid, form.value.namespace, sa, finalSecretName); }
+  //     catch (e) { console.warn('[SUSE-AI] SA pull-secret attach (pre) failed', { sa, ns: form.value.namespace, e }); }
+  //   }
+  // }
 
   console.log('[SUSE-AI] calling install ', { 
     cluster: cid, 
@@ -519,17 +519,17 @@ async function performInstall() {
     throw new Error(`App resource did not appear in namespace ${form.value.namespace}. Check Rancher logs and ClusterRepo permissions.`);
   }
 
-  if (finalSecretName) {
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      try {
-        await ensurePullSecretOnAllSAs(store, cid, form.value.namespace, finalSecretName);
-        break;
-      } catch (e) {
-        if (attempt === 5) break;
-        await new Promise(r => setTimeout(r, 2000));
-      }
-    }
-  }
+  // if (finalSecretName) {
+  //   for (let attempt = 1; attempt <= 5; attempt++) {
+  //     try {
+  //       await ensurePullSecretOnAllSAs(store, cid, form.value.namespace, finalSecretName);
+  //       break;
+  //     } catch (e) {
+  //       if (attempt === 5) break;
+  //       await new Promise(r => setTimeout(r, 2000));
+  //     }
+  //   }
+  // }
 }
 
 async function performUpgrade() {
