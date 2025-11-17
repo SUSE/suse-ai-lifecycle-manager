@@ -90,54 +90,6 @@ async function fetchSecret(store: any, ns: string, name: string, baseApi: string
   return {};
 }
 
-// -------------------- existing export kept (used earlier) --------------------
-
-/** Resolve credentials from the default Application Collection repo. */
-// export async function getDpRepoAuth(store: any): Promise<RepoAuth> {
-//   // Find the repo
-//   const found = await getClusterRepo(store, clusterRepoName);
-//   if (!found) {
-//     logger.warn(`ClusterRepo "${clusterRepoName}" not found in any cluster`);
-//     return {
-//       username: "",
-//       password: ""
-//     }
-//   }
-
-
-//   const res = await store.dispatch('rancher/request', {
-//     url: '/k8s/clusters/local/apis/catalog.cattle.io/v1/clusterrepos?limit=1000'
-//   });
-//   const items = res?.data?.items || res?.data || res?.items || [];
-//   const repo = items.find((r: any) => norm(r?.spec?.url) === WANT_URL);
-//   if (!repo) {
-//     throw new Error(`Repository "${WANT_URL}" not found on the local cluster. Go to Cluster Management → local → Apps → Repositories and create it (Target: OCI Repository, Auth: BasicAuth).`);
-//   }
-
-//   // Resolve secret reference (supports object/string + legacy fields)
-//   const ref =
-//     parseRef(repo?.spec?.clientSecret) ||
-//     parseRef(repo?.spec?.clientSecretName) ||
-//     parseRef(repo?.spec?.authSecret) ||
-//     parseRef(repo?.spec?.authSecretName);
-
-//   if (!ref) {
-//     throw new Error(`Credentials not found. Edit repository "${repo?.metadata?.name}" and set Authentication to BasicAuth (username/password or a Secret).`);
-//   }
-
-//   // Read secret via any working path
-//   const sec = await fetchSecret(store, ref.namespace, ref.name, baseApi);
-//   const auth = extract(sec);
-
-//   if (!auth) {
-//     const keys = Object.keys(sec?.data || {});
-//     const hint = keys.length ? ` (found keys: ${keys.join(', ')})` : '';
-//     throw new Error(`Credentials not found. Secret ${ref.namespace}/${ref.name} must contain base64-encoded "username" and "password", a single "auth" (b64 "user:pass"), a "token", "accessKey/secretKey", or a valid ".dockerconfigjson" with auth${hint}.`);
-//   }
-
-//   return auth;
-// }
-
 // -------------------- NEW: repo → host + secret + creds --------------------
 
 export interface RepoInstallContext {
