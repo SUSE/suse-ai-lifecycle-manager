@@ -81,7 +81,7 @@ function extract(sec: any): RepoAuth | null {
 /** Try multiple Rancher paths to get a Secret that actually contains `.data` */
 async function fetchSecret(store: any, ns: string, name: string, baseApi: string) {
   try {
-    const r3 = await store.dispatch('rancher/request', { url: `/k8s/clusters/${baseApi}/v1/secrets/${encodeURIComponent(ns)}/${encodeURIComponent(name)}` });
+    const r3 = await store.dispatch('rancher/request', { url: `/k8s/clusters/${baseApi}/secrets/${encodeURIComponent(ns)}/${encodeURIComponent(name)}` });
     const s3 = r3?.data || r3 || {};
 
     if (Object.keys(s3 || {}).length) return s3;
