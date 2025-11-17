@@ -9,13 +9,6 @@ const b64 = (s?: string) => { try { return s ? atob(s) : ''; } catch { return ''
 
 // -------------------- secret ref parsing + extraction --------------------
 
-function parseRef(ref: SecretRef): { name: string; namespace: string } | null {
-  if (!ref) return null;
-  if (typeof ref === 'string') return { name: ref, namespace: 'cattle-system' };
-  if (typeof ref === 'object' && ref.name) return { name: ref.name, namespace: ref.namespace || 'cattle-system' };
-  return null;
-}
-
 export function dockerconfigAuthKeyForHost(host?: string): string {
   const h = (host || '').toLowerCase().trim();
   if (!h || h === 'docker.io' || h === 'index.docker.io' || h.endsWith('.docker.com')) {
@@ -105,39 +98,6 @@ export interface RepoInstallContext {
   registryHost: string;
   secretName?: string;     // the repo's configured secret name (in cattle-system unless overridden)
   auth?: RepoAuth;         // parsed username/password
-}
-
-async function getClusterContext(store: any) {
-  let cluster: any = null;
-  let clusterId = 'local';
-  let isLocalCluster = true;
-  let baseApi = '/v1';
-
-  try {
-    const { getClusters } = await import('./rancher-apps');
-    const clusters = await getClusters(store);
-    console.log(`[SUSE-AI] Found ${clusters.length} clusters`);
-
-    if (clusters.length > 0) {
-
-      cluster = clusters.find((c: any) => c.id === 'local') || clusters[0];
-      clusterId = cluster.id;
-      isLocalCluster = cluster.id === 'local';
-      baseApi = isLocalCluster
-      ? '/v1'
-      : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1`;
-
-      logger.debug(`[SUSE-AI] Selected cluster: ${cluster.id} (${cluster.spec?.displayName || 'no name'})`);
-    } else {
-      logger.warn('[SUSE-AI] No clusters found — defaulting to local.');
-    }
-  } catch (error) {
-    console.error('[SUSE-AI] getActiveClusterContext: Failed to get clusters:', error);
-    baseApi = '/v1';
-    clusterId = 'local';
-    isLocalCluster = true;
-  }
-  return { cluster, clusterId, isLocalCluster, baseApi};
 }
 
 async function getClusterRepo(store: any, repoName: string) {
