@@ -61,6 +61,11 @@ const APP_RESOURCE_PROFILES: Record<string, AppResourceProfile> = {
     name: 'Open WebUI',
     requirements: { cpu: 2, memory: 4, storage: 10 }
   },
+  'open-webui-mcpo': {
+    slug: 'open-webui-mcpo',
+    name: 'Open WebUI mcpo',
+    requirements: { cpu: 2, memory: 4, storage: 2 }
+  },
   'open-webui-pipelines': {
     slug: 'open-webui-pipelines',
     name: 'Open WebUI Pipelines',

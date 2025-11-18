@@ -82,6 +82,18 @@ const RAW_APPS = [
       "repository_url": "oci://dp.apps.rancher.io/charts"    
     },
     {
+      "name": "Open WebUI mcpo",
+      "slug_name": "open-webui-mcpo",
+      "description": "A simple, secure MCP-to-OpenAPI proxy server.",
+      "project_url": "https://openwebui.com",
+      "documentation_url": "https://docs.openwebui.com/openapi-servers/mcp",
+      "source_code_url": "https://github.com/open-webui/mcpo",
+      "logo_url": "https://apps.rancher.io/logos/open-webui-mcpo.png",
+      "last_updated_at": "2025-11-16T22:51:30.016188Z",
+      "packaging_format": "HELM_CHART",
+      "repository_url": "oci://dp.apps.rancher.io/charts"    
+    },
+    {
       "name": "Open WebUI Pipelines",
       "slug_name": "open-webui-pipelines",
       "description": "Pipelines bring modular, customizable workflows to any UI client supporting OpenAI API specs and much more! Easily extend functionalities, integrate unique logic, and create dynamic workflows with just a few lines of code.",
