@@ -144,7 +144,7 @@ export async function createOrUpgradeApp(
       opt: { url: `/v3/clusters/${clusterId}/projects` }
     });
     
-    const projectId = projects[0].clusterId;
+    const projectId = clusterId;
     log('Using projectId:', projectId);
     
     const charts = [
