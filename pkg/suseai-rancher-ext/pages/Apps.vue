@@ -535,12 +535,12 @@ export default defineComponent({
       console.log('[SUSE-AI] Repository changed:', { from: oldRepo, to: newRepo });
 
       try {
-        if (newRepo === 'suse-ai-apps') {
-          // No additional loading needed, we already have the static apps
-          return;
-        }
+        // Clear existing installation info to prevent stale data
+        installedMap.value = {};
 
-        if (newRepo === 'all' && !repositoriesLoaded.value) {
+        if (newRepo === 'suse-ai-apps') {
+          items.value = await fetchSuseAiApps(currentClusterId);
+        } else if (newRepo === 'all') {
           // Load all repository apps if not already loaded
           repoLoading.value = true;
           error.value = null;
@@ -548,7 +548,16 @@ export default defineComponent({
           allRepositoryApps.value = await fetchAllRepositoryApps(store);
           repositoriesLoaded.value = true;
           console.log('[SUSE-AI] Loaded apps from repositories:', Object.keys(allRepositoryApps.value));
-        } else if (newRepo !== 'all' && newRepo !== 'suse-ai-apps') {
+
+          // Combine all apps into items.value for installation state discovery
+          const appMap = new Map<string, AppCollectionItem>();
+          Object.values(allRepositoryApps.value).forEach(repoApps => {
+            repoApps.forEach((app: AppCollectionItem) => {
+              appMap.set(app.slug_name, app);
+            });
+          });
+          items.value = Array.from(appMap.values());
+        } else {
           // Load specific repository if not already loaded
           if (!allRepositoryApps.value[newRepo]) {
             repoLoading.value = true;
@@ -558,7 +567,10 @@ export default defineComponent({
             allRepositoryApps.value[newRepo] = repoApps;
             console.log('[SUSE-AI] Loaded apps from repository:', { repo: newRepo, count: repoApps.length });
           }
+          items.value = allRepositoryApps.value[newRepo] || [];
         }
+        // After loading new apps, update their installation states
+        await loadInstallationStates();
       } catch (err) {
         console.error('[SUSE-AI] Failed to load repository apps:', err);
         error.value = `Failed to load apps from repository: ${newRepo}`;
