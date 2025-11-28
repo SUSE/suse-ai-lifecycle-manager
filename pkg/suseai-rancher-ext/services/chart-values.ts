@@ -62,9 +62,6 @@ export class ChartValuesService {
     try {
       const { getClusters } = await import('./rancher-apps');
       const clusters = await getClusters(store);
-      console.log(`[SUSE-AI] Found ${clusters.length} clusters`);
-
-      console.log(`[SUSE-AI] Searching for repo "${repoName}" across ${clusters.length} clusters...`);
 
       for (const cluster of clusters) {
         const clusterId = cluster.id;
@@ -78,19 +75,27 @@ export class ChartValuesService {
           });
 
           if (response) {
-            console.log(`[SUSE-AI] Found repo "${repoName}" in cluster "${clusterId}"`);
+            logger.info('Found repo', {
+              component: 'AppLifecycleService',
+              data: { repoName }
+            });
             return { cluster, clusterId, baseApi, repo: response };
           }
         } catch (err) {
-          // 404 or permission denied — just continue to next cluster
-          console.debug(`[SUSE-AI] Repo "${repoName}" not found in cluster "${clusterId}"`);
+          logger.warn('Failed to fetch cluster repo', {
+            component: 'getClusterRepo',
+            action: 'error',
+            data: { error: err instanceof Error ? err.message : String(err) }
+          });
         }
       }
 
-      console.warn(`[SUSE-AI] Repo "${repoName}" not found in any accessible cluster`);
+      logger.warn(`Repo "${repoName}" not found in any accessible cluster`);
       return null;
     } catch (error) {
-      console.error('[SUSE-AI] Failed to enumerate clusters:', error);
+      logger.error('Failed to enumerate clusters', error, {
+        component: 'getClusterRepo'
+      });
       return null;
     }
   }

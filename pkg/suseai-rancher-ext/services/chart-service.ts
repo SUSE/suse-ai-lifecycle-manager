@@ -122,10 +122,8 @@ export class ChartService {
     try {
       const { getClusters } = await import('./rancher-apps');
       const clusters = await getClusters(store);
-      console.log(`[SUSE-AI] Found ${clusters.length} clusters`);
 
       if (clusters.length > 0) {
-
         cluster = clusters.find((c: any) => c.id === 'local') || clusters[0];
         clusterId = cluster.id;
         isLocalCluster = cluster.id === 'local';
@@ -138,10 +136,9 @@ export class ChartService {
         logger.warn('[SUSE-AI] No clusters found — defaulting to local.');
       }
     } catch (error) {
-      console.error('[SUSE-AI] getActiveClusterContext: Failed to get clusters:', error);
-      baseApi = '/v1';
-      clusterId = 'local';
-      isLocalCluster = true;
+      logger.error('Failed to enumerate clusters', error, {
+        component: 'getClusterContext'
+      });
     }
     return { cluster, clusterId, isLocalCluster , baseApi};
   }
