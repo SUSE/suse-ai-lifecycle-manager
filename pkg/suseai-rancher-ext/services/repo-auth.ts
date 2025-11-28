@@ -1,5 +1,5 @@
 import logger from '../utils/logger';
-import { getClusterRepo } from '../utils/cluster-operations';
+import { getClusterContext } from '../utils/cluster-operations';
 
 export interface RepoAuth { username: string; password: string; }
 type SecretRef = string | { name?: string; namespace?: string } | null | undefined;
@@ -73,7 +73,12 @@ function extract(sec: any): RepoAuth | null {
 }
 
 /** Try multiple Rancher paths to get a Secret that actually contains `.data` */
-async function fetchSecret(store: any, ns: string, name: string, baseApi: string) {
+async function fetchSecret(store: any, ns: string, name: string, baseApi: string | null) {
+  if (!baseApi) {
+    logger.warn(`fetchSecret: baseApi is null — skipping request for ${ns}/${name}`);
+    return {};
+  }
+  
   try {
     const r3 = await store.dispatch('rancher/request', { url: `${baseApi}/secrets/${encodeURIComponent(ns)}/${encodeURIComponent(name)}` });
     const s3 = r3?.data || r3 || {};
@@ -107,7 +112,7 @@ export interface RepoInstallContext {
 export async function getRepoAuthForClusterRepo(store: any, clusterRepoName: string): Promise<RepoInstallContext> {
   if (!clusterRepoName) throw new Error('ClusterRepo name is required');
 
-  const found = await getClusterRepo(store, clusterRepoName);
+  const found = await getClusterContext(store, { repoName: clusterRepoName });
   if (!found) {
     logger.warn(`ClusterRepo "${clusterRepoName}" not found in any cluster`);
     return {
@@ -117,7 +122,7 @@ export async function getRepoAuthForClusterRepo(store: any, clusterRepoName: str
     };
   }
 
-  const { baseApi } = found;
+  const baseApi = found.baseApi;
 
   const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(clusterRepoName)}`;
   const r   = await store.dispatch('rancher/request', { url });

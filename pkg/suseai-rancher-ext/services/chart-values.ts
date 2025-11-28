@@ -5,7 +5,7 @@
 
 import type { RancherStore } from '../types/rancher-types';
 import { logger } from '../utils/logger';
-import { getClusterRepo } from '../utils/cluster-operations';
+import { getClusterContext } from '../utils/cluster-operations';
 
 export class ChartValuesService {
   private store: RancherStore;
@@ -63,7 +63,7 @@ export class ChartValuesService {
    */
   private async tryFilesLink(repo: string, chart: string, version: string): Promise<string | null> {
 
-    const found = await getClusterRepo(this.store, repo);
+    const found = await getClusterContext(this.store, {repoName: repo});
     if (!found) {
       logger.warn(`ClusterRepo "${repo}" not found in any cluster`);
       return null;
@@ -97,7 +97,7 @@ export class ChartValuesService {
    */
   private async tryFileLink(repo: string, chart: string, version: string): Promise<string | null> {
     const filenames = ['values.yaml', 'values.yml'];
-    const found = await getClusterRepo(this.store, repo);
+    const found = await getClusterContext(this.store, { repoName: repo});
     if (!found) {
       logger.warn(`ClusterRepo "${repo}" not found in any cluster`);
       return null;
@@ -129,7 +129,7 @@ export class ChartValuesService {
    * Try fetching via ?link=chart tar.gz approach
    */
   private async tryTarGzLink(repo: string, chart: string, version: string): Promise<string | null> {
-    const found = await getClusterRepo(this.store, repo);
+    const found = await getClusterContext(this.store, { repoName: repo});
     if (!found) {
       logger.warn(`ClusterRepo "${repo}" not found in any cluster`);
       return null;
@@ -380,7 +380,7 @@ export class ChartValuesService {
    * Get available chart versions for a repository
    */
   async getChartVersions(repo: string, chart: string): Promise<string[]> {
-    const found = await getClusterRepo(this.store, repo);
+    const found = await getClusterContext(this.store, { repoName: repo});
     if (!found) {
       logger.warn(`ClusterRepo "${repo}" not found in any cluster`);
       return [];

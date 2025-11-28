@@ -306,77 +306,77 @@ export async function getClusterCapabilities(
   }
 }
 
-export async function getClusterRepo(store: any, repoName: string) {
-
-  try {
-    const clusters = await getClusters(store);
-
-    for (const cluster of clusters) {
-      const clusterId = cluster.id;
-      const baseApi = clusterId === 'local'
-        ? '/v1'
-        : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1`;
-
-      try {
-        const response = await store.dispatch('rancher/request', {
-          url: `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repoName)}`,
-        });
-
-        if (response) {
-          logger.info('Found repo', {
-            component: 'AppLifecycleService',
-            data: { repoName }
-          });
-          return { cluster, clusterId, baseApi, repo: response };
-        }
-      } catch (err) {
-        logger.warn('Failed to fetch cluster repo', {
-          component: 'getClusterRepo',
-          action: 'error',
-          data: { error: err instanceof Error ? err.message : String(err) }
-        });
-      }
-    }
-
-    logger.warn(`Repo "${repoName}" not found in any accessible cluster`);
-    return null;
-  } catch (error) {
-    logger.error('Failed to enumerate clusters', error, {
-      component: 'getClusterRepo'
-    });
-    return null;
-  }
-}
-
-export async function getClusterContext(store: any) {
+export async function getClusterContext(
+  store: any,
+  opts?: { repoName?: string }
+) {
   let cluster: any = null;
   let clusterId = 'local';
   let isLocalCluster = true;
   let baseApi = '/v1';
+  const repoName = opts?.repoName;
 
   try {
-    const { getClusters } = await import('../services/rancher-apps');
     const clusters = await getClusters(store);
 
-    if (clusters.length > 0) {
-      cluster = clusters.find((c: any) => c.id === 'local') || clusters[0];
-      clusterId = cluster.id;
-      isLocalCluster = cluster.id === 'local';
-      baseApi = isLocalCluster
+    if (!clusters.length) {
+      logger.warn('[SUSE-AI] No clusters found — defaulting to local.');
+      return { cluster: null, clusterId, isLocalCluster, baseApi, repo: null };
+    }
+
+    if (repoName) {
+      for (const c of clusters) {
+        const cid = c.id;
+        const api = cid === 'local'
+          ? '/v1'
+          : `/k8s/clusters/${encodeURIComponent(cid)}/v1`;
+
+        try {
+          const repo = await store.dispatch('rancher/request', {
+            url: `${api}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repoName)}`
+          });
+
+          if (repo) {
+            logger.info('Found repo', {
+              component: 'getClusterContext',
+              data: { repoName }
+            });
+
+            return {
+              cluster: c,
+              clusterId: cid,
+              isLocalCluster: cid === 'local',
+              baseApi: api,
+              repo
+            };
+          }
+        } catch {
+        }
+      }
+
+      logger.warn(`Repo "${repoName}" not found in any accessible cluster`);
+      return { cluster: null, clusterId: null, isLocalCluster: null, baseApi: null, repo: null };
+    }
+
+    cluster = clusters.find((c: any) => c.id === 'local') || clusters[0];
+    clusterId = cluster.id;
+    isLocalCluster = cluster.id === 'local';
+    baseApi = isLocalCluster
       ? '/v1'
       : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1`;
 
-      logger.debug(`[SUSE-AI] Selected cluster: ${cluster.id} (${cluster.spec?.displayName || 'no name'})`);
-    } else {
-      logger.warn('[SUSE-AI] No clusters found — defaulting to local.');
-    }
+    logger.debug(`[SUSE-AI] Selected cluster: ${cluster.id} (${cluster.spec?.displayName || 'no name'})`);
+
+    return { cluster, clusterId, isLocalCluster, baseApi, repo: null };
+
   } catch (error) {
     logger.error('Failed to enumerate clusters', error, {
       component: 'getClusterContext'
     });
+    return { cluster: null, clusterId: null, isLocalCluster: null, baseApi: null, repo: null };
   }
-  return { cluster, clusterId, isLocalCluster , baseApi};
 }
+
 
 // === Cluster Health Monitoring ===
 
