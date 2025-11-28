@@ -5,6 +5,7 @@
 
 import type { RancherStore } from '../types/rancher-types';
 import { logger } from '../utils/logger';
+import { getClusterRepo } from '../utils/cluster-operations';
 
 export class ChartValuesService {
   private store: RancherStore;
@@ -57,55 +58,12 @@ export class ChartValuesService {
     }
   }
 
-  private static async getClusterRepo(store: RancherStore, repoName: string) {
-
-    try {
-      const { getClusters } = await import('./rancher-apps');
-      const clusters = await getClusters(store);
-
-      for (const cluster of clusters) {
-        const clusterId = cluster.id;
-        const baseApi = clusterId === 'local'
-          ? '/v1'
-          : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1`;
-
-        try {
-          const response = await store.dispatch('rancher/request', {
-            url: `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repoName)}`,
-          });
-
-          if (response) {
-            logger.info('Found repo', {
-              component: 'AppLifecycleService',
-              data: { repoName }
-            });
-            return { cluster, clusterId, baseApi, repo: response };
-          }
-        } catch (err) {
-          logger.warn('Failed to fetch cluster repo', {
-            component: 'getClusterRepo',
-            action: 'error',
-            data: { error: err instanceof Error ? err.message : String(err) }
-          });
-        }
-      }
-
-      logger.warn(`Repo "${repoName}" not found in any accessible cluster`);
-      return null;
-    } catch (error) {
-      logger.error('Failed to enumerate clusters', error, {
-        component: 'getClusterRepo'
-      });
-      return null;
-    }
-  }
-
   /**
    * Try fetching via ?link=files approach
    */
   private async tryFilesLink(repo: string, chart: string, version: string): Promise<string | null> {
 
-    const found = await ChartValuesService.getClusterRepo(this.store, repo);
+    const found = await getClusterRepo(this.store, repo);
     if (!found) {
       logger.warn(`ClusterRepo "${repo}" not found in any cluster`);
       return null;
@@ -139,7 +97,7 @@ export class ChartValuesService {
    */
   private async tryFileLink(repo: string, chart: string, version: string): Promise<string | null> {
     const filenames = ['values.yaml', 'values.yml'];
-    const found = await ChartValuesService.getClusterRepo(this.store, repo);
+    const found = await getClusterRepo(this.store, repo);
     if (!found) {
       logger.warn(`ClusterRepo "${repo}" not found in any cluster`);
       return null;
@@ -171,7 +129,7 @@ export class ChartValuesService {
    * Try fetching via ?link=chart tar.gz approach
    */
   private async tryTarGzLink(repo: string, chart: string, version: string): Promise<string | null> {
-    const found = await ChartValuesService.getClusterRepo(this.store, repo);
+    const found = await getClusterRepo(this.store, repo);
     if (!found) {
       logger.warn(`ClusterRepo "${repo}" not found in any cluster`);
       return null;
@@ -422,7 +380,7 @@ export class ChartValuesService {
    * Get available chart versions for a repository
    */
   async getChartVersions(repo: string, chart: string): Promise<string[]> {
-    const found = await ChartValuesService.getClusterRepo(this.store, repo);
+    const found = await getClusterRepo(this.store, repo);
     if (!found) {
       logger.warn(`ClusterRepo "${repo}" not found in any cluster`);
       return [];

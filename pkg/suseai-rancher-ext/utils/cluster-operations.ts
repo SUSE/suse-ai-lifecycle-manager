@@ -7,6 +7,8 @@
 import { CONNECTION_STATUS, TIMEOUT_VALUES, RETRY_CONFIG } from './constants';
 import type { ConnectionStatus } from './constants';
 import { retryWithBackoff } from './promise';
+import { getClusters } from '../services/rancher-apps';
+import logger from '../utils/logger';
 
 // === Cluster Information Types ===
 export interface ClusterInfo {
@@ -302,6 +304,78 @@ export async function getClusterCapabilities(
     console.error(`Failed to get cluster capabilities for ${clusterId}:`, error);
     throw error;
   }
+}
+
+export async function getClusterRepo(store: any, repoName: string) {
+
+  try {
+    const clusters = await getClusters(store);
+
+    for (const cluster of clusters) {
+      const clusterId = cluster.id;
+      const baseApi = clusterId === 'local'
+        ? '/v1'
+        : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1`;
+
+      try {
+        const response = await store.dispatch('rancher/request', {
+          url: `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repoName)}`,
+        });
+
+        if (response) {
+          logger.info('Found repo', {
+            component: 'AppLifecycleService',
+            data: { repoName }
+          });
+          return { cluster, clusterId, baseApi, repo: response };
+        }
+      } catch (err) {
+        logger.warn('Failed to fetch cluster repo', {
+          component: 'getClusterRepo',
+          action: 'error',
+          data: { error: err instanceof Error ? err.message : String(err) }
+        });
+      }
+    }
+
+    logger.warn(`Repo "${repoName}" not found in any accessible cluster`);
+    return null;
+  } catch (error) {
+    logger.error('Failed to enumerate clusters', error, {
+      component: 'getClusterRepo'
+    });
+    return null;
+  }
+}
+
+export async function getClusterContext(store: any) {
+  let cluster: any = null;
+  let clusterId = 'local';
+  let isLocalCluster = true;
+  let baseApi = '/v1';
+
+  try {
+    const { getClusters } = await import('../services/rancher-apps');
+    const clusters = await getClusters(store);
+
+    if (clusters.length > 0) {
+      cluster = clusters.find((c: any) => c.id === 'local') || clusters[0];
+      clusterId = cluster.id;
+      isLocalCluster = cluster.id === 'local';
+      baseApi = isLocalCluster
+      ? '/v1'
+      : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1`;
+
+      logger.debug(`[SUSE-AI] Selected cluster: ${cluster.id} (${cluster.spec?.displayName || 'no name'})`);
+    } else {
+      logger.warn('[SUSE-AI] No clusters found — defaulting to local.');
+    }
+  } catch (error) {
+    logger.error('Failed to enumerate clusters', error, {
+      component: 'getClusterContext'
+    });
+  }
+  return { cluster, clusterId, isLocalCluster , baseApi};
 }
 
 // === Cluster Health Monitoring ===

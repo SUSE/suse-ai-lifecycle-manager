@@ -1,6 +1,7 @@
 import yaml from 'js-yaml';
 import { log as logger } from '../utils/logger';
 import { createChartValuesService } from './chart-values';
+import { getClusterContext } from '../utils/cluster-operations';
 import type {
   RancherStore,
   ClusterResource,
@@ -113,41 +114,11 @@ export class ChartService {
     }
   }
 
-  private static async getClusterContext(store: RancherStore) {
-    let cluster: any = null;
-    let clusterId = 'local';
-    let isLocalCluster = true;
-    let baseApi = '/v1';
-
-    try {
-      const { getClusters } = await import('./rancher-apps');
-      const clusters = await getClusters(store);
-
-      if (clusters.length > 0) {
-        cluster = clusters.find((c: any) => c.id === 'local') || clusters[0];
-        clusterId = cluster.id;
-        isLocalCluster = cluster.id === 'local';
-        baseApi = isLocalCluster
-        ? '/v1'
-        : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1`;
-
-        logger.debug(`[SUSE-AI] Selected cluster: ${cluster.id} (${cluster.spec?.displayName || 'no name'})`);
-      } else {
-        logger.warn('[SUSE-AI] No clusters found — defaulting to local.');
-      }
-    } catch (error) {
-      logger.error('Failed to enumerate clusters', error, {
-        component: 'getClusterContext'
-      });
-    }
-    return { cluster, clusterId, isLocalCluster , baseApi};
-  }
-
   /**
    * List cluster repositories
    */
   private static async listClusterRepos($store: RancherStore): Promise<ClusterResource[]> {
-    const { baseApi } = await this.getClusterContext($store);
+    const { baseApi } = await getClusterContext($store);
 
     try {
       const res = await $store.dispatch('rancher/request', {

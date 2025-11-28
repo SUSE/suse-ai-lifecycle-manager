@@ -1,4 +1,5 @@
 import logger from '../utils/logger';
+import { getClusterRepo } from '../utils/cluster-operations';
 
 export interface RepoAuth { username: string; password: string; }
 type SecretRef = string | { name?: string; namespace?: string } | null | undefined;
@@ -98,50 +99,6 @@ export interface RepoInstallContext {
   registryHost: string;
   secretName?: string;     // the repo's configured secret name (in cattle-system unless overridden)
   auth?: RepoAuth;         // parsed username/password
-}
-
-async function getClusterRepo(store: any, repoName: string) {
-
-  try {
-    const { getClusters } = await import('./rancher-apps');
-    const clusters = await getClusters(store);
-
-    for (const cluster of clusters) {
-      const clusterId = cluster.id;
-      const baseApi = clusterId === 'local'
-        ? '/v1'
-        : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1`;
-
-      try {
-        const response = await store.dispatch('rancher/request', {
-          url: `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repoName)}`,
-        });
-
-        if (response) {
-          logger.info('Found repo', {
-            component: 'AppLifecycleService',
-            data: { repoName }
-          });
-          return { cluster, clusterId, baseApi, repo: response };
-        }
-      } catch (err) {
-        // 404 or permission denied — just continue to next cluster
-        logger.warn('Failed to fetch cluster repo', {
-          component: 'getClusterRepo',
-          action: 'error',
-          data: { error: err instanceof Error ? err.message : String(err) }
-        });
-      }
-    }
-
-    logger.warn(`Repo "${repoName}" not found in any accessible cluster`);
-    return null;
-  } catch (error) {
-    logger.error('Failed to enumerate clusters', error, {
-      component: 'getClusterRepo'
-    });
-    return null;
-  }
 }
 
 /**
