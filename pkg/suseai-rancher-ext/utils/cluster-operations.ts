@@ -350,7 +350,8 @@ export async function getClusterContext(
               repo
             };
           }
-        } catch {
+        } catch (err) {
+          logger.debug(`[SUSE-AI] Failed to fetch repo "${repoName}" in cluster ${cid}`);
         }
       }
 
