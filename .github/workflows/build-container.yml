@@ -1,34 +1,23 @@
 name: Build and Deploy Extension Catalog
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  repository_dispatch:
+    types: [build_container]
+    
+env:
+  RELEASE_TAG: ${{ github.event.client_payload.tag }}
   
 jobs:
   build-extension-catalog:
-    name: Build Container Image
+    name: Build container image
     runs-on: ubuntu-latest
     permissions:
       actions: write
       contents: read
       packages: write
     steps:  
-      - name: Checkout repository
+      - name: Checkout repository (normal flow)
         uses: actions/checkout@v5
-        
-      - name: Calculate tags
-        id: tags 
-        shell: bash
-        run: |
-          echo "TAGS<<##" >> "$GITHUB_OUTPUT"
-          ref=${{ github.ref }}
-          case "$ref" in
-            refs/heads/main)
-              echo "latest" >> "$GITHUB_OUTPUT";;
-            refs/tags/*)
-              echo "${ref#refs/tags/}" >> "$GITHUB_OUTPUT";;
-            *)
-              echo "${{ github.sha }}" >> "$GITHUB_OUTPUT";;
-          esac
-          echo "##" >> "$GITHUB_OUTPUT"
 
       - name: Enable Corepack
         run: corepack enable
@@ -60,18 +49,13 @@ jobs:
         run: yarn
 
       - name: Parse Extension Name
-        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
         id: parsed-name
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
           yarn parse-tag-name ${{ env.RELEASE_TAG }} ${{ github.run_id }} "catalog"
 
       - name: Build and push UI image
-        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
-        env:
-          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
           publish="yarn publish-pkgs -c -p"
 
