@@ -405,7 +405,7 @@ export default defineComponent({
 
     const onImgError = (event: Event) => {
       const img = event.target as HTMLImageElement;
-      img.src = '/img/generic-app.svg';
+      img.src = require('../assets/generic-app.svg');
     };
 
     const navigateToApps = async () => {
