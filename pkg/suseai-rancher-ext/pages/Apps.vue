@@ -409,12 +409,12 @@ export default defineComponent({
     };
 
     const logoFor = (item: AppCollectionItem): string => {
-      return item.logo_url || '/img/generic-app.svg';
+      return item.logo_url || require('../assets/generic-app.svg');
     };
 
     const onImgError = (event: Event) => {
       const img = event.target as HTMLImageElement;
-      img.src = '/img/generic-app.svg';
+      img.src = require('../assets/generic-app.svg');
     };
 
     const navigateToClusterEvents = (clusterId: string) => {
