@@ -138,15 +138,7 @@ export async function createOrUpgradeApp(
   log('URLs constructed:', { clusterReposUrl, appsUrl, appUrl });
 
   log('Fetching projects for cluster...', clusterId);
-  try {
-    const projects = await $store.dispatch('rancher/findAll', {
-      type: 'project',
-      opt: { url: `/v3/clusters/${clusterId}/projects` }
-    });
-    
-    const projectId = projects[0].clusterId;
-    log('Using projectId:', projectId);
-    
+  try {    
     const charts = [
       {
         chartName: chart.chartName,
@@ -189,7 +181,7 @@ export async function createOrUpgradeApp(
       const upgradeData = {
         charts,
         namespace,
-        projectId,
+        clusterId,
         wait: true,
         timeout: '600s',
         noHooks: false,
@@ -251,7 +243,7 @@ export async function createOrUpgradeApp(
         const installData = {
           charts,
           namespace,
-          projectId,
+          clusterId,
           wait: true,
           timeout: '600s',
           noHooks: false,

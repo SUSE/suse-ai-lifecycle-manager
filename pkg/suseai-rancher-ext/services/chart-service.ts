@@ -1,6 +1,7 @@
 import yaml from 'js-yaml';
 import { log as logger } from '../utils/logger';
 import { createChartValuesService } from './chart-values';
+import { getClusterContext } from '../utils/cluster-operations';
 import type {
   RancherStore,
   ClusterResource,
@@ -117,9 +118,11 @@ export class ChartService {
    * List cluster repositories
    */
   private static async listClusterRepos($store: RancherStore): Promise<ClusterResource[]> {
+    const { baseApi } = await getClusterContext($store);
+
     try {
       const res = await $store.dispatch('rancher/request', {
-        url: '/k8s/clusters/local/apis/catalog.cattle.io/v1/clusterrepos?limit=1000'
+        url: `${baseApi}/catalog.cattle.io/v1/clusterrepos?limit=1000`
       });
       return res?.data?.items || res?.data || res?.items || [];
     } catch (err) {
