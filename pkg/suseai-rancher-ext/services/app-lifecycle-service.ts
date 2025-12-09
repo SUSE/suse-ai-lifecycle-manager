@@ -122,13 +122,6 @@ export class AppLifecycleService {
         data: { clusterId }
       });
 
-      const projects = await $store.dispatch('rancher/findAll', {
-        type: 'project',
-        opt: { url: `/v3/clusters/${clusterId}/projects` }
-      });
-
-      const projectId = projects[0].clusterId;
-
       const charts = [
         {
           chartName: chart.chartName,
@@ -174,7 +167,7 @@ export class AppLifecycleService {
         const upgradeData = {
           charts,
           namespace,
-          projectId,
+          clusterId,
           wait: true,
           timeout: '600s',
           noHooks: false,
@@ -243,7 +236,7 @@ export class AppLifecycleService {
           const installData = {
             charts,
             namespace,
-            projectId,
+            clusterId,
             wait: true,
             timeout: '600s',
             noHooks: false,

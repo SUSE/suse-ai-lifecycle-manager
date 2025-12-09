@@ -1,3 +1,6 @@
+import logger from '../utils/logger';
+import { getClusterContext } from '../utils/cluster-operations';
+
 export interface RepoAuth { username: string; password: string; }
 type SecretRef = string | { name?: string; namespace?: string } | null | undefined;
 
@@ -6,13 +9,6 @@ const norm = (u?: string) => (u || '').replace(/\/+$/, '');
 const b64 = (s?: string) => { try { return s ? atob(s) : ''; } catch { return ''; } };
 
 // -------------------- secret ref parsing + extraction --------------------
-
-function parseRef(ref: SecretRef): { name: string; namespace: string } | null {
-  if (!ref) return null;
-  if (typeof ref === 'string') return { name: ref, namespace: 'cattle-system' };
-  if (typeof ref === 'object' && ref.name) return { name: ref.name, namespace: ref.namespace || 'cattle-system' };
-  return null;
-}
 
 export function dockerconfigAuthKeyForHost(host?: string): string {
   const h = (host || '').toLowerCase().trim();
@@ -77,53 +73,20 @@ function extract(sec: any): RepoAuth | null {
 }
 
 /** Try multiple Rancher paths to get a Secret that actually contains `.data` */
-async function fetchSecret(store: any, ns: string, name: string) {
+async function fetchSecret(store: any, ns: string, name: string, baseApi: string | null) {
+  if (!baseApi) {
+    logger.warn(`fetchSecret: baseApi is null — skipping request for ${ns}/${name}`);
+    return {};
+  }
+  
   try {
-    const r3 = await store.dispatch('rancher/request', { url: `/v1/secrets/${encodeURIComponent(ns)}/${encodeURIComponent(name)}` });
+    const r3 = await store.dispatch('rancher/request', { url: `${baseApi}/secrets/${encodeURIComponent(ns)}/${encodeURIComponent(name)}` });
     const s3 = r3?.data || r3 || {};
 
     if (Object.keys(s3 || {}).length) return s3;
   } catch {}
 
   return {};
-}
-
-// -------------------- existing export kept (used earlier) --------------------
-
-/** Resolve credentials from the default Application Collection repo. */
-export async function getDpRepoAuth(store: any): Promise<RepoAuth> {
-  // Find the repo
-  const res = await store.dispatch('rancher/request', {
-    url: '/k8s/clusters/local/apis/catalog.cattle.io/v1/clusterrepos?limit=1000'
-  });
-  const items = res?.data?.items || res?.data || res?.items || [];
-  const repo = items.find((r: any) => norm(r?.spec?.url) === WANT_URL);
-  if (!repo) {
-    throw new Error(`Repository "${WANT_URL}" not found on the local cluster. Go to Cluster Management → local → Apps → Repositories and create it (Target: OCI Repository, Auth: BasicAuth).`);
-  }
-
-  // Resolve secret reference (supports object/string + legacy fields)
-  const ref =
-    parseRef(repo?.spec?.clientSecret) ||
-    parseRef(repo?.spec?.clientSecretName) ||
-    parseRef(repo?.spec?.authSecret) ||
-    parseRef(repo?.spec?.authSecretName);
-
-  if (!ref) {
-    throw new Error(`Credentials not found. Edit repository "${repo?.metadata?.name}" and set Authentication to BasicAuth (username/password or a Secret).`);
-  }
-
-  // Read secret via any working path
-  const sec = await fetchSecret(store, ref.namespace, ref.name);
-  const auth = extract(sec);
-
-  if (!auth) {
-    const keys = Object.keys(sec?.data || {});
-    const hint = keys.length ? ` (found keys: ${keys.join(', ')})` : '';
-    throw new Error(`Credentials not found. Secret ${ref.namespace}/${ref.name} must contain base64-encoded "username" and "password", a single "auth" (b64 "user:pass"), a "token", "accessKey/secretKey", or a valid ".dockerconfigjson" with auth${hint}.`);
-  }
-
-  return auth;
 }
 
 // -------------------- NEW: repo → host + secret + creds --------------------
@@ -137,29 +100,10 @@ export interface RepoInstallContext {
   auth?: RepoAuth;
 }
 
-/** Parse an OCI or HTTPS/HTTP URL into just the registry host */
-function registryHostFromUrl(url?: string): string {
-  if (!url) return '';
-  // Strip scheme (oci://, http://, https://)
-  const noScheme = url.replace(/^[a-z]+:\/\//i, '');
-  // Host is first path segment
-  const host = noScheme.split('/')[0] || '';
-  return host;
-}
-
 export interface RepoInstallContext {
   registryHost: string;
   secretName?: string;     // the repo's configured secret name (in cattle-system unless overridden)
   auth?: RepoAuth;         // parsed username/password
-}
-
-function parseRegistryHostFromOciUrl(url?: string): string {
-  // oci://host/path[/...]
-  const u = (url || '').trim();
-  if (!u.startsWith('oci://')) return '';
-  const rest = u.slice('oci://'.length);
-  const host = rest.split('/')[0] || '';
-  return host;
 }
 
 /**
@@ -167,7 +111,20 @@ function parseRegistryHostFromOciUrl(url?: string): string {
  */
 export async function getRepoAuthForClusterRepo(store: any, clusterRepoName: string): Promise<RepoInstallContext> {
   if (!clusterRepoName) throw new Error('ClusterRepo name is required');
-  const url = `/k8s/clusters/local/apis/catalog.cattle.io/v1/clusterrepos/${encodeURIComponent(clusterRepoName)}`;
+
+  const found = await getClusterContext(store, { repoName: clusterRepoName });
+  if (!found) {
+    logger.warn(`ClusterRepo "${clusterRepoName}" not found in any cluster`);
+    return {
+      registryHost: '',
+      secretName: undefined,
+      auth: undefined
+    };
+  }
+
+  const baseApi = found.baseApi;
+
+  const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(clusterRepoName)}`;
   const r   = await store.dispatch('rancher/request', { url });
   const repo = r?.data ?? r;
   if (!repo?.spec) throw new Error(`ClusterRepo ${clusterRepoName} not found`);
@@ -185,7 +142,7 @@ export async function getRepoAuthForClusterRepo(store: any, clusterRepoName: str
       auth: undefined
     };
   } else {
-    const sec = await fetchSecret(store, ref.namespace, ref.name) || {};
+    const sec = await fetchSecret(store, ref.namespace, ref.name, baseApi) || {};
     const auth = extract(sec);
     if (!auth) {
       const keys = Object.keys(sec?.data || {});
