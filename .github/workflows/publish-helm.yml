@@ -1,0 +1,60 @@
+name: Release Extension Helm Chart
+
+on: 
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - "Build and Publish Extension Catalog"
+    types:
+      - completed
+
+env:
+  CHART_PATH: deploy/charts/suseai-rancher-ext
+  CHART_REGISTRY: oci://ghcr.io/${{ github.repository_owner }}/helm-charts
+
+jobs:
+  validate:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install kubeconform
+        run: |
+          curl -L https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
+            | tar xvz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Helm Lint
+        run: helm lint ./$CHART_PATH --strict
+
+      - name: Template & Validate Manifests
+        run: helm template ./$CHART_PATH | kubeconform -strict -ignore-missing-schemas
+
+  release:
+    needs: validate
+    permissions:
+      packages: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package Helm Chart
+        id: package
+        run: |
+          chart_package=$(helm package $CHART_PATH --destination . | awk '{print $NF}')
+          echo "chart_package=$chart_package" >> $GITHUB_OUTPUT
+
+      - name: Package and Publish
+        run: |
+          helm push ${{ steps.package.outputs.chart_package }} \
+            $CHART_REGISTRY
