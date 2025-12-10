@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ui-extension-suseai-rancher-ext
+description: Helm chart for ui-extension-suseai-rancher-ext
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,55 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/leooamaral/ui-extension-suseai-rancher-ext
+  tag: "0.1.0"
+  pullPolicy: Always
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 8080
+
+podAnnotations: {}
+podLabels: {}
+
+resources:
+  limits:
+    cpu: "100m"
+    memory: "256Mi"
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+
+
+probes:
+  liveness:
+    enabled: true
+    path: /
+    port: 8080
+  readiness:
+    enabled: true
+    path: /
+    port: 8080
+
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+
+podSecurityContext:
+  fsGroup: 1000
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+rollingUpdate:
+  maxSurge: 25%
+  maxUnavailable: 25%

@@ -1,4 +1,4 @@
-name: Build and Deploy Extension Catalog
+name: Build and Publish Extension Catalog
 
 on: [push, pull_request, workflow_dispatch]
   
