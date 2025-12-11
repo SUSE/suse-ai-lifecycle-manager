@@ -36,6 +36,7 @@ jobs:
     needs: validate
     permissions:
       packages: write
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
