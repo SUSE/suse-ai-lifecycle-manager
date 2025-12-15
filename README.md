@@ -2,49 +2,6 @@
 
 A Rancher UI Extension for managing SUSE AI applications across Kubernetes clusters. This extension provides a unified interface for installing, managing, and monitoring AI workloads in Rancher-managed clusters.
 
-## Architecture Overview
-
-This extension follows established domain-model-driven architecture patterns that provide:
-
-- **Domain Models**: Rich resource models with computed properties and actions
-- **Centralized Store Management**: Vuex-style state management following standard patterns
-- **Standard UI Components**: Consistent integration with Rancher's design system
-- **Feature Flag System**: Version-aware feature management
-- **Utility-First Architecture**: Reusable utility modules and services
-
-## Key Architectural Patterns
-
-### Domain Models (Resource-Centric Architecture)
-
-The extension uses rich domain models that encapsulate both data and behavior.
-
-### Internationalization (i18n)
-
-Built-in support for multiple languages with structured translation keys in `l10n/en-us.json`.
-
-### Component Organization
-
-- **Formatters**: Specialized display components for status, progress, and resource visualization
-- **Validators**: Reusable validation logic for forms and user input
-- **Wizard Components**: Step-by-step installation and configuration flows
-
-### Store Management
-
-Centralized state management following Vuex patterns with modules for apps, clusters, installations, and repositories.
-
-### Feature Flags
-
-Version-aware feature management defined in `config/feature-flags.ts`.
-
-### Standard UI Components
-
-Components follow Rancher's design system patterns as much as possible:
-
-- Custom ResourceTable implementations for data display with filtering and actions
-- Consistent page headers and navigation
-- Standardized form components with validation
-- Status badges and progress indicators matching Rancher's visual style
-
 ## Development
 
 ### Prerequisites
@@ -58,7 +15,7 @@ Components follow Rancher's design system patterns as much as possible:
 1. **Clone and install dependencies:**
    ```bash
    git clone <repository-url>
-   cd suseai-rancher-ext
+   cd suse-ai-rancher-ext
    yarn install
    ```
 
@@ -66,15 +23,6 @@ Components follow Rancher's design system patterns as much as possible:
    ```bash
    yarn build-pkg suseai-rancher-ext
    ```
-
-### Development Tools
-
-The project includes comprehensive development tooling:
-
-- **ESLint**: Code quality and style enforcement
-- **Husky**: Git hooks for pre-commit validation
-- **Commitlint**: Conventional commit message formatting
-- **TypeScript**: Strong typing throughout the codebase
 
 3. **Serve during development:**
    ```bash
@@ -90,7 +38,7 @@ The project includes comprehensive development tooling:
    - Paste the URL from step 3, select "Persist"
    - Reload the page
 
-### Manual Testing
+## Manual Testing
 
 The extension provides functionality for:
 
@@ -99,7 +47,7 @@ The extension provides functionality for:
 - **Lifecycle Management**: Upgrade, configure, and uninstall applications
 - **Status Monitoring**: Real-time status tracking and error reporting
 
-### Building for Production
+## Building for Production
 
 ```bash
 yarn build-pkg suseai-rancher-ext --mode production
@@ -136,17 +84,6 @@ Example:
 git commit -m "feat: add multi-cluster installation support"
 git commit -m "fix: resolve app installation error handling"
 ```
-
-## Configuration
-
-The extension supports various configuration options through the config system:
-
-- **Internationalization**: Multi-language support with structured translation keys
-- **Feature Flags**: Control feature availability per cluster version
-- **Table Headers**: Customize ResourceTable displays
-- **Validation Rules**: Configurable form validation for different input types
-- **Settings**: Application-wide settings and preferences
-- **Documentation Links**: Contextual help and documentation
 
 ## Troubleshooting
 
