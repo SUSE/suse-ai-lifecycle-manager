@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/leooamaral/ui-extension-suseai-rancher-ext
+  repository: ghcr.io/suse/ui-extension-suseai-rancher-ext
   tag: "0.1.0"
   pullPolicy: Always
 
