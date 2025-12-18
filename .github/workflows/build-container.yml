@@ -1,23 +1,38 @@
-name: Build and Deploy Extension Catalog
+name: Build and Publish Extension Container and Helm Chart
 
-on:
-  repository_dispatch:
-    types: [build_container]
-    
+on: [push, pull_request, workflow_dispatch]
+
 env:
-  RELEASE_TAG: ${{ github.event.client_payload.tag }}
-  
+  CHART_PATH: charts/suseai-rancher-ext
+  CHART_REGISTRY: oci://ghcr.io/${{ github.repository_owner }}/chart
+
 jobs:
-  build-extension-catalog:
-    name: Build container image
+  build-extension:
+    name: Build Container Image and Helm Chart
     runs-on: ubuntu-latest
     permissions:
       actions: write
       contents: read
       packages: write
     steps:  
-      - name: Checkout repository (normal flow)
+      - name: Checkout repository
         uses: actions/checkout@v5
+        
+      - name: Calculate tags
+        id: tags 
+        shell: bash
+        run: |
+          echo "TAGS<<##" >> "$GITHUB_OUTPUT"
+          ref=${{ github.ref }}
+          case "$ref" in
+            refs/heads/main)
+              echo "latest" >> "$GITHUB_OUTPUT";;
+            refs/tags/*)
+              echo "${ref#refs/tags/}" >> "$GITHUB_OUTPUT";;
+            *)
+              echo "${{ github.sha }}" >> "$GITHUB_OUTPUT";;
+          esac
+          echo "##" >> "$GITHUB_OUTPUT"
 
       - name: Enable Corepack
         run: corepack enable
@@ -34,11 +49,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: v3.8.0
-
       - name: Setup Nodejs with yarn caching
         uses: actions/setup-node@v5
         with:
@@ -49,20 +59,40 @@ jobs:
         run: yarn
 
       - name: Parse Extension Name
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
         id: parsed-name
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
           yarn parse-tag-name ${{ env.RELEASE_TAG }} ${{ github.run_id }} "catalog"
 
       - name: Build and push UI image
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+        env:
+          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
-          publish="yarn publish-pkgs -c -p"
-
-          publish="$publish -r ghcr.io -o ${{ github.repository_owner }}"
+          publish=(yarn publish-pkgs -c -p -i '' -r ghcr.io -o ${{ github.repository_owner }})
 
           if [[ -n "${{ env.RELEASE_TAG }}" ]]; then
-            publish="$publish -t ${{ env.RELEASE_TAG }}"
+            publish+=(-t "$RELEASE_TAG")
           fi
 
-          $publish
+          "${publish[@]}"
+
+      - name: Re-checkout repository
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/checkout@v4
+
+      - name: Package Helm Chart
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+        id: package
+        run: |
+          chart_package=$(helm package $CHART_PATH --destination . | awk '{print $NF}')
+          echo "chart_package=$chart_package" >> $GITHUB_OUTPUT
+
+      - name: Publish Helm Chart
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          helm push ${{ steps.package.outputs.chart_package }} \
+            $CHART_REGISTRY
