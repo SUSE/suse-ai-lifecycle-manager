@@ -10,7 +10,7 @@ export const DOC_BASE_URLS = {
   RANCHER: 'https://rancher.com/docs',
   KUBERNETES: 'https://kubernetes.io/docs',
   HELM: 'https://helm.sh/docs',
-  GITHUB: 'https://github.com/suse/suseai-rancher-ext'
+  GITHUB: 'https://github.com/suse/suse-ai-rancher-ext'
 } as const;
 
 // === Documentation Categories ===
@@ -47,7 +47,7 @@ export const DOCUMENTATION_LINKS: Record<string, DocLink> = {
     id: 'overview',
     title: 'SUSE AI Extension Overview',
     description: 'Introduction to SUSE AI Extension for Rancher',
-    url: `${DOC_BASE_URLS.SUSE}/suseai-rancher-ext/overview`,
+    url: `${DOC_BASE_URLS.SUSE}/suse-ai-rancher-ext/overview`,
     category: DOC_CATEGORIES.GETTING_STARTED,
     tags: ['overview', 'introduction'],
     priority: 1
@@ -57,7 +57,7 @@ export const DOCUMENTATION_LINKS: Record<string, DocLink> = {
     id: 'installation',
     title: 'Installation Guide',
     description: 'How to install and configure SUSE AI Extension',
-    url: `${DOC_BASE_URLS.SUSE}/suseai-rancher-ext/installation`,
+    url: `${DOC_BASE_URLS.SUSE}/suse-ai-rancher-ext/installation`,
     category: DOC_CATEGORIES.GETTING_STARTED,
     tags: ['installation', 'setup', 'configuration'],
     priority: 2
@@ -67,7 +67,7 @@ export const DOCUMENTATION_LINKS: Record<string, DocLink> = {
     id: 'quick-start',
     title: 'Quick Start Guide',
     description: 'Get started with SUSE AI Extension in 5 minutes',
-    url: `${DOC_BASE_URLS.SUSE}/suseai-rancher-ext/quick-start`,
+    url: `${DOC_BASE_URLS.SUSE}/suse-ai-rancher-ext/quick-start`,
     category: DOC_CATEGORIES.GETTING_STARTED,
     tags: ['quick-start', 'tutorial'],
     priority: 3
@@ -78,7 +78,7 @@ export const DOCUMENTATION_LINKS: Record<string, DocLink> = {
     id: 'managing-apps',
     title: 'Managing Applications',
     description: 'How to install, upgrade, and uninstall applications',
-    url: `${DOC_BASE_URLS.SUSE}/suseai-rancher-ext/user-guide/managing-apps`,
+    url: `${DOC_BASE_URLS.SUSE}/suse-ai-rancher-ext/user-guide/managing-apps`,
     category: DOC_CATEGORIES.USER_GUIDE,
     tags: ['apps', 'install', 'upgrade', 'uninstall'],
     priority: 1
@@ -88,7 +88,7 @@ export const DOCUMENTATION_LINKS: Record<string, DocLink> = {
     id: 'repositories',
     title: 'Working with Repositories',
     description: 'How to add and manage chart repositories',
-    url: `${DOC_BASE_URLS.SUSE}/suseai-rancher-ext/user-guide/repositories`,
+    url: `${DOC_BASE_URLS.SUSE}/suse-ai-rancher-ext/user-guide/repositories`,
     category: DOC_CATEGORIES.USER_GUIDE,
     tags: ['repositories', 'helm', 'charts'],
     priority: 2
@@ -98,7 +98,7 @@ export const DOCUMENTATION_LINKS: Record<string, DocLink> = {
     id: 'multi-cluster',
     title: 'Multi-Cluster Operations',
     description: 'Managing applications across multiple clusters',
-    url: `${DOC_BASE_URLS.SUSE}/suseai-rancher-ext/user-guide/multi-cluster`,
+    url: `${DOC_BASE_URLS.SUSE}/suse-ai-rancher-ext/user-guide/multi-cluster`,
     category: DOC_CATEGORIES.USER_GUIDE,
     tags: ['multi-cluster', 'clusters'],
     priority: 3
@@ -108,7 +108,7 @@ export const DOCUMENTATION_LINKS: Record<string, DocLink> = {
     id: 'bulk-operations',
     title: 'Bulk Operations',
     description: 'Performing operations on multiple applications at once',
-    url: `${DOC_BASE_URLS.SUSE}/suseai-rancher-ext/user-guide/bulk-operations`,
+    url: `${DOC_BASE_URLS.SUSE}/suse-ai-rancher-ext/user-guide/bulk-operations`,
     category: DOC_CATEGORIES.USER_GUIDE,
     tags: ['bulk', 'operations', 'efficiency'],
     priority: 4
@@ -119,7 +119,7 @@ export const DOCUMENTATION_LINKS: Record<string, DocLink> = {
     id: 'configuration',
     title: 'Configuration Options',
     description: 'Advanced configuration and settings',
-    url: `${DOC_BASE_URLS.SUSE}/suseai-rancher-ext/admin-guide/configuration`,
+    url: `${DOC_BASE_URLS.SUSE}/suse-ai-rancher-ext/admin-guide/configuration`,
     category: DOC_CATEGORIES.ADMIN_GUIDE,
     tags: ['configuration', 'settings', 'admin'],
     priority: 1
@@ -129,7 +129,7 @@ export const DOCUMENTATION_LINKS: Record<string, DocLink> = {
     id: 'security',
     title: 'Security Considerations',
     description: 'Security best practices and RBAC configuration',
-    url: `${DOC_BASE_URLS.SUSE}/suseai-rancher-ext/admin-guide/security`,
+    url: `${DOC_BASE_URLS.SUSE}/suse-ai-rancher-ext/admin-guide/security`,
     category: DOC_CATEGORIES.ADMIN_GUIDE,
     tags: ['security', 'rbac', 'permissions'],
     priority: 2
@@ -139,7 +139,7 @@ export const DOCUMENTATION_LINKS: Record<string, DocLink> = {
     id: 'monitoring',
     title: 'Monitoring and Alerting',
     description: 'Setting up monitoring and alerts for applications',
-    url: `${DOC_BASE_URLS.SUSE}/suseai-rancher-ext/admin-guide/monitoring`,
+    url: `${DOC_BASE_URLS.SUSE}/suse-ai-rancher-ext/admin-guide/monitoring`,
     category: DOC_CATEGORIES.ADMIN_GUIDE,
     tags: ['monitoring', 'alerts', 'health'],
     priority: 3
@@ -150,7 +150,7 @@ export const DOCUMENTATION_LINKS: Record<string, DocLink> = {
     id: 'common-issues',
     title: 'Common Issues',
     description: 'Solutions to frequently encountered problems',
-    url: `${DOC_BASE_URLS.SUSE}/suseai-rancher-ext/troubleshooting/common-issues`,
+    url: `${DOC_BASE_URLS.SUSE}/suse-ai-rancher-ext/troubleshooting/common-issues`,
     category: DOC_CATEGORIES.TROUBLESHOOTING,
     tags: ['troubleshooting', 'issues', 'problems'],
     priority: 1
@@ -160,7 +160,7 @@ export const DOCUMENTATION_LINKS: Record<string, DocLink> = {
     id: 'diagnostics',
     title: 'Diagnostic Tools',
     description: 'Tools and commands for diagnosing issues',
-    url: `${DOC_BASE_URLS.SUSE}/suseai-rancher-ext/troubleshooting/diagnostics`,
+    url: `${DOC_BASE_URLS.SUSE}/suse-ai-rancher-ext/troubleshooting/diagnostics`,
     category: DOC_CATEGORIES.TROUBLESHOOTING,
     tags: ['diagnostics', 'debugging', 'tools'],
     priority: 2

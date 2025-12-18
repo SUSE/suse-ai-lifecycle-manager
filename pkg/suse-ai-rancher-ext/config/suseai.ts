@@ -121,7 +121,7 @@ export const PRODUCT_METADATA = {
   description: 'Enterprise AI/ML application management for Kubernetes',
   vendor: 'SUSE',
   homepage: 'https://www.suse.com/',
-  repository: 'https://github.com/suse/suseai-rancher-ext',
+  repository: 'https://github.com/suse/suse-ai-rancher-ext',
   license: 'Apache-2.0',
   keywords: ['ai', 'ml', 'kubernetes', 'helm', 'applications'],
   categories: ['AI/ML', 'Applications', 'Management'],

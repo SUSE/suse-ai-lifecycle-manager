@@ -1,7 +1,7 @@
 annotations:
   helm.sh/images: |
-    - image: ghcr.io/suse/suseai-rancher-ext:0.1.0
-      name: suseai-rancher-ext
+    - image: ghcr.io/suse/suse-ai-rancher-ext:0.1.0
+      name: suse-ai-rancher-ext
   license: Apache-2.0
 apiVersion: v2
 name: suse-ai-rancher-ext
@@ -13,7 +13,7 @@ keywords:
   - extension
   - ai
 home: https://github.com/SUSE/suse-ai-rancher-ext
-icon: https://github.com/SUSE/suse-ai-rancher-ext/blob/main/pkg/suseai-rancher-ext/assets/logo.svg
+icon: https://github.com/SUSE/suse-ai-rancher-ext/blob/main/pkg/suse-ai-rancher-ext/assets/logo.svg
 sources:
   - https://github.com/SUSE/suse-ai-rancher-ext
 appVersion: 0.1.0

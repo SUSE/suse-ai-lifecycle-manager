@@ -21,7 +21,7 @@ A Rancher UI Extension for managing SUSE AI applications across Kubernetes clust
 
 2. **Build the extension:**
    ```bash
-   yarn build-pkg suseai-rancher-ext
+   yarn build-pkg suse-ai-rancher-ext
    ```
 
 3. **Serve during development:**
@@ -50,7 +50,7 @@ The extension provides functionality for:
 ## Building for Production
 
 ```bash
-yarn build-pkg suseai-rancher-ext --mode production
+yarn build-pkg suse-ai-rancher-ext --mode production
 ```
 
 ## Contributing
@@ -92,12 +92,12 @@ git commit -m "fix: resolve app installation error handling"
 1. **Extension not loading**: Verify URL in developer tools console
 2. **Build errors**: Check Node.js version compatibility (requires 20+)
 3. **API errors**: Verify cluster permissions and connectivity
-4. **Linting errors**: Run `cd pkg/suseai-rancher-ext && yarn lint` to see details
+4. **Linting errors**: Run `cd pkg/suse-ai-rancher-ext && yarn lint` to see details
 
 ### Debug Mode
 
 Enable debug logging in development:
 
 ```bash
-NODE_ENV=development yarn build-pkg suseai-rancher-ext
+NODE_ENV=development yarn build-pkg suse-ai-rancher-ext
 ```

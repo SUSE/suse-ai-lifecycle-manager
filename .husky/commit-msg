@@ -1,1 +1,1 @@
-cd pkg/suseai-rancher-ext && npx --no -- commitlint --edit $1
+cd pkg/suse-ai-rancher-ext && npx --no -- commitlint --edit $1

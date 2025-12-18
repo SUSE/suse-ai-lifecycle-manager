@@ -6,7 +6,7 @@
 // === Product Information ===
 export const PRODUCT_NAME = 'SUSE AI';
 export const PRODUCT_SLUG = 'suseai';
-export const EXTENSION_NAME = 'suseai-rancher-ext';
+export const EXTENSION_NAME = 'suse-ai-rancher-ext';
 export const EXTENSION_VERSION = '0.1.0';
 
 // === Store Namespaces ===
