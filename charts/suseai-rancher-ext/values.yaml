@@ -6,7 +6,7 @@ global:
 
 image:
   registry: ghcr.io
-  repository: suse/ui-extension-suseai-rancher-ext
+  repository: suse/suseai-rancher-ext
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 

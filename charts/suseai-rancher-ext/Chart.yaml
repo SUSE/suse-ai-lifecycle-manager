@@ -1,7 +1,7 @@
 annotations:
   helm.sh/images: |
-    - image: ghcr.io/suse/ui-extension-suseai-rancher-ext:0.1.0
-      name: ui-extension-suseai-rancher-ext
+    - image: ghcr.io/suse/suseai-rancher-ext:0.1.0
+      name: suseai-rancher-ext
   license: Apache-2.0
 apiVersion: v2
 name: suse-ai-rancher-ext
