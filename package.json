@@ -1,5 +1,5 @@
 {
-  "name": "suseai-rancher-ext",
+  "name": "suse-ai-rancher-ext",
   "version": "0.1.0",
   "description": "Rancher UI Extension for SUSE AI",
   "private": false,
