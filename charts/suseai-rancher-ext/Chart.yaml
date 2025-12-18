@@ -1,0 +1,22 @@
+annotations:
+  helm.sh/images: |
+    - image: ghcr.io/suse/ui-extension-suseai-rancher-ext:0.1.0
+      name: ui-extension-suseai-rancher-ext
+  license: Apache-2.0
+apiVersion: v2
+name: suse-ai-rancher-ext
+version: 0.1.0
+description: SUSE AI Rancher UI Extension
+type: application
+keywords:
+  - rancher
+  - extension
+  - ai
+home: https://github.com/SUSE/suse-ai-rancher-ext
+icon: https://github.com/SUSE/suse-ai-rancher-ext/blob/main/pkg/suseai-rancher-ext/assets/logo.svg
+sources:
+  - https://github.com/SUSE/suse-ai-rancher-ext
+appVersion: 0.1.0
+maintainers:
+  - url: https://www.suse.com/
+    name: SUSE LLC

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "suse-ai-rancher-ext.fullname" . }}-svc
+  labels:
+    {{- include "suse-ai-rancher-ext.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      protocol: TCP
+      targetPort: {{ .Values.service.port }}
+  selector:
+    {{- include "suse-ai-rancher-ext.labels" . | nindent 4 }}
