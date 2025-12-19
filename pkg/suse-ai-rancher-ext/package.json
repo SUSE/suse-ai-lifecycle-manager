@@ -1,6 +1,6 @@
 {
-  "name": "suseai-rancher-ext",
-  "description": "suseai-rancher-ext plugin",
+  "name": "suse-ai-rancher-ext",
+  "description": "suse-ai-rancher-ext plugin",
   "version": "0.1.0",
   "private": false,
   "rancher": {
