@@ -53,6 +53,33 @@ The extension provides functionality for:
 yarn build-pkg suse-ai-rancher-ext --mode production
 ```
 
+## Extension Catalog Container
+
+- The container packages the SUSE AI Rancher UI Extension into a single OCI container image.
+- This container is:
+   - Built and published during CI
+   - Stored in GitHub Container Registry (GHCR)
+   - Consumed by Rancher as an extension catalog source
+- The catalog container allows:
+   - Versioned releases
+   - Immutable distribution
+   - Simple rollout via container tags
+
+ ### Versioning
+- The catalog container tag is derived from the Git tag:
+ 
+```
+suse-ai-rancher-ext-0.1.0 → ghcr.io/suse/suse-ai-rancher-ext:0.1.0
+```
+
+### Consuming the Catalog in Rancher
+- Add the catalog source in the Rancher Dashboard:
+   1. Navigate to Extensions → Manage Extensions Catalog
+   2. Import Extension Catalog
+   3. Use the catalog container reference: `ghcr.io/suse/suse-ai-rancher-ext:0.1.0`
+   4. Go back to Extensions and install SUSE AI Rancher Extension
+NOTE: Newly published catalogs are not always available immediately. If the catalog does not show up after publishing, navigate to Extensions → Manage Repositories and manually refresh the repository to force a re-sync.
+
 ## Contributing
 
 When contributing to this extension:
