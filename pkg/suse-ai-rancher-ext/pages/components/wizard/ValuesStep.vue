@@ -49,7 +49,7 @@ const localValues = computed({
       hasValues: !!props.values,
       valuesKeys: Object.keys(props.values || {}),
       valuesLength: Object.keys(props.values || {}).length,
-      valuesSample: JSON.stringify(props.values, null, 2).substring(0, 200)
+      valuesSample: JSON.stringify(props.values || {}, null, 2).substring(0, 200)
     });
     return props.values;
   },
