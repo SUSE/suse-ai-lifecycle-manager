@@ -64,6 +64,23 @@ yarn build-pkg suse-ai-rancher-ext --mode production
    - Versioned releases
    - Immutable distribution
    - Simple rollout via container tags
+ 
+### Container Structure
+```
+/home/plugin-server
+└── plugin-contents/
+    ├── files.txt
+    ├── index.yaml
+    └── plugin/
+        ├── index.yaml
+        ├── package.json
+        ├── suse-ai-rancher-ext
+            └── suse-ai-rancher-ext-0.1.0.tgz
+        └── suse-ai-rancher-ext-0.1.0
+            ├── files.txt
+            └── plugin/
+                └── <plugin source code>
+```
 
  ### Versioning
 - The catalog container tag is derived from the Git tag:
