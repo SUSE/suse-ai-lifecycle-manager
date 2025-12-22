@@ -72,7 +72,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
-          publish=(yarn publish-pkgs -c -p -i '' -r ghcr.io -o 'suse')
+          publish=(yarn publish-pkgs -c -p -i '' -r ghcr.io -o 'leooamaral')
 
           if [[ -n "${{ env.RELEASE_TAG }}" ]]; then
             publish+=(-t "$RELEASE_TAG")
