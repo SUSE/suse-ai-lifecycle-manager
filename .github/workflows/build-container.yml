@@ -4,7 +4,7 @@ on: [push, pull_request, workflow_dispatch]
 
 env:
   CHART_PATH: charts/suse-ai-rancher-ext
-  CHART_REGISTRY: oci://ghcr.io/suse/chart
+  CHART_REGISTRY: oci://ghcr.io/leooamaral/chart
 
 jobs:
   build-extension:
