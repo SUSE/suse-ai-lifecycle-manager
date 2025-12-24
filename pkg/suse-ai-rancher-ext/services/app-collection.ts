@@ -311,13 +311,14 @@ function getRepoType(repo: any): string {
 }
 
 /** Fetch apps from a specific cluster repository */
-export async function fetchAppsFromRepository($store: any, repoName: string): Promise<AppCollectionItem[]> {
+export async function fetchAppsFromRepository($store: any, repoName: string, clusterId: string): Promise<AppCollectionItem[]> {
   logger.debug('Starting repository apps fetch', {
     component: 'AppCollection',
     data: { repoName }
   });
+  
   try {
-    const indexUrl = `/v1/catalog.cattle.io.clusterrepos/${encodeURIComponent(repoName)}?link=index`;
+    const indexUrl = `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/catalog.cattle.io.clusterrepos/${encodeURIComponent(repoName)}?link=index`;
     logger.debug('Requesting repository index', {
       component: 'AppCollection',
       data: { repoName, indexUrl }
@@ -378,7 +379,7 @@ export async function fetchAppsFromRepository($store: any, repoName: string): Pr
 }
 
 /** Fetch apps from all cluster repositories */
-export async function fetchAllRepositoryApps($store: any): Promise<{ [repoName: string]: AppCollectionItem[] }> {
+export async function fetchAllRepositoryApps($store: any, clusterId: string): Promise<{ [repoName: string]: AppCollectionItem[] }> {
   logger.debug('Starting fetch all repository apps', {
     component: 'AppCollection'
   });
@@ -399,7 +400,7 @@ export async function fetchAllRepositoryApps($store: any): Promise<{ [repoName: 
       data: { repoName: repo.name }
     });
     try {
-      const apps = await fetchAppsFromRepository($store, repo.name);
+      const apps = await fetchAppsFromRepository($store, repo.name, clusterId);
       if (apps.length > 0) {
         repoApps[repo.name] = apps;
         logger.debug('Repository apps loaded', {
