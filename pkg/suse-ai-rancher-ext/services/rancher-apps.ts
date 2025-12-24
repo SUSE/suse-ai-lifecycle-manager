@@ -657,7 +657,7 @@ async function findHelmReleaseObjects(
         console.log('[SUSE-AI DEBUG] Using latest version:', secretName);
 
         // Now fetch the latest secret with includeHelmData=true
-        const detailUrl = `/v1/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(secretName)}?exclude=metadata.managedFields&includeHelmData=true`;
+        const detailUrl = `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/secrets/${encodeURIComponent(namespace)}/${encodeURIComponent(secretName)}?exclude=metadata.managedFields&includeHelmData=true`;
         const secret = await $store.dispatch('rancher/request', { url: detailUrl });
 
         if (secret?.data?.release) {
