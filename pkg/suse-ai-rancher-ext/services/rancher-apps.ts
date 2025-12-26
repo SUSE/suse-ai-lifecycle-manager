@@ -41,7 +41,7 @@ import type {
   ServiceAccount,
   isRancherError
 } from '../types/rancher-types';
-import { getClusterContext } from 'utils/cluster-operations';
+import { getClusterContext } from '../utils/cluster-operations';
 
 export interface ChartRef {
   repoName: string;   // ClusterRepo metadata.name
