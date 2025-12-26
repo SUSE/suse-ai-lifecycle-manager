@@ -1,4 +1,4 @@
-import { getClusterContext } from 'utils/cluster-operations';
+import { getClusterContext } from '../utils/cluster-operations';
 import { log as logger } from '../utils/logger';
 
 export type PackagingFormat = 'HELM_CHART' | 'CONTAINER';
