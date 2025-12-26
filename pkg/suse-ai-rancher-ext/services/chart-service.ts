@@ -65,10 +65,18 @@ export class ChartService {
   /**
    * Get repository index link
    */
-  private static async getRepoIndexLink($store: RancherStore, repoName: string, clusterId: string): Promise<string | null> {
+  private static async getRepoIndexLink($store: RancherStore, repoName: string): Promise<string | null> {
+    
+    const found = await getClusterContext($store, { repoName: repoName});
+    if (!found) {
+      logger.warn(`ClusterRepo "${repoName}" not found in any cluster`);
+      return null;
+    }
+    const { baseApi } = found
+
     try {
       const repo = encodeURIComponent(repoName);
-      const url = `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/catalog.cattle.io.clusterrepos/${repo}`;
+      const url = `${baseApi}/catalog.cattle.io.clusterrepos/${repo}`;
       const res = await $store.dispatch('rancher/request', { url });
       const link = res?.data?.links?.index || res?.links?.index;
 
@@ -89,8 +97,8 @@ export class ChartService {
   /**
    * Get repository index data
    */
-  private static async getRepoIndex($store: RancherStore, repoName: string, clusterId: string): Promise<RepositoryIndex | null> {
-    const indexLink = await this.getRepoIndexLink($store, repoName, clusterId);
+  private static async getRepoIndex($store: RancherStore, repoName: string): Promise<RepositoryIndex | null> {
+    const indexLink = await this.getRepoIndexLink($store, repoName);
     if (!indexLink) return null;
 
     try {
@@ -143,7 +151,7 @@ export class ChartService {
     slug: string
   ): Promise<{ chartName: string; version: string } | null> {
     try {
-      const index = await this.getRepoIndex($store, repoName,_repoClusterId);
+      const index = await this.getRepoIndex($store, repoName);
       const names = index?.entries ? Object.keys(index.entries) : [];
       const match = names.find((n: string) => sameName(n, slug));
 
@@ -182,7 +190,7 @@ export class ChartService {
     chartName: string
   ): Promise<string[]> {
     try {
-      const index = await this.getRepoIndex($store, repoName, _repoClusterId);
+      const index = await this.getRepoIndex($store, repoName);
       const names = index?.entries ? Object.keys(index.entries) : [];
       const match = names.find((n: string) => sameName(n, chartName));
 
@@ -239,14 +247,6 @@ export class ChartService {
     preferVersion?: string
   ): Promise<string | null> {
     try {
-       const clusterId = $store.getters?.['currentCluster']?.id;
-
-    if (!clusterId) {
-      logger.warn('No selected cluster found', {
-        component: 'ChartService'
-      });
-      return null;
-    }
       const repos = await this.listClusterRepos($store);
       let best: string | null = null;
 
@@ -255,7 +255,7 @@ export class ChartService {
         if (!name) continue;
 
         try {
-          const index = await this.getRepoIndex($store, name, clusterId);
+          const index = await this.getRepoIndex($store, name);
           const entries = index?.entries || {};
           const foundKey = Object.keys(entries).find((k) => sameName(k, chartName));
           if (!foundKey) continue;

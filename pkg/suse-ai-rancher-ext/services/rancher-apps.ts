@@ -41,6 +41,7 @@ import type {
   ServiceAccount,
   isRancherError
 } from '../types/rancher-types';
+import { getClusterContext } from 'utils/cluster-operations';
 
 export interface ChartRef {
   repoName: string;   // ClusterRepo metadata.name
@@ -487,10 +488,16 @@ function semverDesc(a: string, b: string): number {
 }
 const SEMVER_CORE = /^\d+\.\d+\.\d+(\+up\d+\.\d+\.\d+)?$/; // show x.y.z or x.y.z+upA.B.C (Rancher chart format)
 
-async function getRepoIndexLink($store: RancherStore, repoName: string, clusterId: string): Promise<string | null> {
+async function getRepoIndexLink($store: RancherStore, repoName: string): Promise<string | null> {
+  const found = await getClusterContext($store, { repoName: repoName});
+  if (!found) {
+    logger.warn(`ClusterRepo "${repoName}" not found in any cluster`);
+    return null;
+  }
+  const { baseApi } = found
   try {
     const repo = encodeURIComponent(repoName);
-    const url = `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/catalog.cattle.io.clusterrepos/${repo}`;
+    const url = `${baseApi}/catalog.cattle.io.clusterrepos/${repo}`;
     const res  = await $store.dispatch('rancher/request', { url });
     const link = res?.data?.links?.index || res?.links?.index;
     log('repo index link:', link);
@@ -500,14 +507,9 @@ async function getRepoIndexLink($store: RancherStore, repoName: string, clusterI
   }
 }
 
-async function getRepoIndex($store: RancherStore, repoName: string, clusterId?: string): Promise<RepositoryIndex | null> {
+async function getRepoIndex($store: RancherStore, repoName: string): Promise<RepositoryIndex | null> {
 
-  const resolvedClusterId =
-    clusterId ?? ($store.getters && $store.getters['currentCluster']?.id);
-
-  if (!resolvedClusterId) return null;
-
-  const indexLink = await getRepoIndexLink($store, repoName, resolvedClusterId);
+  const indexLink = await getRepoIndexLink($store, repoName);
   if (!indexLink) return null;
 
   const res = await $store.dispatch('rancher/request', { url: indexLink });
@@ -525,7 +527,7 @@ export async function findChartInRepo(
   repoName: string,
   slug: string
 ): Promise<{ chartName: string; version: string } | null> {
-  const index = await getRepoIndex($store, repoName, _repoClusterId);
+  const index = await getRepoIndex($store, repoName);
   const names = index?.entries ? Object.keys(index.entries) : [];
   const match = names.find((n: string) => sameName(n, slug));
   if (match && index) {
@@ -542,7 +544,7 @@ export async function listChartVersions(
   repoName: string,
   chartName: string
 ): Promise<string[]> {
-  const index = await getRepoIndex($store, repoName, _repoClusterId);
+  const index = await getRepoIndex($store, repoName);
   const names = index?.entries ? Object.keys(index.entries) : [];
   const match = names.find((n: string) => sameName(n, chartName));
   if (match && index) {

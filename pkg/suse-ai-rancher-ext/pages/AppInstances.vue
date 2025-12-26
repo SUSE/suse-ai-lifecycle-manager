@@ -502,7 +502,7 @@ export default defineComponent({
         if (repoFromQuery) {
           try {
             console.log(`[SUSE-AI] Loading app info from specified repository: ${repoFromQuery}`);
-            const repoApps = await fetchAppsFromRepository(store, repoFromQuery, currentClusterId);
+            const repoApps = await fetchAppsFromRepository(store, repoFromQuery);
             const repoApp = repoApps.find(a => a.slug_name === props.slug);
             if (repoApp) {
               appInfo.value = repoApp;

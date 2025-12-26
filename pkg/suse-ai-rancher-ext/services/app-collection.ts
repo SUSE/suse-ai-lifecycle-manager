@@ -1,3 +1,4 @@
+import { getClusterContext } from 'utils/cluster-operations';
 import { log as logger } from '../utils/logger';
 
 export type PackagingFormat = 'HELM_CHART' | 'CONTAINER';
@@ -311,14 +312,21 @@ function getRepoType(repo: any): string {
 }
 
 /** Fetch apps from a specific cluster repository */
-export async function fetchAppsFromRepository($store: any, repoName: string, clusterId: string): Promise<AppCollectionItem[]> {
+export async function fetchAppsFromRepository($store: any, repoName: string): Promise<AppCollectionItem[]> {
   logger.debug('Starting repository apps fetch', {
     component: 'AppCollection',
     data: { repoName }
   });
+
+  const found = await getClusterContext($store, { repoName: repoName});
+  if (!found) {
+    logger.warn(`ClusterRepo "${repoName}" not found in any cluster`);
+    return [];
+  }
+  const { baseApi } = found
   
   try {
-    const indexUrl = `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/catalog.cattle.io.clusterrepos/${encodeURIComponent(repoName)}?link=index`;
+    const indexUrl = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repoName)}?link=index`;
     logger.debug('Requesting repository index', {
       component: 'AppCollection',
       data: { repoName, indexUrl }
@@ -379,7 +387,7 @@ export async function fetchAppsFromRepository($store: any, repoName: string, clu
 }
 
 /** Fetch apps from all cluster repositories */
-export async function fetchAllRepositoryApps($store: any, clusterId: string): Promise<{ [repoName: string]: AppCollectionItem[] }> {
+export async function fetchAllRepositoryApps($store: any): Promise<{ [repoName: string]: AppCollectionItem[] }> {
   logger.debug('Starting fetch all repository apps', {
     component: 'AppCollection'
   });
@@ -400,7 +408,7 @@ export async function fetchAllRepositoryApps($store: any, clusterId: string): Pr
       data: { repoName: repo.name }
     });
     try {
-      const apps = await fetchAppsFromRepository($store, repo.name, clusterId);
+      const apps = await fetchAppsFromRepository($store, repo.name);
       if (apps.length > 0) {
         repoApps[repo.name] = apps;
         logger.debug('Repository apps loaded', {

@@ -545,7 +545,7 @@ export default defineComponent({
           repoLoading.value = true;
           error.value = null;
           console.log('[SUSE-AI] Loading all repository apps...');
-          allRepositoryApps.value = await fetchAllRepositoryApps(store, currentClusterId);
+          allRepositoryApps.value = await fetchAllRepositoryApps(store);
           repositoriesLoaded.value = true;
           console.log('[SUSE-AI] Loaded apps from repositories:', Object.keys(allRepositoryApps.value));
 
@@ -563,7 +563,7 @@ export default defineComponent({
             repoLoading.value = true;
             error.value = null;
             console.log('[SUSE-AI] Loading apps from repository:', newRepo);
-            const repoApps = await fetchAppsFromRepository(store, newRepo, currentClusterId);
+            const repoApps = await fetchAppsFromRepository(store, newRepo);
             allRepositoryApps.value[newRepo] = repoApps;
             console.log('[SUSE-AI] Loaded apps from repository:', { repo: newRepo, count: repoApps.length });
           }
