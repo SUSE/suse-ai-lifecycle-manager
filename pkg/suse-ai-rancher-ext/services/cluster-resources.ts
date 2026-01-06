@@ -118,12 +118,15 @@ export async function getClusterResourceMetrics(store: RancherStore, clusterId: 
     // Get cluster basic info first using the same approach as getClusters
     let clusterName = clusterId;
     try {
-      const clusters = await store.dispatch('management/findAll', { type: 'cluster' });
+      const clusters = await Promise.race([
+        store.dispatch('management/findAll', { type: 'cluster' }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 20000))
+      ]) as ClusterResource[];
       const cluster = clusters.find((c: ClusterResource) => c.id === clusterId);
-      clusterName = cluster?.name || clusterId;
+      clusterName = cluster?.metadata?.name || clusterId;
     } catch {
       // Fallback to API call if store doesn't work
-      const res = await store.dispatch('rancher/request', { url: '/v1/management.cattle.io.clusters?limit=2000' });
+      const res = await store.dispatch('rancher/request', { url: '/v1/management.cattle.io.clusters?limit=2000', timeout: 20000 });
       const items = res?.data?.data || res?.data || [];
       const cluster = items.find((c: ClusterResource) =>
         (c?.metadata?.name === clusterId) || (c?.id === clusterId) || (c?.spec?.displayName === clusterId)
@@ -450,7 +453,7 @@ async function fetchClusterData<T>(
     : `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/${resourcePath}?exclude=metadata.managedFields`;
 
   try {
-    const res = await store.dispatch('rancher/request', { url: baseUrl });
+    const res = await store.dispatch('rancher/request', { url: baseUrl, timeout: 20000 });
     const data = res?.data?.data || res?.data || [];
     console.log(`[SUSE-AI] getClusterResourceMetrics: Got ${data.length} ${label} from ${isLocalCluster ? 'global' : 'cluster-specific'} API`);
     return Array.isArray(data) ? data : [];

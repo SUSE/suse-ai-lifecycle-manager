@@ -72,7 +72,7 @@ export class ChartValuesService {
     try {
       const { baseApi } = found;
       const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}?link=files&chartName=${encodeURIComponent(chart)}&version=${encodeURIComponent(version)}`;
-      const response = await this.store.dispatch('rancher/request', { url });
+      const response = await this.store.dispatch('rancher/request', { url, timeout: 20000 });
       const filesDetail = response?.data ?? response;
 
       if (filesDetail && typeof filesDetail === 'object') {
@@ -107,7 +107,7 @@ export class ChartValuesService {
       try {
         const { baseApi } = found;
         const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}?link=file&chartName=${encodeURIComponent(chart)}&version=${encodeURIComponent(version)}&name=${encodeURIComponent(filename)}`;
-        const response = await this.store.dispatch('rancher/request', { url });
+        const response = await this.store.dispatch('rancher/request', { url, timeout: 20000 });
         const text = this.extractTextFromFileEntry(response?.data ?? response);
 
         if (text && text.includes(':')) { // Basic YAML validation
@@ -141,7 +141,8 @@ export class ChartValuesService {
       const response = await this.store.dispatch('rancher/request', {
         url,
         responseType: 'arraybuffer',
-        headers: { Accept: 'application/gzip, application/x-gzip, application/octet-stream' }
+        headers: { Accept: 'application/gzip, application/x-gzip, application/octet-stream' },
+        timeout: 20000
       });
 
       const buffer = response?.data ?? response;
@@ -357,7 +358,8 @@ export class ChartValuesService {
       const response = await this.store.dispatch('rancher/request', {
         url: '/v1/management.cattle.io/validate-yaml',
         method: 'POST',
-        data: { yaml: valuesYaml }
+        data: { yaml: valuesYaml },
+        timeout: 20000
       });
 
       return { valid: response?.valid !== false };
@@ -389,7 +391,8 @@ export class ChartValuesService {
     try {
       const { baseApi } = found;
       const response = await this.store.dispatch('rancher/request', {
-        url: `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}/charts/${encodeURIComponent(chart)}/versions`
+        url: `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}/charts/${encodeURIComponent(chart)}/versions`,
+        timeout: 20000
       });
 
       const versions = response?.data || response || [];
