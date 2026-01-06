@@ -179,7 +179,8 @@ export class AppLifecycleService {
           const upgradeResult = await $store.dispatch('rancher/request', {
             method: 'post',
             url: clusterReposUrl,
-            data: upgradeData
+            data: upgradeData,
+            timeout: 20000
           });
 
           logger.info('App upgrade successful', {
@@ -201,7 +202,7 @@ export class AppLifecycleService {
           data: { namespace, releaseName }
         });
 
-        const existing = await $store.dispatch('rancher/request', { url: appUrl });
+        const existing = await $store.dispatch('rancher/request', { url: appUrl, timeout: 20000 });
         const resourceVersion = existing?.data?.metadata?.resourceVersion || existing?.metadata?.resourceVersion;
 
         if (resourceVersion) {
@@ -215,6 +216,7 @@ export class AppLifecycleService {
             url: appUrl,
             method: 'PUT',
             data: appPayload,
+            timeout: 20000
           });
 
           logger.info('App upgrade successful', {
@@ -248,7 +250,8 @@ export class AppLifecycleService {
             await $store.dispatch('rancher/request', {
               method: 'post',
               url: clusterReposUrl,
-              data: installData
+              data: installData,
+              timeout: 20000
             });
 
             logger.info('App install successful', {
@@ -326,7 +329,7 @@ export class AppLifecycleService {
 
     for (;;) {
       try {
-        const r = await $store.dispatch('rancher/request', { url });
+        const r = await $store.dispatch('rancher/request', { url, timeout: 20000 });
         const app = (r?.data ?? r) || {};
         const gen = app?.metadata?.generation ?? 0;
         const obs = app?.status?.observedGeneration ?? 0;
@@ -407,7 +410,8 @@ export class AppLifecycleService {
       await $store.dispatch('rancher/request', {
         url,
         method: 'POST',
-        data: { timeout: '600s' }
+        data: { timeout: '600s' },
+        timeout: 20000
       });
 
       // Wait a bit for the deletion to process
