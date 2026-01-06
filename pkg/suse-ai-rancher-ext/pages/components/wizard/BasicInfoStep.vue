@@ -34,6 +34,7 @@
           :label="t('suseai.wizard.form.chartName', 'Chart name')"
           :placeholder="t('suseai.wizard.form.chartNamePlaceholder', 'e.g. ollama')"
           required
+          :disabled="true"
         />
       </div>
       <div class="col span-4">
