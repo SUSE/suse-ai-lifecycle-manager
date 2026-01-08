@@ -209,7 +209,7 @@ export async function fetchClusterRepositories($store: any): Promise<AppReposito
       component: 'AppCollection',
       data: { url }
     });
-    const res = await $store.dispatch('rancher/request', { url });
+    const res = await $store.dispatch('rancher/request', { url, timeout: 20000 });
     
     logger.debug('Cluster repositories response received', {
       component: 'AppCollection',
@@ -331,7 +331,7 @@ export async function fetchAppsFromRepository($store: any, repoName: string): Pr
       component: 'AppCollection',
       data: { repoName, indexUrl }
     });
-    const res = await $store.dispatch('rancher/request', { url: indexUrl });
+    const res = await $store.dispatch('rancher/request', { url: indexUrl, timeout: 20000 });
     
     logger.debug('Repository index response', {
       component: 'AppCollection',

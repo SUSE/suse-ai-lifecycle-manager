@@ -76,8 +76,10 @@ export class ChartService {
 
     try {
       const repo = encodeURIComponent(repoName);
+
       const url = `${baseApi}/catalog.cattle.io.clusterrepos/${repo}`;
-      const res = await $store.dispatch('rancher/request', { url });
+      const res = await $store.dispatch('rancher/request', { url, timeout: 20000 });
+
       const link = res?.data?.links?.index || res?.links?.index;
 
       logger.debug('Repository index link resolved', {
@@ -102,7 +104,7 @@ export class ChartService {
     if (!indexLink) return null;
 
     try {
-      const res = await $store.dispatch('rancher/request', { url: indexLink });
+      const res = await $store.dispatch('rancher/request', { url: indexLink, timeout: 20000 });
       const payload = (res?.data ?? res);
 
       logger.debug('Repository index fetched', {
@@ -130,7 +132,8 @@ export class ChartService {
 
     try {
       const res = await $store.dispatch('rancher/request', {
-        url: `${baseApi}/catalog.cattle.io/v1/clusterrepos?limit=1000`
+        url: `${baseApi}/catalog.cattle.io/v1/clusterrepos?limit=1000`,
+        timeout: 20000
       });
       return res?.data?.items || res?.data || res?.items || [];
     } catch (err) {
