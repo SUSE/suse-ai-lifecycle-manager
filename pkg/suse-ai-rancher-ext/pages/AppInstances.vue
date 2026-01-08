@@ -552,11 +552,10 @@ export default defineComponent({
               const chart = spec?.chart?.metadata?.name || spec?.chartName || '';
               const release = meta?.name || '';
 
-              // Check if this app matches our slug (by chart name or release name)
-              const matchesChart = chart.toLowerCase().includes(props.slug.toLowerCase());
-              const matchesRelease = release.toLowerCase().includes(props.slug.toLowerCase());
+              // Check if this app matches our slug (by chart name)
+              const matchesChart = chart.toLowerCase() === props.slug.toLowerCase();
 
-              if (matchesChart || matchesRelease) {
+              if (matchesChart) {
                 console.log(`[SUSE-AI] Found instance: ${release} in ${cluster.name}/${meta.namespace}`);
 
                 // Extract status information from the catalog app
