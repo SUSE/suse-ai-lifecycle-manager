@@ -66,10 +66,20 @@ export class ChartService {
    * Get repository index link
    */
   private static async getRepoIndexLink($store: RancherStore, repoName: string): Promise<string | null> {
+    
+    const found = await getClusterContext($store, { repoName: repoName});
+    if (!found) {
+      logger.warn(`ClusterRepo "${repoName}" not found in any cluster`);
+      return null;
+    }
+    const { baseApi } = found
+
     try {
       const repo = encodeURIComponent(repoName);
-      const url = `/v1/catalog.cattle.io.clusterrepos/${repo}`;
+
+      const url = `${baseApi}/catalog.cattle.io.clusterrepos/${repo}`;
       const res = await $store.dispatch('rancher/request', { url, timeout: 20000 });
+
       const link = res?.data?.links?.index || res?.links?.index;
 
       logger.debug('Repository index link resolved', {

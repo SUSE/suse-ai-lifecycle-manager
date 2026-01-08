@@ -41,6 +41,7 @@ import type {
   ServiceAccount,
   isRancherError
 } from '../types/rancher-types';
+import { getClusterContext } from '../utils/cluster-operations';
 
 export interface ChartRef {
   repoName: string;   // ClusterRepo metadata.name
@@ -496,10 +497,18 @@ function semverDesc(a: string, b: string): number {
 const SEMVER_CORE = /^\d+\.\d+\.\d+(\+up\d+\.\d+\.\d+)?$/; // show x.y.z or x.y.z+upA.B.C (Rancher chart format)
 
 async function getRepoIndexLink($store: RancherStore, repoName: string): Promise<string | null> {
+  const found = await getClusterContext($store, { repoName: repoName});
+  if (!found) {
+    logger.warn(`ClusterRepo "${repoName}" not found in any cluster`);
+    return null;
+  }
+  const { baseApi } = found
   try {
     const repo = encodeURIComponent(repoName);
-    const url = `/v1/catalog.cattle.io.clusterrepos/${repo}`;
+
+    const url = `${baseApi}/catalog.cattle.io.clusterrepos/${repo}`;
     const res  = await $store.dispatch('rancher/request', { url, timeout: 20000 });
+
     const link = res?.data?.links?.index || res?.links?.index;
     log('repo index link:', link);
     return link || null;
@@ -509,6 +518,7 @@ async function getRepoIndexLink($store: RancherStore, repoName: string): Promise
 }
 
 async function getRepoIndex($store: RancherStore, repoName: string): Promise<RepositoryIndex | null> {
+
   const indexLink = await getRepoIndexLink($store, repoName);
   if (!indexLink) return null;
 

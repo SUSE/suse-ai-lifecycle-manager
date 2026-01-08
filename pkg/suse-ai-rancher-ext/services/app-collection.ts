@@ -1,3 +1,4 @@
+import { getClusterContext } from '../utils/cluster-operations';
 import { log as logger } from '../utils/logger';
 
 export type PackagingFormat = 'HELM_CHART' | 'CONTAINER';
@@ -316,8 +317,16 @@ export async function fetchAppsFromRepository($store: any, repoName: string): Pr
     component: 'AppCollection',
     data: { repoName }
   });
+
+  const found = await getClusterContext($store, { repoName: repoName});
+  if (!found) {
+    logger.warn(`ClusterRepo "${repoName}" not found in any cluster`);
+    return [];
+  }
+  const { baseApi } = found
+  
   try {
-    const indexUrl = `/v1/catalog.cattle.io.clusterrepos/${encodeURIComponent(repoName)}?link=index`;
+    const indexUrl = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repoName)}?link=index`;
     logger.debug('Requesting repository index', {
       component: 'AppCollection',
       data: { repoName, indexUrl }
