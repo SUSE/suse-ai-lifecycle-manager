@@ -46,11 +46,6 @@ const APP_RESOURCE_PROFILES: Record<string, AppResourceProfile> = {
     name: 'Ollama',
     requirements: { cpu: 4, memory: 16, gpu: 8, storage: 100 }
   },
-  'mlflow': {
-    slug: 'mlflow',
-    name: 'MLflow',
-    requirements: { cpu: 2, memory: 4, storage: 10 }
-  },
   'pytorch': {
     slug: 'pytorch',
     name: 'PyTorch',
