@@ -7,8 +7,8 @@
         <div class="breadcrumb-nav">
           <button
             class="btn btn-link breadcrumb-link"
-            @click="navigateToApps"
             :aria-label="t('suseai.apps.backToApps', 'Back to Apps')"
+            @click="navigateToApps"
           >
             <i class="icon icon-arrow-left" aria-hidden="true" />
             {{ t('suseai.apps.title', 'Apps') }}
@@ -75,11 +75,11 @@
           <div class="right-actions">
             <button
               class="btn role-primary"
-              @click="onInstall"
               :disabled="loading"
               :title="t('suseai.instances.installNew', 'Install new instance')"
               :aria-label="t('suseai.instances.installNew', 'Install new instance')"
               type="button"
+              @click="onInstall"
             >
               <i class="icon icon-plus" aria-hidden="true" />
               {{ t('suseai.instances.install', 'Install') }}
@@ -87,11 +87,11 @@
 
             <button
               class="btn role-secondary"
-              @click="refresh"
               :disabled="loading"
               :title="t('suseai.instances.refresh', 'Refresh instances')"
               :aria-label="loading ? 'Refreshing instances...' : 'Refresh instances'"
               type="button"
+              @click="refresh"
             >
               <i v-if="loading" class="icon icon-spinner icon-spin" aria-hidden="true" />
               <i v-else class="icon icon-refresh" aria-hidden="true" />
@@ -189,20 +189,20 @@
                   <div class="btn-group" role="group" :aria-label="`Actions for ${instance.instanceName || instance.releaseName}`">
                     <button
                       class="btn btn-sm role-secondary"
-                      @click="onManage(instance)"
                       :disabled="!canManage(instance)"
                       :title="t('suseai.instances.manage', 'Manage instance')"
                       :aria-label="`Manage ${instance.instanceName || instance.releaseName}`"
+                      @click="onManage(instance)"
                     >
                       <i class="icon icon-edit" aria-hidden="true" />
                       {{ t('suseai.instances.manage', 'Manage') }}
                     </button>
                     <button
                       class="btn btn-sm role-secondary text-error"
-                      @click="onDelete(instance)"
                       :disabled="!canDelete(instance) || deletingInstances.has(getInstanceKey(instance))"
                       :title="t('suseai.instances.delete', 'Delete instance')"
                       :aria-label="`Delete ${instance.instanceName || instance.releaseName}`"
+                      @click="onDelete(instance)"
                     >
                       <i v-if="deletingInstances.has(getInstanceKey(instance))" class="icon icon-spinner icon-spin" aria-hidden="true" />
                       <i v-else class="icon icon-delete" aria-hidden="true" />

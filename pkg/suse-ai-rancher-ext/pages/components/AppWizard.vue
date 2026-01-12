@@ -619,9 +619,9 @@ function previousStep() {
           <!-- Step: Target Cluster -->
           <TargetStep
             v-else-if="currentStep === 1"
-            :mode="props.mode"
             v-model:cluster="form.cluster"
             v-model:clusters="form.clusters"
+            :mode="props.mode"
             :app-slug="props.slug"
             :app-name="(route.query.n as string) || props.slug"
           />
@@ -642,6 +642,7 @@ function previousStep() {
           <!-- Step: Review -->
           <ReviewStep
             v-else-if="currentStep === 3"
+            v-model:values="form.values"
             :mode="props.mode"
             :release="form.release"
             :namespace="form.namespace"
@@ -650,7 +651,6 @@ function previousStep() {
             :chart-version="form.chartVersion"
             :cluster="form.cluster"
             :clusters="form.clusters"
-            v-model:values="form.values"
             @values-edited="onValuesEdited"
           />
         </div>

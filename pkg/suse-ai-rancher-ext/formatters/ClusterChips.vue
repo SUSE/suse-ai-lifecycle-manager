@@ -1,5 +1,5 @@
 <template>
-  <div class="cluster-chips" v-if="clusters.length">
+  <div v-if="clusters.length" class="cluster-chips">
     <small v-if="showLabel" class="status-label">{{ label }}:</small>
     <span 
       v-for="cluster in clusters" 

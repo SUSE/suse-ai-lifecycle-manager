@@ -99,7 +99,17 @@ module.exports = {
     'vue/one-component-per-file':         'off',
     'vue/no-deprecated-slot-attribute':   'off',
     'vue/require-explicit-emits':         'off',
-    'vue/v-on-event-hyphenation':         'off'
+    'vue/v-on-event-hyphenation':         'off',
+    'vue/max-attributes-per-line': ['warn', {
+      'singleline': {
+        'max': 3
+      },
+      'multiline': {
+        'max': 1
+      }
+    }],
+    'vue/singleline-html-element-content-newline': 'off',
+    'vue/html-indent': ['warn', 2]
   },
   overrides: [
     {

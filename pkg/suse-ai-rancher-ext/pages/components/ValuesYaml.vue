@@ -66,7 +66,12 @@ export default defineComponent({
 </script>
 
 <template>
-  <textarea :value="text" @input="onInput" spellcheck="false" class="yaml" />
+  <textarea
+    :value="text"
+    spellcheck="false"
+    class="yaml"
+    @input="onInput"
+  />
 </template>
 
 <style scoped>

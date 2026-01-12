@@ -61,8 +61,8 @@
                 :name="`cluster-select-${tableId}`"
                 :value="cluster.clusterId"
                 :checked="selectedCluster === cluster.clusterId"
-                @change="selectCluster(cluster.clusterId)"
                 class="cluster-radio"
+                @change="selectCluster(cluster.clusterId)"
               />
             </td>
             <td class="col-cluster">

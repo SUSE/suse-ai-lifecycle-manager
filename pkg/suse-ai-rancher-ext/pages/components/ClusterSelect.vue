@@ -60,11 +60,13 @@ export default defineComponent({
   <div>
     <div v-if="loading" class="hint">Loading clusters…</div>
     <div v-else-if="error" class="hint">{{ error }}</div>
-    <select v-else 
-            class="control" 
-            :value="selected" 
-            :disabled="disabled"
-            @change="onSelect">
+    <select
+      v-else 
+      class="control" 
+      :value="selected" 
+      :disabled="disabled"
+      @change="onSelect"
+    >
       <option value="">— Select a cluster —</option>
       <option v-for="o in options" :key="o.id" :value="o.id">
         {{ o.name }}

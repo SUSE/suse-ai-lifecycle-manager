@@ -41,21 +41,21 @@
           <div class="view-controls" role="group" aria-label="View mode selection">
             <button
               :class="['btn', 'btn-sm', viewMode === 'tiles' ? 'role-primary' : 'role-secondary']"
-              @click="viewMode = 'tiles'"
               :title="t('suseai.apps.tileView', 'Tile View')"
               :aria-label="t('suseai.apps.tileView', 'Tile View')"
               :aria-pressed="viewMode === 'tiles'"
               type="button"
+              @click="viewMode = 'tiles'"
             >
               <i class="icon icon-th view-icon-grid" aria-hidden="true" />
             </button>
             <button
               :class="['btn', 'btn-sm', viewMode === 'list' ? 'role-primary' : 'role-secondary']"
-              @click="viewMode = 'list'"
               :title="t('suseai.apps.listView', 'List View')"
               :aria-label="t('suseai.apps.listView', 'List View')"
               :aria-pressed="viewMode === 'list'"
               type="button"
+              @click="viewMode = 'list'"
             >
               <i class="icon icon-th-list view-icon-list" aria-hidden="true" />
             </button>
@@ -63,11 +63,11 @@
 
           <button
             class="btn role-primary"
-            @click="refresh"
             :disabled="loading"
             :title="t('suseai.apps.refresh', 'Refresh')"
             :aria-label="loading ? 'Refreshing applications...' : 'Refresh applications'"
             type="button"
+            @click="refresh"
           >
             <i v-if="loading" class="icon icon-spinner icon-spin" aria-hidden="true" />
             <i v-else class="icon icon-refresh" aria-hidden="true" />
@@ -82,7 +82,12 @@
       </div>
 
       <!-- Search results count -->
-      <div v-if="search && !loading" id="search-results-count" class="sr-only" aria-live="polite">
+      <div
+        v-if="search && !loading"
+        id="search-results-count"
+        class="sr-only"
+        aria-live="polite"
+      >
         {{ filteredApps.length }} {{ filteredApps.length === 1 ? 'application' : 'applications' }} found for "{{ search }}"
       </div>
 
@@ -115,102 +120,47 @@
         </div>
 
         <!-- Tiles view -->
-        <div v-if="viewMode === 'tiles'" class="tiles-grid" role="grid" aria-label="Applications grid">
         <div
-          v-for="app in filteredApps"
-          :key="app.slug_name"
-          class="app-tile clickable-tile"
-          @click="onTileClick(app)"
-          :aria-label="`View instances of ${app.name}`"
-          role="button"
-          tabindex="0"
-          @keydown.enter="onTileClick(app)"
-          @keydown.space.prevent="onTileClick(app)"
+          v-if="viewMode === 'tiles'"
+          class="tiles-grid"
+          role="grid"
+          aria-label="Applications grid"
         >
-          <div class="tile-header">
-            <img :src="logoFor(app)" alt="" @error="onImgError($event)" class="tile-logo" />
-            <div class="tile-info">
-              <h3 class="tile-title">{{ app.name }}</h3>
-              <div class="tile-meta">
-                <span v-if="app.packaging_format" class="badge-state" :class="getBadgeClass(app.packaging_format)">
-                  {{ formatPackagingType(app.packaging_format) }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div class="tile-content">
-            <p class="tile-description">{{ app.description || '—' }}</p>
-
-            <!-- Installation status -->
-            <div v-if="getInstallationInfo(app.slug_name).installed" class="install-status">
-              <small class="status-label">Installed in:</small>
-              <div class="cluster-chips">
-                <span
-                  v-for="cluster in getInstallationInfo(app.slug_name).clusters"
-                  :key="cluster"
-                  class="cluster-chip"
-                  :title="`${getInstallationInfo(app.slug_name).namespace}/${getInstallationInfo(app.slug_name).release}`"
-                >
-                  {{ getClusterDisplayName(cluster) }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- List view -->
-      <div v-else class="list-view">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>{{ t('suseai.apps.name', 'Name') }}</th>
-              <th>{{ t('suseai.apps.description', 'Description') }}</th>
-              <th>{{ t('suseai.apps.clusters', 'Clusters') }}</th>
-              <th class="text-right">{{ t('suseai.apps.actions', 'Actions') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="!filteredApps.length" class="empty-row">
-              <td colspan="4" class="text-center text-muted">{{ t('suseai.apps.noApps', 'No applications found') }}</td>
-            </tr>
-            <tr
-              v-else
-              v-for="app in filteredApps"
-              :key="app.slug_name"
-              class="main-row clickable-row"
-              @click="onTileClick(app)"
-              :aria-label="`View instances of ${app.name}`"
-              role="button"
-              tabindex="0"
-              @keydown.enter="onTileClick(app)"
-              @keydown.space.prevent="onTileClick(app)"
-            >
-              <!-- Name column with logo -->
-              <td class="col-name">
-                <div class="name-cell">
-                  <img :src="logoFor(app)" alt="" @error="onImgError($event)" class="table-logo" />
-                  <div class="name-info">
-                    <div class="app-name">{{ app.name }}</div>
-                    <div v-if="app.packaging_format" class="app-meta">
-                      <span class="badge-state badge-sm" :class="getBadgeClass(app.packaging_format)">
-                        {{ formatPackagingType(app.packaging_format) }}
-                      </span>
-                    </div>
-                  </div>
+          <div
+            v-for="app in filteredApps"
+            :key="app.slug_name"
+            class="app-tile clickable-tile"
+            :aria-label="`View instances of ${app.name}`"
+            role="button"
+            tabindex="0"
+            @click="onTileClick(app)"
+            @keydown.enter="onTileClick(app)"
+            @keydown.space.prevent="onTileClick(app)"
+          >
+            <div class="tile-header">
+              <img
+                :src="logoFor(app)"
+                alt=""
+                class="tile-logo"
+                @error="onImgError($event)"
+              />
+              <div class="tile-info">
+                <h3 class="tile-title">{{ app.name }}</h3>
+                <div class="tile-meta">
+                  <span v-if="app.packaging_format" class="badge-state" :class="getBadgeClass(app.packaging_format)">
+                    {{ formatPackagingType(app.packaging_format) }}
+                  </span>
                 </div>
-              </td>
+              </div>
+            </div>
 
-              <!-- Description -->
-              <td class="col-description">
-                <span class="text-muted">{{ app.description || '—' }}</span>
-              </td>
+            <div class="tile-content">
+              <p class="tile-description">{{ app.description || '—' }}</p>
 
-              <!-- Clusters -->
-              <td class="col-clusters">
-                <div v-if="getInstallationInfo(app.slug_name).installed" class="cluster-chips">
+              <!-- Installation status -->
+              <div v-if="getInstallationInfo(app.slug_name).installed" class="install-status">
+                <small class="status-label">Installed in:</small>
+                <div class="cluster-chips">
                   <span
                     v-for="cluster in getInstallationInfo(app.slug_name).clusters"
                     :key="cluster"
@@ -220,17 +170,86 @@
                     {{ getClusterDisplayName(cluster) }}
                   </span>
                 </div>
-                <span v-else class="text-muted">—</span>
-              </td>
+              </div>
+            </div>
+          </div>
+        </div>
 
-              <!-- Actions -->
-              <td class="col-actions text-right">
-                <i class="icon icon-chevron-right" aria-hidden="true"></i>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+        <!-- List view -->
+        <div v-else class="list-view">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('suseai.apps.name', 'Name') }}</th>
+                <th>{{ t('suseai.apps.description', 'Description') }}</th>
+                <th>{{ t('suseai.apps.clusters', 'Clusters') }}</th>
+                <th class="text-right">{{ t('suseai.apps.actions', 'Actions') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="!filteredApps.length" class="empty-row">
+                <td colspan="4" class="text-center text-muted">{{ t('suseai.apps.noApps', 'No applications found') }}</td>
+              </tr>
+              <tr
+                v-for="app in filteredApps"
+                v-else
+                :key="app.slug_name"
+                class="main-row clickable-row"
+                :aria-label="`View instances of ${app.name}`"
+                role="button"
+                tabindex="0"
+                @click="onTileClick(app)"
+                @keydown.enter="onTileClick(app)"
+                @keydown.space.prevent="onTileClick(app)"
+              >
+                <!-- Name column with logo -->
+                <td class="col-name">
+                  <div class="name-cell">
+                    <img
+                      :src="logoFor(app)"
+                      alt=""
+                      class="table-logo"
+                      @error="onImgError($event)"
+                    />
+                    <div class="name-info">
+                      <div class="app-name">{{ app.name }}</div>
+                      <div v-if="app.packaging_format" class="app-meta">
+                        <span class="badge-state badge-sm" :class="getBadgeClass(app.packaging_format)">
+                          {{ formatPackagingType(app.packaging_format) }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+
+                <!-- Description -->
+                <td class="col-description">
+                  <span class="text-muted">{{ app.description || '—' }}</span>
+                </td>
+
+                <!-- Clusters -->
+                <td class="col-clusters">
+                  <div v-if="getInstallationInfo(app.slug_name).installed" class="cluster-chips">
+                    <span
+                      v-for="cluster in getInstallationInfo(app.slug_name).clusters"
+                      :key="cluster"
+                      class="cluster-chip"
+                      :title="`${getInstallationInfo(app.slug_name).namespace}/${getInstallationInfo(app.slug_name).release}`"
+                    >
+                      {{ getClusterDisplayName(cluster) }}
+                    </span>
+                  </div>
+                  <span v-else class="text-muted">—</span>
+                </td>
+
+                <!-- Actions -->
+                <td class="col-actions text-right">
+                  <i class="icon icon-chevron-right" aria-hidden="true"></i>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
         <!-- Empty state content -->
         <div v-if="!loading && !filteredApps.length && !error" class="empty-state-content">
