@@ -62,7 +62,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | ------------------ | ------------------------------------------ | ---------------------------- |
 | `image.registry`   | suse-ai-rancher-ext image registry                        | `ghcr.io`         |
 | `image.repository` | suse-ai-rancher-ext image repository                      | `suse/suse-ai-rancher-ext` |
-| `image.tag`        | suse-ai-rancher-ext image tag (immutable tags recommended)| `0.1.0`                     |
+| `image.tag`        | suse-ai-rancher-ext image tag (immutable tags recommended)| `0.2.0`                     |
 | `image.pullPolicy` | suse-ai-rancher-ext image pull policy                     | `IfNotPresent`               |
 | `imagePullSecrets` | suse-ai-rancher-ext image pull secrets                    | `[]`                         |
 | `global.imagePullSecrets` | Global override for container image registry pull secrets |`[]`    |
