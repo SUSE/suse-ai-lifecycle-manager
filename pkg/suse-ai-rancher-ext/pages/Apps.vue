@@ -25,21 +25,6 @@
           </div>
 
           <div class="filter-group">
-            <label for="category-filter" class="sr-only">Filter by category</label>
-            <select
-              id="category-filter"
-              v-model="selectedCategory"
-              class="form-control"
-              aria-label="Filter applications by category"
-            >
-              <option value="all">All Categories</option>
-              <option value="HELM_CHART">Helm</option>
-              <option value="CONTAINER">Container</option>
-            </select>
-          </div>
-
-
-          <div class="filter-group">
             <label for="repository-filter" class="sr-only">Filter by repository</label>
             <select
               id="repository-filter"
