@@ -44,19 +44,6 @@ const RAW_APPS = [
       "repository_url": "oci://dp.apps.rancher.io/charts"    
     },
     {
-      "name": "MLflow",
-      "slug_name": "mlflow",
-      "description": "MLflow is an open source platform for the complete machine learning lifecycle.",
-      "project_url": "https://mlflow.org/",
-      "documentation_url": "https://mlflow.org/docs/latest/index.html",
-      "source_code_url": "https://github.com/mlflow/mlflow",
-      "logo_url": "https://apps.rancher.io/logos/mlflow.png",
-      "changelog_url": "https://mlflow.org/releases",
-      "last_updated_at": "2025-08-18T14:55:22.553084Z",
-      "packaging_format": "CONTAINER",
-      "repository_url": "oci://dp.apps.rancher.io/charts"    
-    },
-    {
       "name": "Ollama",
       "slug_name": "ollama",
       "description": "Get up and running with Llama 3.2, Mistral, Gemma 2, and other large language models.",
