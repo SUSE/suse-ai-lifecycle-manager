@@ -1320,6 +1320,8 @@ export default defineComponent({
   justify-content: center;
   width: 100%;
   height: 100%;
+  position: relative;
+  top: -3px;
 }
 
 .view-icon-list:before {
@@ -1331,6 +1333,8 @@ export default defineComponent({
   justify-content: center;
   width: 100%;
   height: 100%;
+  position: relative;
+  top: -3px;
 }
 
 .icon.view-icon-grid,

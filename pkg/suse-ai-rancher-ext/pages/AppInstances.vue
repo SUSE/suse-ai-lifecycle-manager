@@ -188,7 +188,7 @@
                 <td class="col-actions text-right">
                   <div class="btn-group" role="group" :aria-label="`Actions for ${instance.instanceName || instance.releaseName}`">
                     <button
-                      class="btn btn-sm role-secondary"
+                      class="btn btn-sm role-secondary manage-instance-btn"
                       @click="onManage(instance)"
                       :disabled="!canManage(instance)"
                       :title="t('suseai.instances.manage', 'Manage instance')"
@@ -232,7 +232,7 @@
           </p>
           <button
             v-if="!hasSearchOrFilter"
-            class="btn role-primary"
+            class="btn role-primary install-first-btn"
             @click="onInstall"
           >
             <i class="icon icon-plus" aria-hidden="true" />
@@ -1103,6 +1103,17 @@ export default defineComponent({
         }
       }
     }
+
+    .manage-instance-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn.text-error .icon-delete {
+      font-size: 14px;
+    }
+
   }
 }
 
@@ -1156,6 +1167,12 @@ export default defineComponent({
     margin: 0 0 20px 0;
     color: var(--muted);
     line-height: 1.5;
+  }
+
+  .install-first-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 }
 
