@@ -10,8 +10,8 @@
             @click="navigateToApps"
             :aria-label="t('suseai.apps.backToApps', 'Back to Apps')"
           >
-            <i class="icon icon-arrow-left" aria-hidden="true" />
-            {{ t('suseai.apps.title', 'Apps') }}
+            <i class="icon icon-chevron-left" aria-hidden="true" />
+            <span>{{ t('suseai.apps.title', 'Apps') }}</span>
           </button>
           <span class="breadcrumb-separator">/</span>
           <span class="breadcrumb-current">{{ appDisplayName }}</span>
@@ -770,21 +770,29 @@ export default defineComponent({
   .breadcrumb-link {
     display: flex;
     align-items: center;
-    gap: 6px;
     color: var(--primary);
     text-decoration: none;
-    font-weight: 500;
-    padding: 4px 8px;
+    font-weight: 900;
+    font-size: 18px;
+    padding: 0px;
     border-radius: 4px;
     transition: all 0.15s ease;
+    background: transparent;
 
     &:hover {
-      background: var(--primary-hover-bg);
       text-decoration: none;
+
+      span {
+        text-decoration: underline;
+      }
     }
 
     .icon {
       font-size: 12px;
+    }
+
+    .icon-chevron-left {
+      color: var(--muted);
     }
   }
 
