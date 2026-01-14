@@ -10,8 +10,8 @@
             @click="navigateToApps"
             :aria-label="t('suseai.apps.backToApps', 'Back to Apps')"
           >
-            <i class="icon icon-arrow-left" aria-hidden="true" />
-            {{ t('suseai.apps.title', 'Apps') }}
+            <i class="icon icon-chevron-left" aria-hidden="true" />
+            <span>{{ t('suseai.apps.title', 'Apps') }}</span>
           </button>
           <span class="breadcrumb-separator">/</span>
           <span class="breadcrumb-current">{{ appDisplayName }}</span>
@@ -188,7 +188,7 @@
                 <td class="col-actions text-right">
                   <div class="btn-group" role="group" :aria-label="`Actions for ${instance.instanceName || instance.releaseName}`">
                     <button
-                      class="btn btn-sm role-secondary"
+                      class="btn btn-sm role-secondary manage-instance-btn"
                       @click="onManage(instance)"
                       :disabled="!canManage(instance)"
                       :title="t('suseai.instances.manage', 'Manage instance')"
@@ -232,7 +232,7 @@
           </p>
           <button
             v-if="!hasSearchOrFilter"
-            class="btn role-primary"
+            class="btn role-primary install-first-btn"
             @click="onInstall"
           >
             <i class="icon icon-plus" aria-hidden="true" />
@@ -770,21 +770,29 @@ export default defineComponent({
   .breadcrumb-link {
     display: flex;
     align-items: center;
-    gap: 6px;
     color: var(--primary);
     text-decoration: none;
-    font-weight: 500;
-    padding: 4px 8px;
+    font-weight: 900;
+    font-size: 18px;
+    padding: 0px;
     border-radius: 4px;
     transition: all 0.15s ease;
+    background: transparent;
 
     &:hover {
-      background: var(--primary-hover-bg);
       text-decoration: none;
+
+      span {
+        text-decoration: underline;
+      }
     }
 
     .icon {
       font-size: 12px;
+    }
+
+    .icon-chevron-left {
+      color: var(--muted);
     }
   }
 
@@ -1103,6 +1111,17 @@ export default defineComponent({
         }
       }
     }
+
+    .manage-instance-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn.text-error .icon-delete {
+      font-size: 14px;
+    }
+
   }
 }
 
@@ -1156,6 +1175,12 @@ export default defineComponent({
     margin: 0 0 20px 0;
     color: var(--muted);
     line-height: 1.5;
+  }
+
+  .install-first-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 }
 
