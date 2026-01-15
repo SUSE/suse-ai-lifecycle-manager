@@ -75,8 +75,8 @@ yarn build-pkg suse-ai-rancher-ext --mode production
         ├── index.yaml
         ├── package.json
         ├── suse-ai-rancher-ext
-            └── suse-ai-rancher-ext-0.1.0.tgz
-        └── suse-ai-rancher-ext-0.1.0
+            └── suse-ai-rancher-ext-0.2.0.tgz
+        └── suse-ai-rancher-ext-0.2.0
             ├── files.txt
             └── plugin/
                 └── <plugin source code>
@@ -86,17 +86,17 @@ yarn build-pkg suse-ai-rancher-ext --mode production
 - The catalog container tag is derived from the Git tag:
  
 ```
-suse-ai-rancher-ext-0.1.0 → ghcr.io/suse/suse-ai-rancher-ext:0.1.0
+suse-ai-rancher-ext-0.2.0 → ghcr.io/suse/suse-ai-rancher-ext:0.2.0
 ```
 
 ### Consuming the Catalog in Rancher
 - Add the catalog source in the Rancher Dashboard:
    1. Navigate to Extensions → Manage Extensions Catalog
-   2. Import Extension Catalog
-   3. Use the catalog container reference: `ghcr.io/suse/suse-ai-rancher-ext:0.1.0`
-   4. Go back to Extensions and install SUSE AI Rancher Extension
+   2. Import Extension Catalog → Use the Catalog Image Reference: `ghcr.io/suse/suse-ai-rancher-ext:0.2.0` → Press Load
+   3. From the Extensions page, Go to Manage Repositories. Verify if the SUSE AI Rancher Extension repository has the `Active` state. If not, refresh the connection.
+   4. Go back to Extensions and install SUSE AI Rancher Extension.
 
-NOTE: Newly published catalogs are not always available immediately. If the catalog does not show up after publishing, navigate to Extensions → Manage Repositories and manually refresh the repository to force a re-sync.
+> NOTE: Newly published catalogs are not always available immediately. If the catalog does not show up after publishing, navigate to Extensions → Manage Repositories and manually refresh the repository to force a re-sync.
 
 ## Contributing
 
