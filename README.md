@@ -101,6 +101,7 @@ https://github.com/SUSE/suse-ai-rancher-ext/pkgs/container/suse-ai-rancher-ext
    3. From the Extensions page, Go to Manage Repositories. Verify if the SUSE AI Rancher Extension repository has the `Active` state. If not, refresh the connection.
    4. Go back to Extensions and install SUSE AI Rancher Extension.
 
+> NOTE: Replace `<version>` with a tag published in GitHub Container Registry.
 > NOTE: Newly published catalogs are not always available immediately. If the catalog does not show up after publishing, navigate to Extensions → Manage Repositories and manually refresh the repository to force a re-sync.
 
 ## Contributing
