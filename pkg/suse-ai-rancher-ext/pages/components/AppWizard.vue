@@ -757,6 +757,11 @@ function previousStep() {
 
 
 <style scoped>
+/* Ensure Loading overlay inherits Rancher's standard background */
+.install-steps {
+  --overlay-bg: var(--body-bg, #ffffff);
+}
+
 /* Button utilities */
 .mr-5 {
   margin-right: 5px;
