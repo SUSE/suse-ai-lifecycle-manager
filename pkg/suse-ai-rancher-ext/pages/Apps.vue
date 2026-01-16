@@ -100,7 +100,7 @@
         <div class="results-summary" aria-live="polite">
           <div v-if="loading" class="inline-loading">
             <i class="icon icon-spinner icon-spin" aria-hidden="true" />
-            <span>{{ t('suseai.apps.loading', 'Loading applications...') }}</span>
+            <span>{{ t('suseai.apps.loading', 'Loading applications and discovering installations...') }}</span>
           </div>
           <div v-else-if="filteredApps.length" class="results-text">
             Showing {{ filteredApps.length }} of {{ filteredApps.length }} applications
