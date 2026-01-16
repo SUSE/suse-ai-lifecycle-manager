@@ -51,7 +51,7 @@ export const translations: Translations = {
         install: 'Install Application',
         manage: 'Manage Application',
         noApps: 'No applications found',
-        loading: 'Loading applications...',
+        loading: 'Loading applications and discovering installations...',
 
         status: {
           available: 'Available',

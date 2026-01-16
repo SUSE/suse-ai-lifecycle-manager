@@ -14,6 +14,7 @@ import {
   createOrUpgradeApp,
   listChartVersions,
   fetchChartDefaultValues,
+  fetchChartYaml,
   ensureRegistrySecretSimple,
   ensureServiceAccountPullSecret,
   ensurePullSecretOnAllSAs,
@@ -449,6 +450,8 @@ async function submit() {
 }
 
 async function performInstall() {
+  const allPullSecrets = new Set<string>();
+
   // Resolve creds from SELECTED ClusterRepo
   const repoCtx = await getRepoAuthForClusterRepo(store, form.value.chartRepo);
   const desiredSecretBase = repoCtx.secretName || `repo-${form.value.chartRepo}`;
@@ -457,41 +460,88 @@ async function performInstall() {
   const cid = form.value.cluster;
   await ensureNamespace(store, cid, form.value.namespace);
 
-  let finalSecretName = '';
   if (hasRepoCredentials) {
     try {
-      finalSecretName = await ensureRegistrySecretSimple(
+      const finalSecretName = await ensureRegistrySecretSimple(
         store, cid, form.value.namespace,
         repoCtx.registryHost, desiredSecretBase,
         repoCtx.auth!.username, repoCtx.auth!.password
       );
+      if (finalSecretName) {
+        allPullSecrets.add(finalSecretName);
+      }
     } catch (e: any) {
       console.error('[SUSE-AI] pull-secret creation skipped:', e?.message || e);
     }
   }
 
+  // Handle subchart dependencies
+  const chartYaml = await fetchChartYaml(store, form.value.chartRepo, form.value.chartName, form.value.chartVersion);
+  if (chartYaml?.dependencies) {
+    const repos = Object.values(store.state.suseai.repositories.repositories);
+    const processedRepos = new Set<string>();
+    for (const dep of chartYaml.dependencies) {
+      if (dep.repository) {
+        const normalizeUrl = (url: string) => url?.replace(/\/+$/, '').toLowerCase();
+        const repo = repos.find(r => normalizeUrl(r.url) === normalizeUrl(dep.repository));
+        if (repo) {
+          if (processedRepos.has(repo.name)) continue;
+          const subRepoCtx = await getRepoAuthForClusterRepo(store, repo.name);
+          const subDesiredSecretBase = subRepoCtx.secretName || `repo-${repo.name}`;
+          const hasSubRepoCredentials = !!subRepoCtx.auth?.username && !!subRepoCtx.auth?.password;
+
+          if (hasSubRepoCredentials) {
+            try {
+              const finalSecretName = await ensureRegistrySecretSimple(
+                store, cid, form.value.namespace,
+                subRepoCtx.registryHost, subDesiredSecretBase,
+                subRepoCtx.auth!.username, subRepoCtx.auth!.password
+              );
+              if (finalSecretName) {
+                allPullSecrets.add(finalSecretName);
+              }
+            } catch (e: any) {
+              console.error(`[SUSE-AI] subchart pull-secret creation skipped for ${dep.name}:`, e?.message || e);
+            }
+          }
+          processedRepos.add(repo.name);
+        } else {
+          console.warn(`[SUSE-AI] Subchart ${dep.name} repository ${dep.repository} not found in configured repositories`);
+          continue;          
+        }
+      }
+    }
+  }
+
   const v = JSON.parse(JSON.stringify(form.value.values || {}));
+  const pullSecrets = Array.from(allPullSecrets);
 
   // Only add imagePullSecrets if we have a secret name (i.e., repo has authentication)
-  if (finalSecretName) {
-    const addSecret = (arr: any): any[] => {
+  if (pullSecrets.length > 0) {
+    const addSecrets = (arr: any): any[] => {
       const list = Array.isArray(arr) ? arr.slice() : [];
-      const hasStr = list.some((e: any) => e === finalSecretName);
-      const hasObj = list.some((e: any) => e && typeof e === 'object' && e.name === finalSecretName);
-      if (!hasStr && !hasObj) list.push({ name: finalSecretName });
+      for (const secretName of pullSecrets) {
+        const hasStr = list.some((e: any) => e === secretName);
+        const hasObj = list.some((e: any) => e && typeof e === 'object' && e.name === secretName);
+        if (!hasStr && !hasObj) {
+          list.push({ name: secretName });
+        }
+      }
       return list;
     };
     v.global = v.global || {};
-    v.global.imagePullSecrets = addSecret(v.global.imagePullSecrets);
-    v.imagePullSecrets = addSecret(v.imagePullSecrets);
+    v.global.imagePullSecrets = addSecrets(v.global.imagePullSecrets);
+    v.imagePullSecrets = addSecrets(v.imagePullSecrets);
 
     const saCandidates = new Set<string>(['default']);
     const vs = (v as any).serviceAccount || {};
     if (typeof vs?.name === 'string' && vs.name.trim()) saCandidates.add(vs.name.trim());
     else if (vs.create === undefined || !!vs.create) saCandidates.add(form.value.release);
     for (const sa of saCandidates) {
-      try { await ensureServiceAccountPullSecret(store, cid, form.value.namespace, sa, finalSecretName); }
-      catch (e) { console.warn('[SUSE-AI] SA pull-secret attach (pre) failed', { sa, ns: form.value.namespace, e }); }
+      for (const secretName of pullSecrets) {
+        try { await ensureServiceAccountPullSecret(store, cid, form.value.namespace, sa, secretName); }
+        catch (e) { console.warn('[SUSE-AI] SA pull-secret attach (pre) failed', { sa, ns: form.value.namespace, e }); }
+      }
     }
   }
 
@@ -519,10 +569,12 @@ async function performInstall() {
     throw new Error(`App resource did not appear in namespace ${form.value.namespace}. Check Rancher logs and ClusterRepo permissions.`);
   }
 
-  if (finalSecretName) {
+  if (pullSecrets.length > 0) {
     for (let attempt = 1; attempt <= 5; attempt++) {
       try {
-        await ensurePullSecretOnAllSAs(store, cid, form.value.namespace, finalSecretName);
+        for (const secretName of pullSecrets) {
+          await ensurePullSecretOnAllSAs(store, cid, form.value.namespace, secretName);
+        }
         break;
       } catch (e) {
         if (attempt === 5) break;

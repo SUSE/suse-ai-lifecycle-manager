@@ -588,6 +588,57 @@ function textFromFileEntry(v: FileEntry): string {
 }
 // Note: Complex file fetching functions removed - now handled by ChartValuesService
 
+
+export async function fetchChartYaml(
+  $store: RancherStore,
+  repoName: string,
+  chartName: string,
+  version: string
+): Promise<any | null> {
+  const found = await getClusterContext($store, { repoName });
+
+  if (!found) {
+    logger.warn(`ClusterRepo "${repoName}" not found in any cluster`);
+
+    return null;
+  }
+
+  try {
+    const { baseApi } = found;
+    const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(
+      repoName
+    )}?link=file&chartName=${encodeURIComponent(
+      chartName
+    )}&version=${encodeURIComponent(version)}&name=${encodeURIComponent(
+      'Chart.yaml'
+    )}`;
+    const response = await $store.dispatch('rancher/request', {
+      url,
+      timeout: 20000
+    });
+    const text = textFromFileEntry(response?.data ?? response);
+
+    if (text && text.includes(':')) {
+      // Basic YAML validation
+      logger.debug('Found Chart.yaml via file approach', {
+        component: 'ChartService',
+        action:    'success',
+        data:      {
+          method: 'file',
+          filename: 'Chart.yaml',
+          length: text.length
+        }
+      });
+
+      return yaml.load(text);
+    }
+  } catch (error) {
+    return null;
+  }
+
+  return null;
+}
+
 export async function fetchChartDefaultValues(
   $store: RancherStore,
   _repoClusterId: string,
