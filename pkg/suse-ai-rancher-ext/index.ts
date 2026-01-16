@@ -2,6 +2,7 @@ import { importTypes } from '@rancher/auto-import';
 import type { IPlugin } from '@shell/core/types';
 import routes from './routing';
 import * as productModule from './product';
+import './style/brand.css';
 
 export default function(plugin: IPlugin): void {
   importTypes(plugin);
