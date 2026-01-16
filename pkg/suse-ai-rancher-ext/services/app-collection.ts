@@ -143,6 +143,19 @@ const RAW_APPS = [
       "last_updated_at": "2025-09-30T08:22:20.607991Z",
       "packaging_format": "HELM_CHART",
       "repository_url": "oci://dp.apps.rancher.io/charts"    
+    },
+    {
+      "name": "Qdrant",
+      "slug_name": "qdrant",
+      "description": " High-performance, massive-scale Vector Database and Vector Search Engine for the next generation of AI.",
+      "project_url": "https://github.com/qdrant/qdrant",
+      "documentation_url": "https://qdrant.tech/documentation/",
+      "source_code_url": "https://github.com/qdrant/qdrant",
+      "logo_url": "https://qdrant.github.io/qdrant-helm/logo_with_text.svg",
+      "changelog_url": "https://github.com/qdrant/qdrant/releases",
+      "last_updated_at": "2025-12-19T17:45:42Z",
+      "packaging_format": "HELM_CHART",
+      "repository_url": "oci://registry.suse.com/ai/charts"    
     }
 ] as const;
 
