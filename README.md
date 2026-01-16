@@ -64,6 +64,18 @@ yarn build-pkg suse-ai-rancher-ext --mode production
    - Versioned releases
    - Immutable distribution
    - Simple rollout via container tags
+
+ ### Versioning
+- The catalog container tag is derived from the Git tag:
+ 
+```
+suse-ai-rancher-ext-<version> → ghcr.io/suse/suse-ai-rancher-ext:<version>
+```
+
+In the examples below, `<version>` refers to a published extension release (e.g. `0.2.0`).
+
+Available catalog image versions are published in GitHub Container Registry:
+https://github.com/SUSE/suse-ai-rancher-ext/pkgs/container/suse-ai-rancher-ext
  
 ### Container Structure
 ```
@@ -75,28 +87,22 @@ yarn build-pkg suse-ai-rancher-ext --mode production
         ├── index.yaml
         ├── package.json
         ├── suse-ai-rancher-ext
-            └── suse-ai-rancher-ext-0.1.0.tgz
-        └── suse-ai-rancher-ext-0.1.0
+            └── suse-ai-rancher-ext-<version>.tgz
+        └── suse-ai-rancher-ext-<version>
             ├── files.txt
             └── plugin/
                 └── <plugin source code>
 ```
 
- ### Versioning
-- The catalog container tag is derived from the Git tag:
- 
-```
-suse-ai-rancher-ext-0.1.0 → ghcr.io/suse/suse-ai-rancher-ext:0.1.0
-```
-
 ### Consuming the Catalog in Rancher
 - Add the catalog source in the Rancher Dashboard:
    1. Navigate to Extensions → Manage Extensions Catalog
-   2. Import Extension Catalog
-   3. Use the catalog container reference: `ghcr.io/suse/suse-ai-rancher-ext:0.1.0`
-   4. Go back to Extensions and install SUSE AI Rancher Extension
+   2. Import Extension Catalog → Use the Catalog Image Reference: `ghcr.io/suse/suse-ai-rancher-ext:<version>` → Press `Load`
+   3. From the Extensions page, Go to Manage Repositories. Verify if the SUSE AI Rancher Extension repository has the `Active` state. If not, refresh the connection.
+   4. Go back to Extensions and install SUSE AI Rancher Extension.
 
-NOTE: Newly published catalogs are not always available immediately. If the catalog does not show up after publishing, navigate to Extensions → Manage Repositories and manually refresh the repository to force a re-sync.
+> NOTE: Replace `<version>` with a tag published in GitHub Container Registry.
+> NOTE: Newly published catalogs are not always available immediately. If the catalog does not show up after publishing, navigate to Extensions → Manage Repositories and manually refresh the repository to force a re-sync.
 
 ## Contributing
 
