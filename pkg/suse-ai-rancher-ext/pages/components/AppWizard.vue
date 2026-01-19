@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { defineProps, withDefaults, ref, computed, onMounted, getCurrentInstance } from 'vue';
+import { defineProps, withDefaults, ref, computed, onMounted, getCurrentInstance, watch } from 'vue';
 import yaml from 'js-yaml';
 import { Banner } from '@components/Banner';
 import Loading from '@shell/components/Loading';
@@ -62,6 +62,10 @@ const error = ref<string | null>(null);
 const versions = ref<string[]>([]);
 const loadingVersions = ref(false);
 const loadingValues = ref(false);
+const versionInfo = ref<any | null>(null);
+const questionsLoading = ref(false);
+const versionInfoKey = ref('');
+const defaultValuesSnapshot = ref<Record<string, any>>({});
 
 const PKEY = `${props.mode}.${props.slug}`;
 const TTL = 1000 * 60 * 60;
@@ -121,6 +125,26 @@ if (saved.form) Object.assign(form.value, saved.form);
 if (typeof saved.step === 'number') currentStep.value = Math.min(saved.step, wizardSteps.value.length - 1);
 
 const wizardTitle = computed(() => isInstallMode.value ? 'Install' : 'Manage');
+const inStore = computed(() => store?.getters?.currentStore?.() || 'cluster');
+const PSP_VARIABLE_MAP: Record<string, string> = {
+  epinio:                     'global.rbac.pspEnabled',
+  longhorn:                   'enablePSP',
+  'rancher-alerting-drivers': 'global.cattle.psp.enabled',
+  neuvector:                  'global.cattle.psp.enabled',
+  'prometheus-federator':     'global.rbac.pspEnabled'
+};
+const ignoreVariables = computed(() => {
+  const key = PSP_VARIABLE_MAP[form.value.chartName as keyof typeof PSP_VARIABLE_MAP];
+
+  return key ? [key] : [];
+});
+const hasQuestions = computed(() => !!versionInfo.value?.questions);
+
+watch(() => [form.value.chartRepo, form.value.chartName, form.value.chartVersion], () => {
+  versionInfo.value = null;
+  versionInfoKey.value = '';
+  defaultValuesSnapshot.value = {};
+});
 
 // Basic info form computed
 const basicInfoForm = computed({
@@ -315,16 +339,20 @@ async function refreshVersions() {
       form.value.chartVersion = vs[0];
     }
 
-    // Load default values for install mode
-    if (isInstallMode.value && form.value.chartVersion) {
-      await loadDefaultValues();
+    if (form.value.chartVersion) {
+      await ensureVersionInfoLoaded();
+
+      // Load default values for install mode
+      if (isInstallMode.value) {
+        await loadDefaultValues({ skipVersionInfoFetch: true });
+      }
     }
   } finally {
     loadingVersions.value = false;
   }
 }
 
-async function loadDefaultValues() {
+async function loadDefaultValues(options: { skipVersionInfoFetch?: boolean } = {}) {
   if (!store || !form.value.chartRepo || !form.value.chartName || !form.value.chartVersion) {
     return;
   }
@@ -333,18 +361,37 @@ async function loadDefaultValues() {
   error.value = null;
 
   try {
-    const valuesText = await fetchChartDefaultValues(
-      store,
-      REPO_CLUSTER,
-      form.value.chartRepo,
-      form.value.chartName,
-      form.value.chartVersion
-    );
+    if (!options.skipVersionInfoFetch) {
+      await ensureVersionInfoLoaded();
+    }
 
-    if (valuesText?.trim()) {
-      form.value.values = (yaml.load(valuesText) as any) || {};
+    let baseValues: Record<string, any> | null = defaultValuesSnapshot.value && Object.keys(defaultValuesSnapshot.value).length
+      ? defaultValuesSnapshot.value
+      : null;
+
+    if (!baseValues && versionInfo.value?.values) {
+      baseValues = JSON.parse(JSON.stringify(versionInfo.value.values || {}));
+      defaultValuesSnapshot.value = baseValues;
+    }
+
+    if (baseValues) {
+      form.value.values = JSON.parse(JSON.stringify(baseValues));
     } else {
-      error.value = 'No default values found for the selected version.';
+      const valuesText = await fetchChartDefaultValues(
+        store,
+        REPO_CLUSTER,
+        form.value.chartRepo,
+        form.value.chartName,
+        form.value.chartVersion
+      );
+
+      if (valuesText?.trim()) {
+        const parsed = (yaml.load(valuesText) as any) || {};
+        defaultValuesSnapshot.value = JSON.parse(JSON.stringify(parsed));
+        form.value.values = parsed;
+      } else {
+        error.value = 'No default values found for the selected version.';
+      }
     }
   } catch (e: any) {
     error.value = e?.message || 'Failed to fetch default values.';
@@ -353,10 +400,68 @@ async function loadDefaultValues() {
   }
 }
 
+async function ensureVersionInfoLoaded() {
+  if (!store) {
+    versionInfo.value = null;
+    versionInfoKey.value = '';
+    return null;
+  }
+
+  const repo = form.value.chartRepo;
+  const chart = form.value.chartName;
+  const version = form.value.chartVersion;
+
+  if (!repo || !chart || !version) {
+    versionInfo.value = null;
+    versionInfoKey.value = '';
+    return null;
+  }
+
+  const key = `${repo}:::${chart}:::${version}`;
+
+  if (versionInfo.value && versionInfoKey.value === key) {
+    return versionInfo.value;
+  }
+
+  questionsLoading.value = true;
+  try {
+    await store.dispatch('catalog/load');
+    const info = await store.dispatch('catalog/getVersionInfo', {
+      repoType:    'cluster',
+      repoName:    repo,
+      chartName:   chart,
+      versionName: version
+    });
+
+    versionInfo.value = info;
+    versionInfoKey.value = key;
+    defaultValuesSnapshot.value = JSON.parse(JSON.stringify(info?.values || {}));
+
+    return info;
+  } catch (e) {
+    console.warn('[SUSE-AI] Failed to load chart version info', e);
+    versionInfo.value = null;
+    versionInfoKey.value = '';
+    defaultValuesSnapshot.value = {};
+
+    return null;
+  } finally {
+    questionsLoading.value = false;
+  }
+}
+
 // Handle version changes for install mode
 async function onVersionChange() {
-  if (isInstallMode.value && form.value.chartVersion) {
-    await loadDefaultValues();
+  if (!form.value.chartVersion) {
+    versionInfo.value = null;
+    versionInfoKey.value = '';
+    return;
+  }
+
+  await ensureVersionInfoLoaded();
+
+  if (isInstallMode.value) {
+    await loadDefaultValues({ skipVersionInfoFetch: true });
   }
 
   // Persist form state
@@ -687,6 +792,13 @@ function previousStep() {
             :chart-version="form.chartVersion"
             :loading-values="loadingValues"
             :version-dirty="false"
+            :has-questions="hasQuestions"
+            :questions-source="versionInfo"
+            :questions-loading="questionsLoading"
+            :ignore-variables="ignoreVariables"
+            :target-namespace="form.namespace"
+            :mode="props.mode"
+            :in-store="inStore"
             @load-defaults="loadDefaultValues"
             @values-edited="onValuesEdited"
           />
