@@ -116,50 +116,54 @@
 
         <!-- Tiles view -->
         <div v-if="viewMode === 'tiles'" class="tiles-grid" role="grid" aria-label="Applications grid">
-        <div
-          v-for="app in filteredApps"
-          :key="app.slug_name"
-          class="app-tile clickable-tile"
-          @click="onTileClick(app)"
-          :aria-label="`View instances of ${app.name}`"
-          role="button"
-          tabindex="0"
-          @keydown.enter="onTileClick(app)"
-          @keydown.space.prevent="onTileClick(app)"
-        >
-          <div class="tile-header">
-            <img :src="logoFor(app)" alt="" @error="onImgError($event)" class="tile-logo" />
-            <div class="tile-info">
-              <h3 class="tile-title">{{ app.name }}</h3>
-              <div class="tile-meta">
-                <span v-if="app.packaging_format" class="badge-state" :class="getBadgeClass(app.packaging_format)">
-                  {{ formatPackagingType(app.packaging_format) }}
-                </span>
+          <div
+            v-for="app in filteredApps"
+            :key="app.slug_name"
+            :class="['app-tile', 'clickable-tile']"
+            @click="onTileClick(app)"
+            :aria-label="`View instances of ${app.name}`"
+            role="button"
+            tabindex="0"
+            @keydown.enter="onTileClick(app)"
+            @keydown.space.prevent="onTileClick(app)"
+          >
+            <div class="tile-header">
+              <img :src="logoFor(app)" alt="" @error="onImgError($event)" class="tile-logo" />
+              <div class="tile-info">
+                <div class="tile-title-row">
+                  <h3 class="tile-title">{{ app.name }}</h3>
+                </div>
+                <div class="tile-meta">
+                  <span v-if="app.packaging_format" class="tile-meta-item">
+                    {{ formatPackagingType(app.packaging_format) }}
+                  </span>
+                  <span v-if="app.last_updated_at" class="tile-meta-item">
+                    Updated {{ formatUpdatedDate(app.last_updated_at) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="tile-content">
+              <p class="tile-description">{{ app.description || '—' }}</p>
+
+              <!-- Installation status -->
+              <div v-if="getInstallationInfo(app.slug_name).installed" class="install-status">
+                <small class="status-label">Installed in:</small>
+                <div class="cluster-chips">
+                  <span
+                    v-for="cluster in getInstallationInfo(app.slug_name).clusters"
+                    :key="cluster"
+                    class="cluster-chip"
+                    :title="`${getInstallationInfo(app.slug_name).namespace}/${getInstallationInfo(app.slug_name).release}`"
+                  >
+                    {{ getClusterDisplayName(cluster) }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-
-          <div class="tile-content">
-            <p class="tile-description">{{ app.description || '—' }}</p>
-
-            <!-- Installation status -->
-            <div v-if="getInstallationInfo(app.slug_name).installed" class="install-status">
-              <small class="status-label">Installed in:</small>
-              <div class="cluster-chips">
-                <span
-                  v-for="cluster in getInstallationInfo(app.slug_name).clusters"
-                  :key="cluster"
-                  class="cluster-chip"
-                  :title="`${getInstallationInfo(app.slug_name).namespace}/${getInstallationInfo(app.slug_name).release}`"
-                >
-                  {{ getClusterDisplayName(cluster) }}
-                </span>
-              </div>
-            </div>
-          </div>
-
         </div>
-      </div>
 
       <!-- List view -->
       <div v-else class="list-view">
@@ -205,7 +209,7 @@
 
               <!-- Description -->
               <td class="col-description">
-                <span class="text-muted">{{ app.description || '—' }}</span>
+                <span class="list-description">{{ app.description || '—' }}</span>
               </td>
 
               <!-- Clusters -->
@@ -282,7 +286,8 @@ export default defineComponent({
     const repoLoading = ref(false);
     const error = ref<string | null>(null);
     const search = ref('');
-    const selectedRepo = ref('suse-ai-apps');
+    const DEFAULT_REPO = 'suse-ai-apps';
+    const selectedRepo = ref(DEFAULT_REPO);
     const selectedCategory = ref('all');
     const viewMode = ref('tiles'); // Default to tiles view
     const items = ref<AppCollectionItem[]>([]);
@@ -292,12 +297,37 @@ export default defineComponent({
     const repositoriesLoaded = ref(false);
     const installedMap = ref<Record<string, InstallInfo>>({});
 
+    const updatedDateFormatter = new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+
+    const formatUpdatedDate = (value?: string) => {
+      if (!value) {
+        return '';
+      }
+
+      const date = new Date(value);
+
+      if (Number.isNaN(date.getTime())) {
+        return '';
+      }
+
+      try {
+        return updatedDateFormatter.format(date);
+      } catch (err) {
+        console.warn('[SUSE-AI] Failed to format updated date', err);
+        return date.toLocaleDateString();
+      }
+    };
+
     // Computed properties - using local data for now until store is fully integrated
     const filteredApps = computed(() => {
       let arr: AppCollectionItem[] = [];
 
       // Select apps based on repository
-      if (selectedRepo.value === 'suse-ai-apps') {
+      if (selectedRepo.value === DEFAULT_REPO) {
         arr = items.value.slice();
       } else if (selectedRepo.value === 'all') {
         // Use Map to deduplicate apps by slug_name
@@ -343,7 +373,7 @@ export default defineComponent({
 
     const repositoryOptions = computed(() => {
       const options = [
-        { label: 'SUSE AI Apps', value: 'suse-ai-apps' },
+        { label: 'SUSE AI Apps', value: DEFAULT_REPO },
         { label: 'All Repositories', value: 'all' }
       ];
 
@@ -506,7 +536,7 @@ export default defineComponent({
         } else {
           console.warn(`[SUSE-AI] Could not find cluster repository for URL: ${repoName}`);
         }
-      } else if (selectedRepo.value && selectedRepo.value !== 'all' && selectedRepo.value !== 'suse-ai-apps') {
+      } else if (selectedRepo.value && selectedRepo.value !== 'all' && selectedRepo.value !== DEFAULT_REPO) {
         route.query = { repo: selectedRepo.value };
       }
 
@@ -523,14 +553,16 @@ export default defineComponent({
         // Clear existing installation info to prevent stale data
         installedMap.value = {};
 
-        if (newRepo === 'suse-ai-apps') {
-          items.value = await fetchSuseAiApps(currentClusterId);
+        if (newRepo === DEFAULT_REPO) {
+          const apps = await fetchSuseAiApps(currentClusterId);
+          items.value = apps;
         } else if (newRepo === 'all') {
           // Load all repository apps if not already loaded
           repoLoading.value = true;
           error.value = null;
           console.log('[SUSE-AI] Loading all repository apps...');
-          allRepositoryApps.value = await fetchAllRepositoryApps(store);
+          const repoAppsMap = await fetchAllRepositoryApps(store);
+          allRepositoryApps.value = repoAppsMap;
           repositoriesLoaded.value = true;
           console.log('[SUSE-AI] Loaded apps from repositories:', Object.keys(allRepositoryApps.value));
 
@@ -600,6 +632,7 @@ export default defineComponent({
       getInstallationInfo,
       getBadgeClass,
       formatPackagingType,
+      formatUpdatedDate,
       getClusterDisplayName,
       logoFor,
       onImgError,
@@ -837,19 +870,12 @@ export default defineComponent({
   }
 }
 
-// Tiles view - 4 tiles per row with better spacing
+// Tiles view - fluid grid similar to Rancher catalog tiles
 .tiles-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 20px;
-
-  @media (max-width: 1400px) {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  @media (max-width: 1024px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  align-items: stretch;
 
   @media (max-width: 768px) {
     grid-template-columns: 1fr;
@@ -860,125 +886,135 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
-  border-radius: var(--border-radius);
-  background: var(--body-bg);
-  transition: all 0.2s ease;
-  overflow: hidden;
-  position: relative;
+  border-radius: 14px;
+  background: transparent;
+  padding: 20px;
+  gap: 16px;
+  min-height: 220px;
+  transition: border-color 0.2s ease, background 0.2s ease;
 
   &:hover {
     border-color: var(--primary);
-    box-shadow: 0 2px 8px var(--shadow);
+    background: transparent;
   }
 
   &.clickable-tile {
     cursor: pointer;
 
-    &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px var(--shadow);
-    }
-
     &:focus {
       outline: 2px solid var(--primary);
       outline-offset: 2px;
-    }
-
-    &:active {
-      transform: translateY(0);
     }
   }
 
   .tile-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 16px;
-    padding: 20px 20px 16px;
-    border-bottom: 1px solid var(--border);
+    padding: 0;
+    border-bottom: none;
 
     .tile-logo {
-      width: 48px;
-      height: 48px;
+      width: 52px;
+      height: 52px;
       object-fit: contain;
-      border-radius: var(--border-radius);
+      border-radius: 12px;
       background: var(--accent-btn);
-      border: 1px solid var(--border);
+      border: 1px solid var(--border, #e5e7eb);
       flex-shrink: 0;
-      padding: 6px;
+      padding: 8px;
+      box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08);
     }
 
     .tile-info {
       flex: 1;
       min-width: 0;
-
-      .tile-title {
-        margin: 0 0 6px 0;
-        font-size: 16px;
-        font-weight: 600;
-        line-height: 1.3;
-        color: var(--body-text);
-        letter-spacing: -0.025em;
-      }
-
-      .tile-meta {
-        display: flex;
-        gap: 8px;
-        margin-top: 4px;
-      }
     }
+  }
 
+  .tile-title-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .tile-title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--body-text);
+  }
+
+  .tile-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .tile-meta-item {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 500;
+  }
+
+  .tile-meta-item + .tile-meta-item {
+    position: relative;
+    padding-left: 12px;
+
+    &::before {
+      content: '•';
+      position: absolute;
+      left: 2px;
+      color: var(--muted);
+    }
   }
 
   .tile-content {
     flex: 1;
-    padding: 0 20px 20px;
+    padding: 0;
     display: flex;
     flex-direction: column;
-
-    .tile-description {
-      margin: 0 0 16px 0;
-      color: var(--muted);
-      line-height: 1.5;
-      font-size: 14px;
-      flex: 1;
-      min-height: 42px; // Reserve space for 2 lines
-
-      // Clamp to 3 lines for better content display
-      display: -webkit-box;
-      -webkit-line-clamp: 3;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-
-    .install-status {
-      margin-top: auto;
-      padding-top: 12px;
-      border-top: 1px solid var(--border);
-
-      .status-label {
-        display: block;
-        font-size: 11px;
-        color: var(--muted);
-        margin-bottom: 8px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-      }
-
-      .cluster-chips {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-      }
-    }
+    gap: 12px;
   }
 
-  .tile-footer {
-    display: flex;
-    gap: 10px;
-    padding: 16px 20px 20px;
+.tile-description {
+  margin: 0;
+  color: var(--body-text);
+  line-height: 1.5;
+  font-size: 14px;
+  flex: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .install-status {
+    margin-top: auto;
+    padding-top: 12px;
     border-top: 1px solid var(--border);
-    background: var(--box-bg);
+  }
+
+  .status-label {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .cluster-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 }
 
@@ -1090,30 +1126,36 @@ export default defineComponent({
     display: flex;
     gap: 4px;
   }
+
+  .list-description {
+    display: inline-block;
+    color: var(--body-text);
+    font-size: 14px;
+    line-height: 1.5;
+  }
 }
 
 // Common elements
 .cluster-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
 }
 
 .cluster-chip {
-  display: inline-block;
-  padding: 4px 10px;
-  font-size: 11px;
-  background: var(--info-banner-bg, #eff6ff);
-  border: 1px solid var(--info-border, #bfdbfe);
-  color: var(--info, #1d4ed8);
-  border-radius: 14px;
-  max-width: 140px;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--body-text);
+  border-radius: 16px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 500;
-  transition: all 0.15s ease;
-
+  font-weight: 600;
 }
 
 .badge-state {

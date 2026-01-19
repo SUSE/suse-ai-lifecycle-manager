@@ -82,13 +82,13 @@ const displayCluster = computed({
 .lbl { 
   display: block; 
   font-size: 12px; 
-  color: #334155; 
+  color: var(--body-text, #111827); 
   margin-bottom: 6px; 
 }
 
 .hint { 
   font-size: 12px; 
-  color: #64748b; 
+  color: var(--muted, #64748b); 
   margin-top: 8px; 
 }
 </style>

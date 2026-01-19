@@ -751,7 +751,7 @@ export default defineComponent({
 <style lang="scss" scoped>
 // Main layout following Apps.vue patterns
 .main-layout {
-  background: #ffffff;
+  background: var(--body-bg, #ffffff);
   min-height: 100vh;
   padding: 20px 24px;
 }

@@ -757,6 +757,11 @@ function previousStep() {
 
 
 <style scoped>
+/* Ensure Loading overlay inherits Rancher's standard background */
+.install-steps {
+  --overlay-bg: var(--body-bg, #ffffff);
+}
+
 /* Button utilities */
 .mr-5 {
   margin-right: 5px;
@@ -938,15 +943,24 @@ function previousStep() {
   transition: all 0.2s ease;
 }
 
-.wizard-buttons-fixed .btn.role-secondary {
+.wizard-buttons-fixed .btn.role-secondary,
+.wizard-buttons-fixed .btn.role-secondary:focus,
+.wizard-buttons-fixed .btn.role-secondary:active {
   background: var(--body-bg, #ffffff);
   border: 1px solid var(--border, #d1d5db);
-  color: var(--body-text, #111827);
+  color: var(--body-text, #111827) !important;
+  box-shadow: none;
 }
 
 .wizard-buttons-fixed .btn.role-secondary:hover {
-  background: var(--accent-bg, #f9fafb);
+  background: var(--body-bg, #ffffff);
   border-color: var(--border-hover, #9ca3af);
+  color: var(--body-text, #111827) !important;
+}
+
+.wizard-buttons-fixed .btn.role-secondary:focus-visible {
+  outline: 2px solid var(--primary, #2563eb);
+  outline-offset: 2px;
 }
 
 .wizard-buttons-fixed .btn.role-primary {

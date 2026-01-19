@@ -29,7 +29,7 @@
 
     <!-- Cluster selection table -->
     <div v-else-if="clusters.length > 0" class="table-container">
-      <table class="cluster-table">
+      <table class="cluster-table table">
         <thead>
           <tr>
             <th class="col-select"></th>
@@ -341,29 +341,29 @@ export default defineComponent({
 
 .requirements-info {
   padding: 12px 16px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--box-bg, var(--body-bg));
+  border: 1px solid var(--border, #e2e8f0);
   border-radius: 8px;
   font-size: 14px;
 }
 
 .requirements-label {
   font-weight: 600;
-  color: #334155;
+  color: var(--body-text, #111827);
 }
 
 .requirements-text {
-  color: #64748b;
+  color: var(--muted, #64748b);
 }
 
 .requirements-estimated {
-  background: #fef3c7;
-  border-color: #f59e0b;
+  background: var(--warning-banner-bg, rgba(245, 158, 11, 0.15));
+  border-color: var(--warning-border, #f59e0b);
 }
 
 .requirements-note {
   font-size: 12px;
-  color: #92400e;
+  color: var(--warning, #d97706);
   margin-top: 6px;
   font-style: italic;
 }
@@ -373,21 +373,21 @@ export default defineComponent({
 .no-clusters {
   padding: 24px;
   text-align: center;
-  color: #64748b;
-  border: 1px solid #e2e8f0;
+  color: var(--muted, #64748b);
+  border: 1px solid var(--border, #e2e8f0);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--box-bg, var(--body-bg));
 }
 
 .error-text {
-  color: #dc2626;
+  color: var(--error, #dc2626);
   font-weight: 600;
   margin-bottom: 4px;
 }
 
 .error-hint {
   font-size: 12px;
-  color: #64748b;
+  color: var(--muted, #64748b);
 }
 
 .no-clusters-text {
@@ -400,31 +400,32 @@ export default defineComponent({
 }
 
 .table-container {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--border-radius-lg, 8px);
   overflow: hidden;
+  background: var(--body-bg);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.05);
 }
 
 .cluster-table {
   width: 100%;
   border-collapse: collapse;
-  background: #fff;
+  background: inherit;
 }
 
 .cluster-table th {
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 12px 8px;
-  text-align: center;
-  font-size: 12px;
+  background: var(--sortable-table-header-bg);
+  border-bottom: 1px solid var(--border);
+  padding: 12px;
+  text-align: left;
+  font-size: 13px;
   font-weight: 600;
-  color: #334155;
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
+  color: var(--body-text);
 }
 
 .cluster-table th.col-select {
   width: 40px;
+  text-align: center;
 }
 
 .cluster-table th.col-cluster {
@@ -435,16 +436,19 @@ export default defineComponent({
 
 .cluster-table th.col-nodes {
   width: 60px;
+  text-align: center;
 }
 
 .cluster-table th.col-cpu,
 .cluster-table th.col-memory,
 .cluster-table th.col-gpu {
   width: 120px;
+  text-align: center;
 }
 
 .cluster-table th.col-status {
   width: 60px;
+  text-align: center;
 }
 
 .cluster-row {
@@ -453,34 +457,43 @@ export default defineComponent({
 }
 
 .cluster-row:hover {
-  background: #f8fafc;
+  background: var(--sortable-table-accent-bg);
 }
 
 .cluster-row.row-selected {
-  background: #eff6ff;
-  border-left: 3px solid #3b82f6;
+  background: var(--primary-banner-bg, rgba(59, 130, 246, 0.15));
 }
 
 .cluster-table td {
-  padding: 12px 8px;
-  border-bottom: 1px solid #f1f5f9;
-  text-align: center;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
   font-size: 14px;
   vertical-align: middle;
 }
 
-.cluster-table td.col-cluster {
-  text-align: left;
+.cluster-table tr:last-child td {
+  border-bottom: none;
+}
+
+
+.cluster-table td.col-select,
+.cluster-table td.col-nodes,
+.cluster-table td.col-cpu,
+.cluster-table td.col-memory,
+.cluster-table td.col-gpu,
+.cluster-table td.col-status {
+  text-align: center;
 }
 
 .cluster-name {
   font-weight: 600;
-  color: #111827;
+  color: var(--body-text, #111827);
 }
 
 .cluster-id {
   font-size: 12px;
-  color: #64748b;
+  color: var(--muted, #64748b);
 }
 
 .resource-bar-container {
@@ -493,7 +506,7 @@ export default defineComponent({
 .resource-bar-track {
   flex: 1;
   height: 6px;
-  background: #e2e8f0;
+  background: var(--progress-bg, #e2e8f0);
   border-radius: 3px;
   overflow: hidden;
   min-width: 60px;
@@ -501,56 +514,57 @@ export default defineComponent({
 
 .resource-bar-fill {
   height: 100%;
-  background: #10b981;
   border-radius: 3px;
   transition: width 0.3s ease;
 }
 
 /* Color the bar based on usage percentage */
 .resource-bar-fill.resource-bar-low {
-  background: #10b981; /* Green for low usage (0-70%) */
+  background: var(--success, #10b981);
 }
 
 .resource-bar-fill.resource-bar-high {
-  background: #f59e0b; /* Yellow for high usage (70-90%) */
+  background: var(--warning, #f59e0b);
 }
 
 .resource-bar-fill.resource-bar-critical {
-  background: #ef4444; /* Red for critical usage (90%+) */
+  background: var(--error, #ef4444);
 }
 
 .resource-percentage {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 12px;
-  color: #374151;
+  color: var(--body-text, #374151);
   font-weight: 600;
   min-width: 35px;
   text-align: right;
 }
 
 .no-resource {
-  color: #9ca3af;
+  color: var(--muted, #9ca3af);
 }
 
 .status-icon {
   font-size: 16px;
   cursor: help;
+  color: var(--body-text);
 }
 
 .cluster-radio {
   cursor: pointer;
 }
 
+
 .selected-info {
   padding: 12px 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border, #e2e8f0);
   border-radius: 8px;
-  background: #fff;
+  background: var(--box-bg, var(--body-bg));
 }
 
 .selected-header {
   font-weight: 600;
-  color: #111827;
+  color: var(--body-text, #111827);
   margin-bottom: 8px;
 }
 
@@ -559,24 +573,24 @@ export default defineComponent({
 }
 
 .details-compatible .status-message {
-  color: #059669;
+  color: var(--success, #059669);
 }
 
 .details-limited .status-message {
-  color: #d97706;
+  color: var(--warning, #d97706);
 }
 
 .details-insufficient .status-message {
-  color: #dc2626;
+  color: var(--error, #dc2626);
 }
 
 .details-error .status-message {
-  color: #6b7280;
+  color: var(--muted, #6b7280);
 }
 
 .status-hint {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--muted, #9ca3af);
   margin-top: 4px;
 }
 
