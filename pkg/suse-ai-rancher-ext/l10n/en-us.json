@@ -1,4 +1,7 @@
 {
+  "product": {
+    "suseai": "SUSE AI Lifecycle Manager"
+  },
   "suseai": {
     "product": {
       "name": "SUSE AI",
