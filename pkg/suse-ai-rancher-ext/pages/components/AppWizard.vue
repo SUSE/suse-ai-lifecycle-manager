@@ -8,6 +8,7 @@ import BasicInfoStep from './wizard/BasicInfoStep.vue';
 import TargetStep from './wizard/TargetStep.vue';
 import ValuesStep from './wizard/ValuesStep.vue';
 import ReviewStep from './wizard/ReviewStep.vue';
+import InstallProgressModal, { type ClusterInstallProgress } from './wizard/InstallProgressModal.vue';
 import {
   findChartInRepo,
   ensureNamespace,
@@ -34,7 +35,6 @@ type WizardMode = 'install' | 'manage';
 type WizardForm = {
   release: string;
   namespace: string;
-  cluster: string;
   clusters: string[];
   chartRepo: string;
   chartName: string;
@@ -67,13 +67,16 @@ const questionsLoading = ref(false);
 const versionInfoKey = ref('');
 const defaultValuesSnapshot = ref<Record<string, any>>({});
 
+// Multi-cluster install progress state
+const showProgressModal = ref(false);
+const installProgress = ref<ClusterInstallProgress[]>([]);
+
 const PKEY = `${props.mode}.${props.slug}`;
 const TTL = 1000 * 60 * 60;
 
 const form = ref<WizardForm>({
   release: props.slug,
   namespace: `${props.slug}-system`,
-  cluster: '',
   clusters: [],
   chartRepo: '',
   chartName: props.slug,
@@ -106,13 +109,13 @@ const wizardSteps = computed(() => [
   {
     name: 'values',
     label: 'Configuration',
-    ready: (isInstallMode.value ? !!form.value.cluster : !!form.value.clusters.length) && !loadingValues.value,
+    ready: form.value.clusters.length > 0 && !loadingValues.value,
     weight: 3
   },
   {
     name: 'review',
     label: 'Review',
-    ready: (isInstallMode.value ? !!form.value.cluster : !!form.value.clusters.length),
+    ready: form.value.clusters.length > 0,
     weight: 4
   }
 ]);
@@ -213,7 +216,10 @@ function populateFromUrlParams() {
     // For manage mode, get from URL path parameters
     form.value.release = query.instanceName as string || props.slug;
     form.value.namespace = query.instanceNamespace as string || `${props.slug}-system`;
-    form.value.cluster = query.instanceCluster as string || '';
+    const instanceCluster = query.instanceCluster as string || '';
+    if (instanceCluster) {
+      form.value.clusters = [instanceCluster];
+    }
   }
 }
 
@@ -266,14 +272,11 @@ async function findRepoForApp(slug: string): Promise<string | null> {
 async function initializeManageMode() {
   if (!store) throw new Error('Store not available');
 
-  const targetCluster = form.value.cluster;
+  const targetCluster = form.value.clusters[0];
 
   if (!targetCluster) {
     throw new Error('No cluster specified for manage mode');
   }
-
-  // Set clusters to only the current cluster context
-  form.value.clusters = [targetCluster];
 
   // Load app details from the target cluster
   // If app doesn't exist, loadInstalledAppDetails will throw an error
@@ -507,68 +510,234 @@ async function submit() {
     if (!form.value.chartRepo || !form.value.chartName || !form.value.chartVersion) {
       error.value = 'Please set repository, chart and version.'; return;
     }
-    
-    if (isInstallMode.value && !form.value.cluster) {
-      error.value = 'Please select a cluster.'; return;
+
+    if (form.value.clusters.length === 0) {
+      error.value = 'Please select at least one cluster.'; return;
     }
-    
-    if (isManageMode.value && !form.value.clusters.length) {
-      error.value = 'Please select target cluster.'; return;
-    }
-    
+
     if (!store) { error.value = 'Store not available'; return; }
 
     const actionLabel = isInstallMode.value ? 'INSTALL' : 'UPGRADE';
-    const targetClusters = isInstallMode.value ? [form.value.cluster] : form.value.clusters;
-    
-    console.log(`[SUSE-AI] ${actionLabel} start `, { 
-      clusters: targetClusters, 
-      ns: form.value.namespace, 
-      release: form.value.release 
+    const targetClusters = form.value.clusters;
+
+    console.log(`[SUSE-AI] ${actionLabel} start `, {
+      clusters: targetClusters,
+      ns: form.value.namespace,
+      release: form.value.release
     });
 
     if (isInstallMode.value) {
-      await performInstall();
+      await performMultiClusterInstall();
     } else {
       await performUpgrade();
+      // For upgrade, redirect immediately
+      navigateToAppInstances();
     }
-
-    console.log(`[SUSE-AI] ${actionLabel} done `, { clusters: targetClusters });
-
-    persistClear(PKEY);
-    // Redirect to AppInstances page to show the newly installed/updated instance
-    router?.push({
-      name: `c-cluster-suseai-app-instances`,
-      params: {
-        cluster: route?.params?.cluster,
-        slug: props.slug
-      },
-      query: {
-        repo: route.query.repo
-      }
-    });
   } catch (e: any) {
-    error.value = e?.message || `${finalButtonLabel.value} failed`;
-  } finally {
+    error.value = e?.message || 'Operation failed';
     submitting.value = false;
   }
 }
 
-async function performInstall() {
+function navigateToAppInstances() {
+  persistClear(PKEY);
+  router?.push({
+    name: `c-cluster-suseai-app-instances`,
+    params: {
+      cluster: route?.params?.cluster,
+      slug: props.slug
+    },
+    query: {
+      repo: route.query.repo
+    }
+  });
+}
+
+// Get cluster name for display (used in progress modal)
+async function getClusterDisplayName(clusterId: string): Promise<string> {
+  try {
+    const clusters = await getClusters(store);
+    const cluster = clusters.find((c: any) => c.id === clusterId);
+    return cluster?.name || clusterId;
+  } catch {
+    return clusterId;
+  }
+}
+
+// Concurrency limit for parallel installations
+const INSTALL_CONCURRENCY = 3;
+
+// Multi-cluster install orchestration with parallel execution
+async function performMultiClusterInstall() {
+  const targetClusters = form.value.clusters;
+
+  // Initialize progress for all clusters
+  installProgress.value = await Promise.all(
+    targetClusters.map(async (clusterId) => ({
+      clusterId,
+      clusterName: await getClusterDisplayName(clusterId),
+      status: 'pending' as const,
+      progress: 0,
+      message: 'Waiting to start...'
+    }))
+  );
+
+  showProgressModal.value = true;
+
+  // Install to clusters in parallel with concurrency limit
+  await installWithConcurrencyLimit(targetClusters, INSTALL_CONCURRENCY);
+
+  // Check final status
+  const allSucceeded = installProgress.value.every(p => p.status === 'success');
+  if (allSucceeded) {
+    console.log('[SUSE-AI] Multi-cluster install completed successfully');
+  } else {
+    const failed = installProgress.value.filter(p => p.status === 'failed');
+    console.warn(`[SUSE-AI] Multi-cluster install completed with ${failed.length} failure(s)`);
+  }
+
+  submitting.value = false;
+}
+
+// Install to multiple clusters with concurrency limit
+async function installWithConcurrencyLimit(clusterIds: string[], concurrency: number) {
+  const queue = [...clusterIds];
+  const executing: Promise<void>[] = [];
+
+  while (queue.length > 0 || executing.length > 0) {
+    // Start new installations up to concurrency limit
+    while (queue.length > 0 && executing.length < concurrency) {
+      const clusterId = queue.shift()!;
+      const promise = installSingleCluster(clusterId).then(() => {
+        // Remove from executing when done
+        const index = executing.indexOf(promise);
+        if (index > -1) executing.splice(index, 1);
+      });
+      executing.push(promise);
+    }
+
+    // Wait for at least one to complete before continuing
+    if (executing.length > 0) {
+      await Promise.race(executing);
+    }
+  }
+}
+
+// Install to a single cluster and update progress
+async function installSingleCluster(clusterId: string): Promise<void> {
+  updateClusterProgress(clusterId, {
+    status: 'installing',
+    progress: 10,
+    message: 'Starting installation...'
+  });
+
+  try {
+    await installToCluster(clusterId, (progress, message) => {
+      updateClusterProgress(clusterId, { progress, message });
+    });
+
+    updateClusterProgress(clusterId, {
+      status: 'success',
+      progress: 100,
+      message: 'Installation completed successfully'
+    });
+  } catch (e: any) {
+    updateClusterProgress(clusterId, {
+      status: 'failed',
+      progress: 0,
+      message: 'Installation failed',
+      error: e?.message || 'Unknown error'
+    });
+  }
+}
+
+// Update progress for a specific cluster
+function updateClusterProgress(clusterId: string, updates: Partial<ClusterInstallProgress>) {
+  const index = installProgress.value.findIndex(p => p.clusterId === clusterId);
+  if (index !== -1) {
+    installProgress.value[index] = { ...installProgress.value[index], ...updates };
+  }
+}
+
+// Progress modal event handlers
+function onProgressModalDone() {
+  showProgressModal.value = false;
+  navigateToAppInstances();
+}
+
+function onProgressModalCancel() {
+  showProgressModal.value = false;
+  submitting.value = false;
+}
+
+async function onProgressModalRetryAll() {
+  // Reset all to pending and retry
+  installProgress.value = installProgress.value.map(p => ({
+    ...p,
+    status: 'pending' as const,
+    progress: 0,
+    message: 'Waiting to retry...',
+    error: undefined
+  }));
+
+  submitting.value = true;
+
+  // Re-run installation with parallelization
+  const clusterIds = installProgress.value.map(p => p.clusterId);
+  await installWithConcurrencyLimit(clusterIds, INSTALL_CONCURRENCY);
+
+  submitting.value = false;
+}
+
+async function onProgressModalRetryFailed() {
+  const failedClusters = installProgress.value.filter(p => p.status === 'failed');
+
+  // Reset failed clusters to pending
+  for (const item of failedClusters) {
+    updateClusterProgress(item.clusterId, {
+      status: 'pending',
+      progress: 0,
+      message: 'Waiting to retry...',
+      error: undefined
+    });
+  }
+
+  submitting.value = true;
+
+  // Retry failed clusters with parallelization
+  const failedIds = failedClusters.map(p => p.clusterId);
+  await installWithConcurrencyLimit(failedIds, INSTALL_CONCURRENCY);
+
+  submitting.value = false;
+}
+
+function onProgressModalContinueAnyway() {
+  showProgressModal.value = false;
+  navigateToAppInstances();
+}
+
+// Install to a single cluster with progress callback
+async function installToCluster(
+  clusterId: string,
+  onProgress: (progress: number, message: string) => void
+) {
   const allPullSecrets = new Set<string>();
+
+  onProgress(15, 'Preparing namespace...');
 
   // Resolve creds from SELECTED ClusterRepo
   const repoCtx = await getRepoAuthForClusterRepo(store, form.value.chartRepo);
   const desiredSecretBase = repoCtx.secretName || `repo-${form.value.chartRepo}`;
   const hasRepoCredentials = !!repoCtx.auth?.username && !!repoCtx.auth?.password;
 
-  const cid = form.value.cluster;
-  await ensureNamespace(store, cid, form.value.namespace);
+  await ensureNamespace(store, clusterId, form.value.namespace);
+
+  onProgress(25, 'Setting up registry credentials...');
 
   if (hasRepoCredentials) {
     try {
       const finalSecretName = await ensureRegistrySecretSimple(
-        store, cid, form.value.namespace,
+        store, clusterId, form.value.namespace,
         repoCtx.registryHost, desiredSecretBase,
         repoCtx.auth!.username, repoCtx.auth!.password
       );
@@ -579,6 +748,8 @@ async function performInstall() {
       console.error('[SUSE-AI] pull-secret creation skipped:', e?.message || e);
     }
   }
+
+  onProgress(35, 'Processing chart dependencies...');
 
   // Handle subchart dependencies
   const chartYaml = await fetchChartYaml(store, form.value.chartRepo, form.value.chartName, form.value.chartVersion);
@@ -598,7 +769,7 @@ async function performInstall() {
           if (hasSubRepoCredentials) {
             try {
               const finalSecretName = await ensureRegistrySecretSimple(
-                store, cid, form.value.namespace,
+                store, clusterId, form.value.namespace,
                 subRepoCtx.registryHost, subDesiredSecretBase,
                 subRepoCtx.auth!.username, subRepoCtx.auth!.password
               );
@@ -612,11 +783,13 @@ async function performInstall() {
           processedRepos.add(repo.name);
         } else {
           console.warn(`[SUSE-AI] Subchart ${dep.name} repository ${dep.repository} not found in configured repositories`);
-          continue;          
+          continue;
         }
       }
     }
   }
+
+  onProgress(45, 'Configuring image pull secrets...');
 
   const v = JSON.parse(JSON.stringify(form.value.values || {}));
   const pullSecrets = Array.from(allPullSecrets);
@@ -644,41 +817,47 @@ async function performInstall() {
     else if (vs.create === undefined || !!vs.create) saCandidates.add(form.value.release);
     for (const sa of saCandidates) {
       for (const secretName of pullSecrets) {
-        try { await ensureServiceAccountPullSecret(store, cid, form.value.namespace, sa, secretName); }
+        try { await ensureServiceAccountPullSecret(store, clusterId, form.value.namespace, sa, secretName); }
         catch (e) { console.warn('[SUSE-AI] SA pull-secret attach (pre) failed', { sa, ns: form.value.namespace, e }); }
       }
     }
   }
 
-  console.log('[SUSE-AI] calling install ', { 
-    cluster: cid, 
-    repo: form.value.chartRepo, 
-    chart: form.value.chartName, 
-    version: form.value.chartVersion, 
-    ns: form.value.namespace, 
-    release: form.value.release, 
-    values: v 
+  onProgress(55, 'Installing Helm chart...');
+
+  console.log('[SUSE-AI] calling install ', {
+    cluster: clusterId,
+    repo: form.value.chartRepo,
+    chart: form.value.chartName,
+    version: form.value.chartVersion,
+    ns: form.value.namespace,
+    release: form.value.release,
+    values: v
   });
-  
+
   await createOrUpgradeApp(
-    store, cid, form.value.namespace, form.value.release,
+    store, clusterId, form.value.namespace, form.value.release,
     { repoName: form.value.chartRepo, chartName: form.value.chartName, version: form.value.chartVersion },
     v,
     'install'
   );
 
+  onProgress(75, 'Waiting for app deployment...');
+
   try {
-    await waitForAppInstall(store, cid, form.value.namespace, form.value.release, 90_000);
+    await waitForAppInstall(store, clusterId, form.value.namespace, form.value.release, 180_000);
   } catch (e: any) {
     console.error('[SUSE-AI] post-install app status (peek): ', { error: e?.message || e });
     throw new Error(`App resource did not appear in namespace ${form.value.namespace}. Check Rancher logs and ClusterRepo permissions.`);
   }
 
+  onProgress(90, 'Finalizing service accounts...');
+
   if (pullSecrets.length > 0) {
     for (let attempt = 1; attempt <= 5; attempt++) {
       try {
         for (const secretName of pullSecrets) {
-          await ensurePullSecretOnAllSAs(store, cid, form.value.namespace, secretName);
+          await ensurePullSecretOnAllSAs(store, clusterId, form.value.namespace, secretName);
         }
         break;
       } catch (e) {
@@ -687,6 +866,8 @@ async function performInstall() {
       }
     }
   }
+
+  onProgress(100, 'Installation complete');
 }
 
 async function performUpgrade() {
@@ -777,7 +958,6 @@ function previousStep() {
           <TargetStep
             v-else-if="currentStep === 1"
             :mode="props.mode"
-            v-model:cluster="form.cluster"
             v-model:clusters="form.clusters"
             :app-slug="props.slug"
             :app-name="(route.query.n as string) || props.slug"
@@ -812,7 +992,6 @@ function previousStep() {
             :chart-repo="form.chartRepo"
             :chart-name="form.chartName"
             :chart-version="form.chartVersion"
-            :cluster="form.cluster"
             :clusters="form.clusters"
             v-model:values="form.values"
             @values-edited="onValuesEdited"
@@ -864,6 +1043,18 @@ function previousStep() {
         </button>
       </div>
     </div>
+
+    <!-- Multi-cluster Install Progress Modal -->
+    <InstallProgressModal
+      :show="showProgressModal"
+      :progress="installProgress"
+      :title="`Installing ${(route.query.n as string) || props.slug}`"
+      @done="onProgressModalDone"
+      @cancel="onProgressModalCancel"
+      @retry-all="onProgressModalRetryAll"
+      @retry-failed="onProgressModalRetryFailed"
+      @continue-anyway="onProgressModalContinueAnyway"
+    />
   </div>
 </template>
 
