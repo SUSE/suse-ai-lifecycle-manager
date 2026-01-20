@@ -1,7 +1,7 @@
 {
   "name": "suse-ai-rancher-ext",
   "description": "SUSE AI Lifecycle Manager",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": false,
   "rancher": {
     "annotations": {
