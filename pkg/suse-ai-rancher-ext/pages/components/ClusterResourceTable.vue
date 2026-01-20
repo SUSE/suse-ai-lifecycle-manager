@@ -6,24 +6,24 @@
         {{ isUsingDefaultRequirements ? 'Estimated Requirements:' : 'Requirements:' }}
       </span>
       <span class="requirements-text">
-        {{ appRequirements.cpu }} CPU cores • 
+        {{ appRequirements.cpu }} CPU cores •
         {{ appRequirements.memory }}GB Memory
         <template v-if="appRequirements.gpu"> • {{ appRequirements.gpu }}GB GPU Memory</template>
         • {{ appRequirements.storage }}GB Storage
       </span>
       <div v-if="isUsingDefaultRequirements" class="requirements-note">
-        ⚠️ Using conservative estimates - actual requirements may vary
+        Using conservative estimates - actual requirements may vary
       </div>
     </div>
 
     <!-- Loading state -->
     <div v-if="loading" class="table-loading">
-      <div class="loading-text">🔄 Checking cluster resources...</div>
+      <div class="loading-text">Checking cluster resources...</div>
     </div>
 
     <!-- Error state -->
     <div v-else-if="error" class="table-error">
-      <div class="error-text">⚠️ {{ error }}</div>
+      <div class="error-text">{{ error }}</div>
       <div class="error-hint">Showing basic cluster information only</div>
     </div>
 
@@ -32,7 +32,18 @@
       <table class="cluster-table table">
         <thead>
           <tr>
-            <th class="col-select"></th>
+            <th class="col-select">
+              <!-- Select All checkbox for multi-select mode -->
+              <input
+                v-if="multiSelect"
+                type="checkbox"
+                :checked="allCompatibleSelected"
+                :indeterminate="someButNotAllSelected"
+                @change="toggleSelectAllCompatible"
+                class="cluster-checkbox"
+                title="Select all compatible clusters"
+              />
+            </th>
             <th class="col-cluster">Cluster</th>
             <th class="col-nodes">Nodes</th>
             <th class="col-cpu">CPU</th>
@@ -42,26 +53,38 @@
           </tr>
         </thead>
         <tbody>
-          <tr 
-            v-for="cluster in clusters" 
+          <tr
+            v-for="cluster in clusters"
             :key="cluster.clusterId"
             class="cluster-row"
-            :class="{ 
-              'row-selected': selectedCluster === cluster.clusterId,
+            :class="{
+              'row-selected': isClusterSelected(cluster.clusterId),
               'row-compatible': cluster.status === 'compatible',
               'row-limited': cluster.status === 'limited',
               'row-insufficient': cluster.status === 'insufficient',
               'row-error': cluster.status === 'error'
             }"
-            @click="selectCluster(cluster.clusterId)"
+            @click="multiSelect ? toggleCluster(cluster.clusterId) : selectSingleCluster(cluster.clusterId)"
           >
             <td class="col-select">
-              <input 
-                type="radio" 
+              <!-- Checkbox for multi-select mode -->
+              <input
+                v-if="multiSelect"
+                type="checkbox"
+                :value="cluster.clusterId"
+                :checked="isClusterSelected(cluster.clusterId)"
+                @change="toggleCluster(cluster.clusterId)"
+                @click.stop
+                class="cluster-checkbox"
+              />
+              <!-- Radio button for single-select mode -->
+              <input
+                v-else
+                type="radio"
                 :name="`cluster-select-${tableId}`"
                 :value="cluster.clusterId"
-                :checked="selectedCluster === cluster.clusterId"
-                @change="selectCluster(cluster.clusterId)"
+                :checked="isClusterSelected(cluster.clusterId)"
+                @change="selectSingleCluster(cluster.clusterId)"
                 class="cluster-radio"
               />
             </td>
@@ -76,8 +99,8 @@
             <td class="col-cpu">
               <div v-if="cluster.resources.cpu.total > 0" class="resource-bar-container">
                 <div class="resource-bar-track">
-                  <div 
-                    class="resource-bar-fill" 
+                  <div
+                    class="resource-bar-fill"
                     :class="getResourceBarClass(cluster.resources.cpu.used, cluster.resources.cpu.total)"
                     :style="{ width: `${Math.min(100, (cluster.resources.cpu.used / cluster.resources.cpu.total) * 100)}%` }"
                   ></div>
@@ -91,8 +114,8 @@
             <td class="col-memory">
               <div v-if="cluster.resources.memory.total > 0" class="resource-bar-container">
                 <div class="resource-bar-track">
-                  <div 
-                    class="resource-bar-fill" 
+                  <div
+                    class="resource-bar-fill"
                     :class="getResourceBarClass(cluster.resources.memory.used, cluster.resources.memory.total)"
                     :style="{ width: `${Math.min(100, (cluster.resources.memory.used / cluster.resources.memory.total) * 100)}%` }"
                   ></div>
@@ -106,8 +129,8 @@
             <td class="col-gpu">
               <div v-if="cluster.resources.gpu && cluster.resources.gpu.total > 0" class="resource-bar-container">
                 <div class="resource-bar-track">
-                  <div 
-                    class="resource-bar-fill" 
+                  <div
+                    class="resource-bar-fill"
                     :class="getResourceBarClass(cluster.resources.gpu.used, cluster.resources.gpu.total)"
                     :style="{ width: `${Math.min(100, (cluster.resources.gpu.used / cluster.resources.gpu.total) * 100)}%` }"
                   ></div>
@@ -134,23 +157,48 @@
       <div class="no-clusters-hint">Check your cluster connections and permissions</div>
     </div>
 
-    <!-- Selected cluster details -->
-    <div v-if="selectedCluster && selectedClusterInfo" class="selected-info">
+    <!-- Selected cluster details (single-select mode) -->
+    <div v-if="!multiSelect && selectedClusters.length === 1 && selectedClusterInfo" class="selected-info">
       <div class="selected-header">Selected: {{ selectedClusterInfo.name }}</div>
       <div class="selected-details" :class="`details-${selectedClusterInfo.status}`">
         <div v-if="selectedClusterInfo.status === 'compatible'" class="status-message">
-          ✅ This cluster meets all requirements
+          This cluster meets all requirements
         </div>
         <div v-else-if="selectedClusterInfo.status === 'limited'" class="status-message">
-          ⚠️ {{ selectedClusterInfo.statusMessage || 'Limited compatibility' }}
+          {{ selectedClusterInfo.statusMessage || 'Limited compatibility' }}
         </div>
         <div v-else-if="selectedClusterInfo.status === 'insufficient'" class="status-message">
-          ❌ {{ selectedClusterInfo.statusMessage || 'Insufficient resources' }}
+          {{ selectedClusterInfo.statusMessage || 'Insufficient resources' }}
         </div>
         <div v-else-if="selectedClusterInfo.status === 'error'" class="status-message">
-          ❓ {{ selectedClusterInfo.statusMessage || 'Unable to check resources' }}
+          {{ selectedClusterInfo.statusMessage || 'Unable to check resources' }}
           <div class="status-hint">You can still install, but resource requirements cannot be verified.</div>
         </div>
+      </div>
+    </div>
+
+    <!-- Selected clusters display (multi-select mode) -->
+    <div v-if="multiSelect && selectedClusters.length > 0" class="selected-info">
+      <div class="selected-header">
+        Selected: {{ selectedClusters.length }} cluster{{ selectedClusters.length !== 1 ? 's' : '' }}
+      </div>
+      <div class="selected-clusters-chips">
+        <span
+          v-for="clusterId in selectedClusters"
+          :key="clusterId"
+          class="cluster-chip"
+          :class="getClusterChipClass(clusterId)"
+        >
+          {{ getClusterName(clusterId) }}
+          <button
+            class="chip-remove"
+            @click="toggleCluster(clusterId)"
+            title="Remove"
+          >×</button>
+        </span>
+      </div>
+      <div v-if="hasIncompatibleSelections" class="selected-warning">
+        Some selected clusters may have insufficient resources
       </div>
     </div>
   </div>
@@ -158,12 +206,12 @@
 
 <script lang="ts">
 import { defineComponent, ref, computed, onMounted, watch, PropType, getCurrentInstance } from 'vue';
-import { 
-  getAllClusterResourceMetrics, 
-  checkAppCompatibility, 
+import {
+  getAllClusterResourceMetrics,
+  checkAppCompatibility,
   getAppResourceRequirements,
   getDefaultAppResourceRequirements,
-  type ClusterResourceSummary 
+  type ClusterResourceSummary
 } from '../../services/cluster-resources';
 
 let tableIdCounter = 0;
@@ -171,18 +219,22 @@ let tableIdCounter = 0;
 export default defineComponent({
   name: 'ClusterResourceTable',
   props: {
-    modelValue: { type: String, default: '' },
+    // Array-based selection - works for both single and multi-select modes
+    // For single-select, parent enforces array.length <= 1
+    selectedClusters: { type: Array as PropType<string[]>, default: () => [] },
+    // Controls visual appearance: radio buttons (false) vs checkboxes (true)
+    multiSelect: { type: Boolean, default: false },
     appSlug: { type: String, required: true },
     appName: { type: String, default: '' },
     disabled: { type: Boolean, default: false }
   },
-  emits: ['update:modelValue'],
+  emits: ['update:selectedClusters'],
   setup(props, { emit }) {
     const tableId = ++tableIdCounter; // Unique ID for radio button grouping
     const loading = ref(true);
     const error = ref<string | null>(null);
     const clusters = ref<ClusterResourceSummary[]>([]);
-    
+
     const appRequirements = computed(() => {
       const profile = getAppResourceRequirements(props.appSlug);
       if (profile) {
@@ -198,65 +250,71 @@ export default defineComponent({
       return !getAppResourceRequirements(props.appSlug);
     });
 
-    const selectedCluster = computed({
-      get: () => props.modelValue,
-      set: (value: string) => emit('update:modelValue', value)
+    // Get info for the first selected cluster (used in single-select mode display)
+    const selectedClusterInfo = computed(() => {
+      if (props.selectedClusters.length === 0) return null;
+      return clusters.value.find(c => c.clusterId === props.selectedClusters[0]);
     });
 
-    const selectedClusterInfo = computed(() => {
-      return clusters.value.find(c => c.clusterId === selectedCluster.value);
+    // Compatible clusters (compatible or limited status)
+    const compatibleClusters = computed(() => {
+      return clusters.value.filter(c => c.status === 'compatible' || c.status === 'limited');
     });
+
+    // Check if all compatible clusters are selected
+    const allCompatibleSelected = computed(() => {
+      if (compatibleClusters.value.length === 0) return false;
+      return compatibleClusters.value.every(c => props.selectedClusters.includes(c.clusterId));
+    });
+
+    // Check if some but not all compatible clusters are selected (for indeterminate state)
+    const someButNotAllSelected = computed(() => {
+      if (compatibleClusters.value.length === 0) return false;
+      const selectedCompatible = compatibleClusters.value.filter(c => props.selectedClusters.includes(c.clusterId));
+      return selectedCompatible.length > 0 && selectedCompatible.length < compatibleClusters.value.length;
+    });
+
+    // Check if any selected cluster has insufficient resources
+    const hasIncompatibleSelections = computed(() => {
+      return props.selectedClusters.some(id => {
+        const cluster = clusters.value.find(c => c.clusterId === id);
+        return cluster && (cluster.status === 'insufficient' || cluster.status === 'error');
+      });
+    });
+
+    // Helper to emit updated selection
+    function emitSelection(newSelection: string[]) {
+      emit('update:selectedClusters', newSelection);
+    }
 
     async function loadClusterResources() {
-      // appRequirements.value will always have a value now (either real or default)
-      // so we don't need to check for null here anymore
-
       try {
         loading.value = true;
         error.value = null;
-        
+
         const vm = getCurrentInstance()!.proxy as any;
         const store = vm.$store;
-        
+
         console.log('[SUSE-AI] ClusterResourceTable: Loading cluster resources...');
         const clusterSummaries = await getAllClusterResourceMetrics(store);
-        
+
         // Check compatibility for each cluster
-        const clustersWithCompatibility = clusterSummaries.map(cluster => 
+        const clustersWithCompatibility = clusterSummaries.map(cluster =>
           checkAppCompatibility(props.appSlug, cluster, props.appName)
         );
-        
+
         clusters.value = clustersWithCompatibility;
         console.log('[SUSE-AI] ClusterResourceTable: Loaded', clusters.value.length, 'clusters');
-        
-        // Auto-select cluster if only one is available or if one is clearly the best choice
-        if (clustersWithCompatibility.length === 1 && !selectedCluster.value) {
-          const cluster = clustersWithCompatibility[0];
-          if (cluster.clusterId) {
-            selectedCluster.value = cluster.clusterId;
-            console.log('[SUSE-AI] ClusterResourceTable: Auto-selected single cluster:', selectedCluster.value);
-          }
-        } else if (clustersWithCompatibility.length > 1 && !selectedCluster.value) {
-          // Try to auto-select the best compatible cluster
-          const compatible = clustersWithCompatibility.filter(c => c.status === 'compatible');
-          if (compatible.length === 1) {
-            selectedCluster.value = compatible[0].clusterId;
-            console.log('[SUSE-AI] ClusterResourceTable: Auto-selected compatible cluster:', selectedCluster.value);
-          } else if (compatible.length > 1) {
-            // Select the first compatible cluster (could be enhanced with better logic)
-            selectedCluster.value = compatible[0].clusterId;
-            console.log('[SUSE-AI] ClusterResourceTable: Auto-selected first compatible cluster:', selectedCluster.value);
-          } else {
-            // No compatible clusters, but we still want to select something so user can proceed
-            // Select first cluster even if it has resource issues
-            selectedCluster.value = clustersWithCompatibility[0].clusterId;
-            console.log('[SUSE-AI] ClusterResourceTable: Auto-selected first available cluster:', selectedCluster.value);
-          }
+
+        // Auto-select first cluster if none selected
+        if (props.selectedClusters.length === 0 && clustersWithCompatibility.length > 0) {
+          emitSelection([clustersWithCompatibility[0].clusterId]);
+          console.log('[SUSE-AI] ClusterResourceTable: Auto-selected first cluster:', clustersWithCompatibility[0].clusterId);
         }
       } catch (e: any) {
         console.error('[SUSE-AI] ClusterResourceTable: Failed to load cluster resources:', e);
         error.value = e.message || 'Failed to load cluster information';
-        
+
         // Try to load basic cluster list as fallback
         try {
           const vm = getCurrentInstance()!.proxy as any;
@@ -281,20 +339,71 @@ export default defineComponent({
       }
     }
 
-    function selectCluster(clusterId: string) {
-      if (!props.disabled) {
-        selectedCluster.value = clusterId;
+    // Check if cluster is selected
+    function isClusterSelected(clusterId: string): boolean {
+      return props.selectedClusters.includes(clusterId);
+    }
+
+    // Single-select mode: replace selection with single cluster
+    function selectSingleCluster(clusterId: string) {
+      if (props.disabled) return;
+      emitSelection([clusterId]);
+    }
+
+    // Multi-select mode: toggle cluster in selection
+    function toggleCluster(clusterId: string) {
+      if (props.disabled) return;
+
+      const current = [...props.selectedClusters];
+      const index = current.indexOf(clusterId);
+
+      if (index === -1) {
+        current.push(clusterId);
+      } else {
+        current.splice(index, 1);
       }
+
+      emitSelection(current);
+    }
+
+    // Multi-select mode: toggle select all compatible clusters
+    function toggleSelectAllCompatible() {
+      if (props.disabled) return;
+
+      if (allCompatibleSelected.value) {
+        // Deselect all compatible clusters
+        const compatibleIds = compatibleClusters.value.map(c => c.clusterId);
+        emitSelection(props.selectedClusters.filter(id => !compatibleIds.includes(id)));
+      } else {
+        // Select all compatible clusters
+        const compatibleIds = compatibleClusters.value.map(c => c.clusterId);
+        const current = new Set(props.selectedClusters);
+        compatibleIds.forEach(id => current.add(id));
+        emitSelection(Array.from(current));
+      }
+    }
+
+    // Get cluster name by ID
+    function getClusterName(clusterId: string): string {
+      const cluster = clusters.value.find(c => c.clusterId === clusterId);
+      return cluster?.name || clusterId;
+    }
+
+    // Get chip class based on cluster status
+    function getClusterChipClass(clusterId: string): string {
+      const cluster = clusters.value.find(c => c.clusterId === clusterId);
+      if (!cluster) return '';
+      return `chip-${cluster.status}`;
     }
 
     function getStatusIcon(status: ClusterResourceSummary['status']): string {
       switch (status) {
-        case 'compatible': return '✅';
-        case 'limited': return '⚠️';
-        case 'insufficient': return '❌';
-        case 'checking': return '🔄';
-        case 'error': return '❓';
-        default: return '❓';
+        case 'compatible': return '✓';
+        case 'limited': return '!';
+        case 'insufficient': return '✕';
+        case 'checking': return '...';
+        case 'error': return '?';
+        default: return '?';
       }
     }
 
@@ -322,9 +431,17 @@ export default defineComponent({
       clusters,
       appRequirements,
       isUsingDefaultRequirements,
-      selectedCluster,
       selectedClusterInfo,
-      selectCluster,
+      compatibleClusters,
+      allCompatibleSelected,
+      someButNotAllSelected,
+      hasIncompatibleSelections,
+      isClusterSelected,
+      selectSingleCluster,
+      toggleCluster,
+      toggleSelectAllCompatible,
+      getClusterName,
+      getClusterChipClass,
       getStatusIcon,
       getResourceBarClass
     };
@@ -550,10 +667,79 @@ export default defineComponent({
   color: var(--body-text);
 }
 
-.cluster-radio {
+.cluster-radio,
+.cluster-checkbox {
   cursor: pointer;
 }
 
+.selected-clusters-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.cluster-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--primary-banner-bg, rgba(59, 130, 246, 0.15));
+  color: var(--primary, #2563eb);
+  border: 1px solid var(--primary, #2563eb);
+}
+
+.cluster-chip.chip-compatible {
+  background: var(--success-banner-bg, rgba(16, 185, 129, 0.15));
+  color: var(--success, #059669);
+  border-color: var(--success, #059669);
+}
+
+.cluster-chip.chip-limited {
+  background: var(--warning-banner-bg, rgba(245, 158, 11, 0.15));
+  color: var(--warning, #d97706);
+  border-color: var(--warning, #d97706);
+}
+
+.cluster-chip.chip-insufficient,
+.cluster-chip.chip-error {
+  background: var(--error-banner-bg, rgba(220, 38, 38, 0.15));
+  color: var(--error, #dc2626);
+  border-color: var(--error, #dc2626);
+}
+
+.chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.7;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.chip-remove:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.selected-warning {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--warning, #d97706);
+}
 
 .selected-info {
   padding: 12px 16px;

@@ -1,9 +1,11 @@
 <template>
   <div class="target-step">
     <template v-if="isInstallMode">
-      <label class="lbl">Select Target Cluster</label>
-      <ClusterResourceTable 
-        v-model="localCluster"
+      <label class="lbl">Select Target Cluster(s)</label>
+      <ClusterResourceTable
+        :multi-select="true"
+        :selected-clusters="clusters"
+        @update:selected-clusters="$emit('update:clusters', $event)"
         :app-slug="appSlug"
         :app-name="appName"
         :disabled="false"
@@ -12,7 +14,7 @@
     <template v-else>
       <label class="lbl">Target Cluster</label>
       <ClusterSelect
-        v-model="displayCluster"
+        :model-value="clusters[0] || ''"
         :disabled="true"
       />
       <p class="hint">
@@ -29,47 +31,19 @@ import ClusterSelect from '../ClusterSelect.vue';
 
 interface Props {
   mode: 'install' | 'manage';
-  cluster: string; // single cluster for install mode
-  clusters: string[]; // multiple clusters for manage mode
+  clusters: string[]; // Array-based selection for both modes
   appSlug: string;
   appName: string;
 }
 
 interface Emits {
-  (e: 'update:cluster', cluster: string): void;
   (e: 'update:clusters', clusters: string[]): void;
 }
 
 const props = defineProps<Props>();
-const emit = defineEmits<Emits>();
+defineEmits<Emits>();
 
 const isInstallMode = computed(() => props.mode === 'install');
-
-const localCluster = computed({
-  get: () => props.cluster,
-  set: (value: string) => emit('update:cluster', value)
-});
-
-// For manage mode, we show the first cluster but this represents all clusters
-const displayCluster = computed({
-  get() {
-    if (isInstallMode.value) {
-      return props.cluster;
-    } else {
-      return props.clusters[0] || '';
-    }
-  },
-  set(value: string) {
-    if (isInstallMode.value) {
-      emit('update:cluster', value);
-    } else {
-      // In manage mode, this should not change, but we handle it gracefully
-      if (value && !props.clusters.includes(value)) {
-        emit('update:clusters', [value]);
-      }
-    }
-  }
-});
 </script>
 
 <style scoped>
