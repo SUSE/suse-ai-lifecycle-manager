@@ -7,7 +7,7 @@ global:
 image:
   registry: ghcr.io
   repository: suse/suse-ai-rancher-ext
-  tag: "0.2.0"
+  tag: "0.3.0"
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
