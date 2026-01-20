@@ -23,15 +23,26 @@
         <label>Version:</label>
         <span>{{ chartVersion }}</span>
       </div>
-      <div class="detail-item full-width">
-        <label>{{ isInstallMode ? 'Target Cluster:' : 'Target Cluster:' }}</label>
-        <span>{{ clusterDisplay }}</span>
+      <div class="detail-item full-width clusters-row">
+        <label>
+          Target Cluster{{ clusters.length > 1 ? 's' : '' }}:
+          <span v-if="clusters.length > 1" class="cluster-count">({{ clusters.length }})</span>
+        </label>
+        <div v-if="clusters.length === 0" class="no-clusters">— none —</div>
+        <div v-else-if="clusters.length === 1" class="single-cluster">{{ clusters[0] }}</div>
+        <div v-else class="cluster-chips">
+          <span
+            v-for="clusterId in clusters"
+            :key="clusterId"
+            class="cluster-chip"
+          >{{ clusterId }}</span>
+        </div>
       </div>
     </div>
 
     <!-- Configuration -->
     <h3 class="mt-30">Configuration</h3>
-    <YamlEditor 
+    <YamlEditor
       v-model:value="localValues"
       :as-object="true"
       class="values-editor"
@@ -51,8 +62,7 @@ interface Props {
   chartRepo: string;
   chartName: string;
   chartVersion: string;
-  cluster: string; // single cluster for install mode
-  clusters: string[]; // multiple clusters for manage mode
+  clusters: string[]; // Array-based selection for both modes
   values: Record<string, any>;
 }
 
@@ -63,16 +73,6 @@ interface Emits {
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
-
-const isInstallMode = computed(() => props.mode === 'install');
-
-const clusterDisplay = computed(() => {
-  if (isInstallMode.value) {
-    return props.cluster || '— none —';
-  } else {
-    return props.clusters.join(', ') || '— none —';
-  }
-});
 
 const localValues = computed({
   get: () => props.values,
@@ -148,5 +148,53 @@ const localValues = computed({
 
 .values-editor {
   min-height: 300px;
+}
+
+/* Cluster display styles */
+.clusters-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.clusters-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cluster-count {
+  font-weight: 400;
+  color: var(--muted, #6b7280);
+  font-size: 12px;
+}
+
+.no-clusters {
+  color: var(--muted, #9ca3af);
+  font-style: italic;
+}
+
+.single-cluster {
+  font-family: monospace;
+  color: var(--muted, #6b7280);
+}
+
+.cluster-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cluster-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--primary-banner-bg, rgba(59, 130, 246, 0.15));
+  color: var(--primary, #2563eb);
+  border: 1px solid var(--primary, #2563eb);
+  font-family: monospace;
 }
 </style>
