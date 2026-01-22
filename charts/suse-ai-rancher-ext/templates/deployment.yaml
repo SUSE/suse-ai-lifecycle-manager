@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "suse-ai-rancher-ext.fullname" . }}
+  name: {{ include "suse-ai-lifecycle-manager.fullname" . }}
   labels:
-    {{- include "suse-ai-rancher-ext.labels" . | nindent 4 }}
+    {{- include "suse-ai-lifecycle-manager.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      {{- include "suse-ai-rancher-ext.labels" . | nindent 6 }}
+      {{- include "suse-ai-lifecycle-manager.labels" . | nindent 6 }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -18,15 +18,15 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "suse-ai-rancher-ext.labels" . | nindent 8 }}
+        {{- include "suse-ai-lifecycle-manager.labels" . | nindent 8 }}
       annotations:
         {{- toYaml .Values.podAnnotations | nindent 8 }}
     spec:
       securityContext:
         fsGroup: 1000
-      {{- include "suse-ai-rancher-ext.imagePullSecrets" . | nindent 6 }}
+      {{- include "suse-ai-lifecycle-manager.imagePullSecrets" . | nindent 6 }}
       containers:
-        - name: {{ include "suse-ai-rancher-ext.name" . }}
+        - name: {{ include "suse-ai-lifecycle-manager.name" . }}
           image: "{{ with (coalesce .Values.global.imageRegistry .Values.image.registry) }}{{ . }}/{{ end }}{{ .Values.image.repository }}:{{ .Values.image.tag | default $.Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:

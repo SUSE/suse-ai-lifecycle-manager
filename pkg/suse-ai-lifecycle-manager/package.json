@@ -1,5 +1,5 @@
 {
-  "name": "suse-ai-rancher-ext",
+  "name": "suse-ai-lifecycle-manager",
   "description": "SUSE AI Lifecycle Manager",
   "version": "0.3.0",
   "private": false,
@@ -10,7 +10,7 @@
       "catalog.cattle.io/ui-extensions-version": ">= 3.0.0 < 4.0.0"
     }
   },
-  "icon": "https://raw.githubusercontent.com/SUSE/suse-ai-rancher-ext/refs/heads/main/pkg/suse-ai-rancher-ext/assets/logo.svg",
+  "icon": "https://raw.githubusercontent.com/SUSE/suse-ai-lifecycle-manager/refs/heads/main/pkg/suse-ai-lifecycle-manager/assets/logo.svg",
   "scripts": {
     "typecheck": "vue-tsc --noEmit",
     "lint": "npx eslint --max-warnings 2000 --ext .js,.ts,.vue .",

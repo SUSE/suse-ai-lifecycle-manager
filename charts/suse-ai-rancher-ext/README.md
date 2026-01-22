@@ -5,7 +5,7 @@ This chart installs the **Rancher Extension Catalog**, it contains extension ass
 2. The catalog needs to be added as a Helm repository in the Rancher Repositories. 
 3. The extension packaged as a container image is registered in Rancher via the UIPlugin custom resource.
 
-**Homepage:** <https://github.com/SUSE/suse-ai-rancher-ext>
+**Homepage:** <https://github.com/SUSE/suse-ai-lifecycle-manager>
 
 ## Maintainers
 
@@ -31,7 +31,7 @@ This chart is distributed as an OCI Helm chart. To install the chart with the re
 ```bash
 helm install suse-ui-ext \
   -n cattle-ui-plugin-system \
-  oci://ghcr.io/suse/chart/suse-ai-rancher-ext
+  oci://ghcr.io/suse/chart/suse-ai-lifecycle-manager
 ```
 
 The command deploys the suse ai extension catalog on the Kubernetes cluster in the default configuration. The [Parameters](#parameters) section lists the parameters that can be configured during installation.
@@ -52,19 +52,19 @@ The command removes all the Kubernetes components associated with the chart and 
 
 | Name                | Description                                   | Value |
 | ------------------- | --------------------------------------------- | ----- |
-| `replicaCount`      | Number of suse-ai-rancher-ext replicas to deploy             | `1`   |
-| `nameOverride`      | String to partially override suse-ai-rancher-ext.fullname    | `""`  |
-| `fullnameOverride`  | String to fully override suse-ai-rancher-ext.fullname        | `""`  |
+| `replicaCount`      | Number of suse-ai-lifecycle-manager replicas to deploy             | `1`   |
+| `nameOverride`      | String to partially override suse-ai-lifecycle-manager.fullname    | `""`  |
+| `fullnameOverride`  | String to fully override suse-ai-lifecycle-manager.fullname        | `""`  |
 
 ### Image parameters
 
 | Name               | Description                                | Value                        |
 | ------------------ | ------------------------------------------ | ---------------------------- |
-| `image.registry`   | suse-ai-rancher-ext image registry                        | `ghcr.io`         |
-| `image.repository` | suse-ai-rancher-ext image repository                      | `suse/suse-ai-rancher-ext` |
-| `image.tag`        | suse-ai-rancher-ext image tag (immutable tags recommended)| `0.2.0`                     |
-| `image.pullPolicy` | suse-ai-rancher-ext image pull policy                     | `IfNotPresent`               |
-| `imagePullSecrets` | suse-ai-rancher-ext image pull secrets                    | `[]`                         |
+| `image.registry`   | suse-ai-lifecycle-manager image registry                        | `ghcr.io`         |
+| `image.repository` | suse-ai-lifecycle-manager image repository                      | `suse/suse-ai-lifecycle-manager` |
+| `image.tag`        | suse-ai-lifecycle-manager image tag (immutable tags recommended)| `0.2.0`                     |
+| `image.pullPolicy` | suse-ai-lifecycle-manager image pull policy                     | `IfNotPresent`               |
+| `imagePullSecrets` | suse-ai-lifecycle-manager image pull secrets                    | `[]`                         |
 | `global.imagePullSecrets` | Global override for container image registry pull secrets |`[]`    |
 | `global.imageRegistry` | Global override for container image registry | `""`                   |
 
@@ -72,8 +72,8 @@ The command removes all the Kubernetes components associated with the chart and 
 
 | Name           | Description             | Value       |
 | -------------- | ----------------------- | ----------- |
-| `service.type` | suse-ai-rancher-ext service type       | `ClusterIP` |
-| `service.port` | suse-ai-rancher-ext service HTTP port  | `8080`      |
+| `service.type` | suse-ai-lifecycle-manager service type       | `ClusterIP` |
+| `service.port` | suse-ai-lifecycle-manager service HTTP port  | `8080`      |
 
 
 ## Troubleshooting
@@ -81,11 +81,11 @@ The command removes all the Kubernetes components associated with the chart and 
 ### Check pod status
 
 ```bash
-kubectl get pods -l app.kubernetes.io/name=suse-ai-rancher-ext
+kubectl get pods -l app.kubernetes.io/name=suse-ai-lifecycle-manager
 ```
 
 ### Check logs
 
 ```bash
-kubectl logs -l app.kubernetes.io/name=suse-ai-rancher-ext
+kubectl logs -l app.kubernetes.io/name=suse-ai-lifecycle-manager
 ```

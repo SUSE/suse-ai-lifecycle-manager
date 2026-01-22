@@ -1,5 +1,5 @@
 {
-  "name": "suse-ai-rancher-ext",
+  "name": "suse-ai-lifecycle-manager",
   "version": "0.3.0",
   "description": "Rancher UI Extension for SUSE AI",
   "private": false,

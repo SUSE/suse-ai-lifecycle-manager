@@ -3,7 +3,7 @@ name: Build and Publish Extension Container and Helm Chart
 on: [push, pull_request, workflow_dispatch]
 
 env:
-  CHART_PATH: charts/suse-ai-rancher-ext
+  CHART_PATH: charts/suse-ai-lifecycle-manager
   CHART_REGISTRY: oci://ghcr.io/suse/chart
 
 jobs:
