@@ -1,6 +1,8 @@
-# SUSE AI Rancher Extension
+# SUSE AI Lifecycle Manager
 
-A Rancher UI Extension for managing SUSE AI applications across Kubernetes clusters. This extension provides a unified interface for installing, managing, and monitoring AI workloads in Rancher-managed clusters.
+SUSE AI Lifecycle Manager is a Rancher UI Extension for managing SUSE AI components across Kubernetes clusters. This extension provides a unified interface for installing, managing, and monitoring AI workloads in Rancher-managed clusters.
+
+> **Note:** While this extension is open source (Apache 2.0), it requires an active [SUSE AI](https://www.suse.com/products/ai/) subscription to access the application catalog.
 
 ## Development
 
@@ -15,13 +17,13 @@ A Rancher UI Extension for managing SUSE AI applications across Kubernetes clust
 1. **Clone and install dependencies:**
    ```bash
    git clone <repository-url>
-   cd suse-ai-rancher-ext
+   cd suse-ai-lifecycle-manager
    yarn install
    ```
 
 2. **Build the extension:**
    ```bash
-   yarn build-pkg suse-ai-rancher-ext
+   yarn build-pkg suse-ai-lifecycle-manager
    ```
 
 3. **Serve during development:**
@@ -38,24 +40,15 @@ A Rancher UI Extension for managing SUSE AI applications across Kubernetes clust
    - Paste the URL from step 3, select "Persist"
    - Reload the page
 
-## Manual Testing
-
-The extension provides functionality for:
-
-- **Apps Management**: Browse and install AI applications
-- **Multi-cluster Operations**: Install apps across multiple clusters
-- **Lifecycle Management**: Upgrade, configure, and uninstall applications
-- **Status Monitoring**: Real-time status tracking and error reporting
-
 ## Building for Production
 
 ```bash
-yarn build-pkg suse-ai-rancher-ext --mode production
+yarn build-pkg suse-ai-lifecycle-manager --mode production
 ```
 
 ## Extension Catalog Container
 
-- The container packages the SUSE AI Rancher UI Extension into a single OCI container image.
+- The container packages the SUSE AI Lifecycle Manager (Rancher UI Extension) into a single OCI container image.
 - This container is:
    - Built and published during CI
    - Stored in GitHub Container Registry (GHCR)
@@ -69,13 +62,13 @@ yarn build-pkg suse-ai-rancher-ext --mode production
 - The catalog container tag is derived from the Git tag:
  
 ```
-suse-ai-rancher-ext-<version> → ghcr.io/suse/suse-ai-rancher-ext:<version>
+suse-ai-lifecycle-manager-<version> → ghcr.io/suse/suse-ai-lifecycle-manager:<version>
 ```
 
 In the examples below, `<version>` refers to a published extension release (e.g. `0.2.0`).
 
 Available catalog image versions are published in GitHub Container Registry:
-https://github.com/SUSE/suse-ai-rancher-ext/pkgs/container/suse-ai-rancher-ext
+https://github.com/SUSE/suse-ai-lifecycle-manager/pkgs/container/suse-ai-lifecycle-manager
  
 ### Container Structure
 ```
@@ -86,9 +79,9 @@ https://github.com/SUSE/suse-ai-rancher-ext/pkgs/container/suse-ai-rancher-ext
     └── plugin/
         ├── index.yaml
         ├── package.json
-        ├── suse-ai-rancher-ext
-            └── suse-ai-rancher-ext-<version>.tgz
-        └── suse-ai-rancher-ext-<version>
+        ├── suse-ai-lifecycle-manager
+            └── suse-ai-lifecycle-manager-<version>.tgz
+        └── suse-ai-lifecycle-manager-<version>
             ├── files.txt
             └── plugin/
                 └── <plugin source code>
@@ -97,7 +90,7 @@ https://github.com/SUSE/suse-ai-rancher-ext/pkgs/container/suse-ai-rancher-ext
 ### Consuming the Catalog in Rancher
 - Add the catalog source in the Rancher Dashboard:
    1. Navigate to Extensions → Manage Extensions Catalog
-   2. Import Extension Catalog → Use the Catalog Image Reference: `ghcr.io/suse/suse-ai-rancher-ext:<version>` → Press `Load`
+   2. Import Extension Catalog → Use the Catalog Image Reference: `ghcr.io/suse/suse-ai-lifecycle-manager:<version>` → Press `Load`
    3. From the Extensions page, Go to Manage Repositories. Verify if the SUSE AI Rancher Extension repository has the `Active` state. If not, refresh the connection.
    4. Go back to Extensions and install SUSE AI Rancher Extension.
 
@@ -143,12 +136,12 @@ git commit -m "fix: resolve app installation error handling"
 1. **Extension not loading**: Verify URL in developer tools console
 2. **Build errors**: Check Node.js version compatibility (requires 20+)
 3. **API errors**: Verify cluster permissions and connectivity
-4. **Linting errors**: Run `cd pkg/suse-ai-rancher-ext && yarn lint` to see details
+4. **Linting errors**: Run `cd pkg/suse-ai-lifecycle-manager && yarn lint` to see details
 
 ### Debug Mode
 
 Enable debug logging in development:
 
 ```bash
-NODE_ENV=development yarn build-pkg suse-ai-rancher-ext
+NODE_ENV=development yarn build-pkg suse-ai-lifecycle-manager
 ```

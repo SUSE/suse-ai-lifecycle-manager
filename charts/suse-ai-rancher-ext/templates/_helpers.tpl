@@ -1,18 +1,18 @@
-{{- define "suse-ai-rancher-ext.fullname" -}}
+{{- define "suse-ai-lifecycle-manager.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride }}
 {{- else -}}
-{{- include "suse-ai-rancher-ext.name" . }}
+{{- include "suse-ai-lifecycle-manager.name" . }}
 {{- end -}}
 {{- end }}
 
-{{- define "suse-ai-rancher-ext.name" -}}
+{{- define "suse-ai-lifecycle-manager.name" -}}
 {{- default .Chart.Name .Values.nameOverride -}}
 {{- end }}
 
-{{- define "suse-ai-rancher-ext.labels" -}}
+{{- define "suse-ai-lifecycle-manager.labels" -}}
 catalog.cattle.io/ui-extensions-catalog-image: {{ .Chart.Name }}
-app.kubernetes.io/name: {{ include "suse-ai-rancher-ext.name" . }}
+app.kubernetes.io/name: {{ include "suse-ai-lifecycle-manager.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
@@ -21,7 +21,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Return the proper Docker Image Registry Secret Names
 */}}
-{{- define "suse-ai-rancher-ext.imagePullSecrets" -}}
+{{- define "suse-ai-lifecycle-manager.imagePullSecrets" -}}
 {{/*
 Helm 2.11 supports the assignment of a value to a variable defined in a different scope,
 but Helm 2.9 and 2.10 does not support it, so we need to implement this if-else logic.

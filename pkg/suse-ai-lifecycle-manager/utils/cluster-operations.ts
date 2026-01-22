@@ -8,7 +8,7 @@ import { CONNECTION_STATUS, TIMEOUT_VALUES, RETRY_CONFIG } from './constants';
 import type { ConnectionStatus } from './constants';
 import { retryWithBackoff } from './promise';
 import { getClusters } from '../services/rancher-apps';
-import logger from '../utils/logger';
+import logger from './logger';
 
 // === Cluster Information Types ===
 export interface ClusterInfo {

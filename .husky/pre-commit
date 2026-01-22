@@ -1,1 +1,1 @@
-cd pkg/suse-ai-rancher-ext && yarn lint
+cd pkg/suse-ai-lifecycle-manager && yarn lint

@@ -6,7 +6,7 @@ global:
 
 image:
   registry: ghcr.io
-  repository: suse/suse-ai-rancher-ext
+  repository: suse/suse-ai-lifecycle-manager
   tag: "0.3.0"
   pullPolicy: IfNotPresent
 
