@@ -22,7 +22,8 @@ import {
   waitForAppInstall,
   getClusters,
   getInstalledHelmDetails,
-  inferClusterRepoForChart
+  inferClusterRepoForChart,
+  listClusterRepos
 } from '../../services/rancher-apps';
 import { getRepoAuthForClusterRepo } from '../../services/repo-auth';
 import { persistLoad, persistSave, persistClear } from '../../services/ui-persist';
@@ -754,37 +755,53 @@ async function installToCluster(
   // Handle subchart dependencies
   const chartYaml = await fetchChartYaml(store, form.value.chartRepo, form.value.chartName, form.value.chartVersion);
   if (chartYaml?.dependencies) {
-    const repos = Object.values(store.state.suseai.repositories.repositories);
-    const processedRepos = new Set<string>();
-    for (const dep of chartYaml.dependencies) {
-      if (dep.repository) {
-        const normalizeUrl = (url: string) => url?.replace(/\/+$/, '').toLowerCase();
-        const repo = repos.find(r => normalizeUrl(r.url) === normalizeUrl(dep.repository));
-        if (repo) {
-          if (processedRepos.has(repo.name)) continue;
-          const subRepoCtx = await getRepoAuthForClusterRepo(store, repo.name);
-          const subDesiredSecretBase = subRepoCtx.secretName || `repo-${repo.name}`;
-          const hasSubRepoCredentials = !!subRepoCtx.auth?.username && !!subRepoCtx.auth?.password;
+    // Fetch cluster repos 
+    let clusterRepos: any[] = [];
+    try {
+      clusterRepos = await listClusterRepos(store);
+    } catch (e: any) {
+      console.warn('[SUSE-AI] Failed to list cluster repos for dependency secrets (continuing without):', e?.message || e);
+    }
 
-          if (hasSubRepoCredentials) {
-            try {
-              const finalSecretName = await ensureRegistrySecretSimple(
-                store, clusterId, form.value.namespace,
-                subRepoCtx.registryHost, subDesiredSecretBase,
-                subRepoCtx.auth!.username, subRepoCtx.auth!.password
-              );
-              if (finalSecretName) {
-                allPullSecrets.add(finalSecretName);
-              }
-            } catch (e: any) {
-              console.error(`[SUSE-AI] subchart pull-secret creation skipped for ${dep.name}:`, e?.message || e);
-            }
-          }
-          processedRepos.add(repo.name);
-        } else {
-          console.warn(`[SUSE-AI] Subchart ${dep.name} repository ${dep.repository} not found in configured repositories`);
-          continue;
+    // Include spec.url, spec.gitRepo, and spec.ociRepo for matching
+    // Git-backed and OCI repos use different spec fields
+    const repos = clusterRepos
+      .filter((r: any) => r?.metadata?.name && (r?.spec?.url || r?.spec?.gitRepo || r?.spec?.ociRepo))
+      .map((r: any) => ({
+        name: r.metadata.name,
+        url: r.spec.url || r.spec.gitRepo || r.spec.ociRepo
+      }));
+    const processedRepos = new Set<string>();
+
+    for (const dep of chartYaml.dependencies) {
+      if (!dep.repository) continue;
+
+      const normalizeUrl = (url: string) => url?.replace(/\/+$/, '').toLowerCase();
+      const repo = repos.find((r: any) => normalizeUrl(r.url) === normalizeUrl(dep.repository));
+
+      if (!repo) {
+        console.warn(`[SUSE-AI] Subchart ${dep.name} repository ${dep.repository} not found in configured ClusterRepos`);
+        continue;
+      }
+
+      if (processedRepos.has(repo.name)) continue;
+      processedRepos.add(repo.name);
+
+      const subRepoCtx = await getRepoAuthForClusterRepo(store, repo.name);
+      if (!subRepoCtx.auth?.username || !subRepoCtx.auth?.password) continue;
+
+      try {
+        const subDesiredSecretBase = subRepoCtx.secretName || `repo-${repo.name}`;
+        const finalSecretName = await ensureRegistrySecretSimple(
+          store, clusterId, form.value.namespace,
+          subRepoCtx.registryHost, subDesiredSecretBase,
+          subRepoCtx.auth.username, subRepoCtx.auth.password
+        );
+        if (finalSecretName) {
+          allPullSecrets.add(finalSecretName);
         }
+      } catch (e: any) {
+        console.warn(`[SUSE-AI] Pull secret creation skipped for subchart ${dep.name}:`, e?.message || e);
       }
     }
   }

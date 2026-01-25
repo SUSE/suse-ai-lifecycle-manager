@@ -7,6 +7,67 @@ import type { RancherStore } from '../types/rancher-types';
 import { logger } from '../utils/logger';
 import { getClusterContext } from '../utils/cluster-operations';
 
+/**
+ * Extract a file from a tar.gz buffer by filename suffix (e.g., 'values.yaml', 'chart.yaml')
+ */
+export async function extractFileFromTarGz(buffer: ArrayBuffer, filenameSuffix: string): Promise<string | null> {
+  try {
+    let tarBuffer = buffer;
+
+    // Try to decompress if gzipped
+    if (typeof (window as any).DecompressionStream === 'function') {
+      try {
+        const ds = new (window as any).DecompressionStream('gzip');
+        const stream = new Response(new Blob([buffer]).stream().pipeThrough(ds));
+        tarBuffer = await stream.arrayBuffer();
+      } catch {
+        // Might not be gzipped, try as-is
+      }
+    }
+
+    // Parse tar archive
+    const view = new DataView(tarBuffer);
+    const decoder = new TextDecoder('utf-8');
+    let offset = 0;
+    const blockSize = 512;
+    const suffixLower = filenameSuffix.toLowerCase();
+
+    while (offset + blockSize <= tarBuffer.byteLength) {
+      // Check for end of archive
+      let isEmpty = true;
+      for (let i = 0; i < blockSize; i++) {
+        if (view.getUint8(offset + i) !== 0) {
+          isEmpty = false;
+          break;
+        }
+      }
+      if (isEmpty) break;
+
+      // Read filename
+      const nameBytes = new Uint8Array(tarBuffer, offset, 100);
+      let nameEnd = 0;
+      while (nameEnd < nameBytes.length && nameBytes[nameEnd] !== 0) nameEnd++;
+      const filename = decoder.decode(nameBytes.subarray(0, nameEnd));
+
+      // Read file size (octal)
+      const sizeBytes = new Uint8Array(tarBuffer, offset + 124, 12);
+      let sizeEnd = 0;
+      while (sizeEnd < sizeBytes.length && sizeBytes[sizeEnd] !== 0) sizeEnd++;
+      const sizeStr = decoder.decode(sizeBytes.subarray(0, sizeEnd)).trim();
+      const fileSize = parseInt(sizeStr.replace(/[^0-7]/g, ''), 8) || 0;
+
+      // Check if this is the target file
+      if (filename.toLowerCase().endsWith(suffixLower)) {
+        const fileData = new Uint8Array(tarBuffer, offset + blockSize, fileSize);
+        return decoder.decode(fileData);
+      }
+
+      offset += blockSize + Math.ceil(fileSize / blockSize) * blockSize;
+    }
+  } catch { /* extraction failed */ }
+  return null;
+}
+
 export class ChartValuesService {
   private store: RancherStore;
 
@@ -147,7 +208,11 @@ export class ChartValuesService {
 
       const buffer = response?.data ?? response;
       if (buffer instanceof ArrayBuffer) {
-        const values = await this.extractValuesFromTarGz(buffer);
+        // Try values.yaml first, then values.yml
+        let values = await extractFileFromTarGz(buffer, 'values.yaml');
+        if (!values) {
+          values = await extractFileFromTarGz(buffer, 'values.yml');
+        }
         if (values) {
           logger.debug('Found values via tar.gz approach', {
             component: 'ChartValuesService',
@@ -221,76 +286,6 @@ export class ChartValuesService {
         // Return as-is if it looks like YAML
         if (candidate.includes(':')) return candidate;
       }
-    }
-
-    return null;
-  }
-
-  /**
-   * Extract values.yaml from tar.gz buffer
-   */
-  private async extractValuesFromTarGz(buffer: ArrayBuffer): Promise<string | null> {
-    try {
-      // Try modern browser decompression first
-      if (typeof (window as any).DecompressionStream === 'function') {
-        const ds = new (window as any).DecompressionStream('gzip');
-        const stream = new Response(new Blob([buffer]).stream().pipeThrough(ds));
-        const decompressed = await stream.arrayBuffer();
-        return this.extractValuesFromTar(decompressed);
-      }
-
-      // Fallback: try processing as-is (might already be decompressed)
-      return this.extractValuesFromTar(buffer);
-    } catch (error) {
-      return null;
-    }
-  }
-
-  /**
-   * Extract values.yaml from tar archive
-   */
-  private extractValuesFromTar(buffer: ArrayBuffer): string | null {
-    try {
-      const view = new DataView(buffer);
-      const decoder = new TextDecoder('utf-8');
-      let offset = 0;
-      const blockSize = 512;
-
-      while (offset + blockSize <= buffer.byteLength) {
-        // Check for end of archive (empty blocks)
-        let isEmpty = true;
-        for (let i = 0; i < blockSize; i++) {
-          if (view.getUint8(offset + i) !== 0) {
-            isEmpty = false;
-            break;
-          }
-        }
-        if (isEmpty) break;
-
-        // Read filename
-        const nameBytes = new Uint8Array(buffer, offset, 100);
-        let nameEnd = 0;
-        while (nameEnd < nameBytes.length && nameBytes[nameEnd] !== 0) nameEnd++;
-        const filename = decoder.decode(nameBytes.subarray(0, nameEnd));
-
-        // Read file size (octal)
-        const sizeBytes = new Uint8Array(buffer, offset + 124, 12);
-        let sizeEnd = 0;
-        while (sizeEnd < sizeBytes.length && sizeBytes[sizeEnd] !== 0) sizeEnd++;
-        const sizeStr = decoder.decode(sizeBytes.subarray(0, sizeEnd)).trim();
-        const fileSize = parseInt(sizeStr.replace(/[^0-7]/g, ''), 8) || 0;
-
-        // Check if this is values.yaml
-        if (filename.toLowerCase().endsWith('values.yaml') || filename.toLowerCase().endsWith('values.yml')) {
-          const fileData = new Uint8Array(buffer, offset + blockSize, fileSize);
-          return decoder.decode(fileData);
-        }
-
-        // Move to next file
-        offset += blockSize + Math.ceil(fileSize / blockSize) * blockSize;
-      }
-    } catch (error) {
-      // Tar parsing failed
     }
 
     return null;
