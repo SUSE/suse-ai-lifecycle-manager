@@ -98,11 +98,7 @@
       <div class="main-content">
         <!-- Results/Loading summary - fixed position to prevent jumps -->
         <div class="results-summary" aria-live="polite">
-          <div v-if="loading" class="inline-loading">
-            <i class="icon icon-spinner icon-spin" aria-hidden="true" />
-            <span>{{ t('suseai.apps.loading', 'Loading applications and discovering installations...') }}</span>
-          </div>
-          <div v-else-if="filteredApps.length" class="results-text">
+          <div v-if="filteredApps.length" class="results-text">
             Showing {{ filteredApps.length }} of {{ filteredApps.length }} applications
             <span v-if="repoLoading" class="loading-text">
               <i class="icon icon-spinner icon-spin small-spinner" aria-hidden="true" />
@@ -163,6 +159,11 @@
               </div>
             </div>
           </div>
+          <div
+              v-for="n in 5"
+              :key="`filler-${n}`"
+              class="app-tile app-tile-filler"
+          ></div>
         </div>
 
       <!-- List view -->
@@ -1392,5 +1393,9 @@ export default defineComponent({
 /* Utility class for spacing */
 .mr-5 {
   margin-right: 5px;
+}
+
+.app-tile-filler {
+  visibility: hidden;
 }
 </style>
