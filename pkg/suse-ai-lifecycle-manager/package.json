@@ -1,7 +1,7 @@
 {
   "name": "suse-ai-lifecycle-manager",
   "description": "SUSE AI Lifecycle Manager",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "private": false,
   "rancher": {
     "annotations": {

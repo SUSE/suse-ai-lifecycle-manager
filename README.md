@@ -39,6 +39,14 @@ SUSE AI Lifecycle Manager is a Rancher UI Extension for managing SUSE AI compone
    - Click the 3 dots (top right) → Developer Load
    - Paste the URL from step 3, select "Persist"
    - Reload the page
+  
+### Debug Mode
+
+Enable debug logging in development:
+
+```bash
+NODE_ENV=development yarn build-pkg suse-ai-lifecycle-manager
+```
 
 ## Building for Production
 
@@ -137,11 +145,3 @@ git commit -m "fix: resolve app installation error handling"
 2. **Build errors**: Check Node.js version compatibility (requires 20+)
 3. **API errors**: Verify cluster permissions and connectivity
 4. **Linting errors**: Run `cd pkg/suse-ai-lifecycle-manager && yarn lint` to see details
-
-### Debug Mode
-
-Enable debug logging in development:
-
-```bash
-NODE_ENV=development yarn build-pkg suse-ai-lifecycle-manager
-```

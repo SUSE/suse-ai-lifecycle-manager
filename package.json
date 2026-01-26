@@ -1,6 +1,6 @@
 {
   "name": "suse-ai-lifecycle-manager",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "description": "Rancher UI Extension for SUSE AI",
   "private": false,
   "license": "Apache-2.0",
