@@ -20,7 +20,7 @@ function deepMerge(target: Record<string, any>, source: Record<string, any>): Re
   return result;
 }
 import { log as logger } from '../utils/logger';
-import { createChartValuesService } from './chart-values';
+import { createChartValuesService, extractFileFromTarGz } from './chart-values';
 import { createErrorHandler, handleSimpleError } from '../utils/error-handler';
 import type {
   RancherStore,
@@ -599,43 +599,65 @@ export async function fetchChartYaml(
 
   if (!found) {
     logger.warn(`ClusterRepo "${repoName}" not found in any cluster`);
-
     return null;
   }
 
+  const { baseApi } = found;
+  const repoPath = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repoName)}`;
+  const chartParams = `chartName=${encodeURIComponent(chartName)}&version=${encodeURIComponent(version)}`;
+
+  // Try 1: ?link=files approach (gets all chart files)
   try {
-    const { baseApi } = found;
-    const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(
-      repoName
-    )}?link=file&chartName=${encodeURIComponent(
-      chartName
-    )}&version=${encodeURIComponent(version)}&name=${encodeURIComponent(
-      'Chart.yaml'
-    )}`;
     const response = await $store.dispatch('rancher/request', {
-      url,
+      url: `${repoPath}?link=files&${chartParams}`,
+      timeout: 20000
+    });
+    const filesData = response?.data ?? response;
+
+    if (filesData && typeof filesData === 'object') {
+      for (const key of Object.keys(filesData)) {
+        if (key.toLowerCase().endsWith('chart.yaml')) {
+          const text = textFromFileEntry(filesData[key]);
+          if (text && text.includes(':')) {
+            return yaml.load(text);
+          }
+        }
+      }
+    }
+  } catch { /* continue to next method */ }
+
+  // Try 2: ?link=file approach (direct file fetch)
+  try {
+    const response = await $store.dispatch('rancher/request', {
+      url: `${repoPath}?link=file&${chartParams}&name=${encodeURIComponent('Chart.yaml')}`,
       timeout: 20000
     });
     const text = textFromFileEntry(response?.data ?? response);
 
     if (text && text.includes(':')) {
-      // Basic YAML validation
-      logger.debug('Found Chart.yaml via file approach', {
-        component: 'ChartService',
-        action:    'success',
-        data:      {
-          method: 'file',
-          filename: 'Chart.yaml',
-          length: text.length
-        }
-      });
-
       return yaml.load(text);
     }
-  } catch (error) {
-    return null;
-  }
+  } catch { /* continue to next method */ }
 
+  // Try 3: ?link=chart tar.gz approach (most reliable for OCI repos)
+  try {
+    const response = await $store.dispatch('rancher/request', {
+      url: `${repoPath}?link=chart&${chartParams}`,
+      responseType: 'arraybuffer',
+      headers: { Accept: 'application/gzip, application/x-gzip, application/octet-stream' },
+      timeout: 20000
+    });
+
+    const buffer = response?.data ?? response;
+    if (buffer instanceof ArrayBuffer) {
+      const text = await extractFileFromTarGz(buffer, 'chart.yaml');
+      if (text && text.includes(':')) {
+        return yaml.load(text);
+      }
+    }
+  } catch { /* all methods failed */ }
+
+  logger.warn(`Failed to fetch Chart.yaml for ${chartName}@${version} from ${repoName}`);
   return null;
 }
 
@@ -655,12 +677,12 @@ export async function fetchChartDefaultValues(
 
 /* ================== NEW: helpers for repo discovery & helm installs ============== */
 
-async function listClusterRepos($store: RancherStore): Promise<ClusterResource[]> {
-  const res = await $store.dispatch('rancher/request', {
+export async function listClusterRepos($store: RancherStore): Promise<ClusterResource[]> {
+    const res = await $store.dispatch('rancher/request', {
     url: '/k8s/clusters/local/apis/catalog.cattle.io/v1/clusterrepos?limit=1000',
     timeout: 20000
   });
-  return res?.data?.items || res?.data || res?.items || [];
+    return res?.data?.items || res?.data || res?.items || [];
 }
 
 export async function inferClusterRepoForChart(
