@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- ai-platform_v1alpha1_installaiextension.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples
