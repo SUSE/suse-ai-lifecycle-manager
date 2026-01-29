@@ -2,27 +2,26 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-    labels:
-        app.kubernetes.io/managed-by: {{ .Release.Service }}
-        app.kubernetes.io/name: suse-ai-operator
-    name: suse-ai-operator-installaiextension-editor-role
+  labels:
+    {{- include "suse-ai-operator.labels" . | nindent 4 }}
+  name: {{ include "suse-ai-operator.serviceName" (dict "context" . "suffix" "installaiextension-editor") }}
 rules:
-    - apiGroups:
-        - ai-platform.suse.com
-      resources:
-        - installaiextensions
-      verbs:
-        - create
-        - delete
-        - get
-        - list
-        - patch
-        - update
-        - watch
-    - apiGroups:
-        - ai-platform.suse.com
-      resources:
-        - installaiextensions/status
-      verbs:
-        - get
+  - apiGroups:
+      - ai-platform.suse.com
+    resources:
+      - installaiextensions
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ai-platform.suse.com
+    resources:
+      - installaiextensions/status
+    verbs:
+      - get
 {{- end }}

@@ -1,109 +1,109 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-    name: suse-ai-operator-manager-role
+  name: {{ include "suse-ai-operator.fullname" . }}
 rules:
-    - apiGroups:
-        - ""
-      resources:
-        - events
-      verbs:
-        - create
-        - patch
-    - apiGroups:
-        - ""
-      resources:
-        - pods
-      verbs:
-        - get
-        - list
-        - watch
-    - apiGroups:
-        - ""
-      resources:
-        - secrets
-        - services
-      verbs:
-        - create
-        - delete
-        - get
-        - list
-        - patch
-        - update
-        - watch
-    - apiGroups:
-        - ai-platform.suse.com
-      resources:
-        - installaiextensions
-      verbs:
-        - create
-        - delete
-        - get
-        - list
-        - patch
-        - update
-        - watch
-    - apiGroups:
-        - ai-platform.suse.com
-      resources:
-        - installaiextensions/finalizers
-      verbs:
-        - update
-    - apiGroups:
-        - ai-platform.suse.com
-      resources:
-        - installaiextensions/status
-      verbs:
-        - get
-        - patch
-        - update
-    - apiGroups:
-        - apiextensions.k8s.io
-      resources:
-        - customresourcedefinitions
-      verbs:
-        - get
-        - list
-    - apiGroups:
-        - apps
-      resources:
-        - deployments
-        - replicasets
-      verbs:
-        - create
-        - delete
-        - get
-        - list
-        - patch
-        - update
-        - watch
-    - apiGroups:
-        - catalog.cattle.io
-      resources:
-        - clusterrepos
-        - uiplugins
-      verbs:
-        - create
-        - delete
-        - get
-        - list
-        - patch
-        - update
-        - watch
-    - apiGroups:
-        - catalog.cattle.io
-      resources:
-        - clusterrepos/status
-        - uiplugins/status
-      verbs:
-        - get
-        - patch
-        - update
-    - apiGroups:
-        - management.cattle.io
-      resources:
-        - settings
-      verbs:
-        - get
-        - list
-        - watch
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+      - services
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ai-platform.suse.com
+    resources:
+      - installaiextensions
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ai-platform.suse.com
+    resources:
+      - installaiextensions/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - ai-platform.suse.com
+    resources:
+      - installaiextensions/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - replicasets
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - catalog.cattle.io
+    resources:
+      - clusterrepos
+      - uiplugins
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - catalog.cattle.io
+    resources:
+      - clusterrepos/status
+      - uiplugins/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - management.cattle.io
+    resources:
+      - settings
+    verbs:
+      - get
+      - list
+      - watch

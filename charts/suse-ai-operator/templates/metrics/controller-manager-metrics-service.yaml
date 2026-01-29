@@ -2,19 +2,15 @@
 apiVersion: v1
 kind: Service
 metadata:
-    labels:
-        app.kubernetes.io/managed-by: {{ .Release.Service }}
-        app.kubernetes.io/name: suse-ai-operator
-        control-plane: controller-manager
-    name: suse-ai-operator-controller-manager-metrics-service
-    namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "suse-ai-operator.labels" . | nindent 4 }}
+  name: {{ include "suse-ai-operator.serviceName" (dict "context" . "suffix" "metrics") }}
 spec:
-    ports:
-        - name: https
-          port: {{ .Values.metrics.port }}
-          protocol: TCP
-          targetPort: {{ .Values.metrics.port }}
-    selector:
-        app.kubernetes.io/name: suse-ai-operator
-        control-plane: controller-manager
+  ports:
+    - name: https
+      port: {{ .Values.metrics.port }}
+      protocol: TCP
+      targetPort: {{ .Values.metrics.port }}
+  selector:
+    {{- include "suse-ai-operator.selectorLabels" . | nindent 4 }}
 {{- end }}

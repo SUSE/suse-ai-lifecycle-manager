@@ -54,6 +54,7 @@ helm.sh/chart: {{ .Chart.Version | quote }}
 app.kubernetes.io/name: {{ include "suse-ai-operator.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+control-plane: controller-manager
 {{- end }}
 
 {{/*
@@ -63,6 +64,7 @@ Only includes name and instance for consistent selection.
 {{- define "suse-ai-operator.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "suse-ai-operator.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+control-plane: controller-manager
 {{- end }}
 
 {{/*
