@@ -1,9 +1,4 @@
 SUSE AI Operator has been installed.
 
-If extensions.enabled=true, the following UI extensions are being reconciled:
-{{- range .Values.extensions.items }}
-- {{ .name }} ({{ .version }})
-{{- end }}
-
 Check operator logs:
 kubectl logs deploy/{{ .Release.Name }} -n {{ .Release.Namespace }} -f

@@ -69,14 +69,3 @@ rbacHelpers:
 metrics:
   enable: true
   port: 8443
-
-extensions:
-  enabled: true
-  items:
-    - name: suse-ai-lifecycle-manager
-      version: "1.0.0"
-      helm:
-        name: suse-ai-lifecycle-manager
-        url: "ghcr.io/suse/chart/suse-ai-lifecycle-manager"
-        version: "1.0.0"
-        type: oci
