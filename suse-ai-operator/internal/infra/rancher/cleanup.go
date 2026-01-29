@@ -3,8 +3,8 @@ package rancher
 import (
 	"context"
 
-	"github.com/leooamaral/suseai-operator/api/v1alpha1"
-	logging "github.com/leooamaral/suseai-operator/internal/logging"
+	"github.com/SUSE/suse-ai-operator/api/v1alpha1"
+	logging "github.com/SUSE/suse-ai-operator/internal/logging"
 )
 
 func (m *Manager) Cleanup(

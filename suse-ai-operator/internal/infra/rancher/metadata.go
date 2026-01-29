@@ -7,8 +7,8 @@ import (
 
 	"golang.org/x/exp/maps"
 
-	"github.com/leooamaral/suseai-operator/internal/infra/helm"
-	logging "github.com/leooamaral/suseai-operator/internal/logging"
+	"github.com/SUSE/suse-ai-operator/internal/infra/helm"
+	logging "github.com/SUSE/suse-ai-operator/internal/logging"
 )
 
 // func buildExtensionMetadata(

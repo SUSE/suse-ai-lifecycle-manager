@@ -28,11 +28,11 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	aiplatformv1alpha1 "github.com/leooamaral/suseai-operator/api/v1alpha1"
-	helmClient "github.com/leooamaral/suseai-operator/internal/infra/helm"
-	"github.com/leooamaral/suseai-operator/internal/infra/kubernetes"
-	"github.com/leooamaral/suseai-operator/internal/infra/rancher"
-	"github.com/leooamaral/suseai-operator/internal/installaiextension"
+	aiplatformv1alpha1 "github.com/SUSE/suse-ai-operator/api/v1alpha1"
+	helmClient "github.com/SUSE/suse-ai-operator/internal/infra/helm"
+	"github.com/SUSE/suse-ai-operator/internal/infra/kubernetes"
+	"github.com/SUSE/suse-ai-operator/internal/infra/rancher"
+	"github.com/SUSE/suse-ai-operator/internal/installaiextension"
 )
 
 // InstallAIExtensionReconciler reconciles a InstallAIExtension object

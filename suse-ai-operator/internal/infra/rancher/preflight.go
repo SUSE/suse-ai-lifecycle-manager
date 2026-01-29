@@ -3,7 +3,7 @@ package rancher
 import (
 	"context"
 
-	logging "github.com/leooamaral/suseai-operator/internal/logging"
+	logging "github.com/SUSE/suse-ai-operator/internal/logging"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 

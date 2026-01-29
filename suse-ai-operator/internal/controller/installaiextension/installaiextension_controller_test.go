@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	aiplatformv1alpha1 "github.com/leooamaral/suseai-operator/api/v1alpha1"
+	aiplatformv1alpha1 "github.com/SUSE/suse-ai-operator/api/v1alpha1"
 )
 
 var _ = Describe("InstallAIExtension Controller", func() {

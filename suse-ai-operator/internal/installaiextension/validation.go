@@ -3,7 +3,7 @@ package installaiextension
 import (
 	"fmt"
 
-	"github.com/leooamaral/suseai-operator/api/v1alpha1"
+	"github.com/SUSE/suse-ai-operator/api/v1alpha1"
 )
 
 type InstallSource string

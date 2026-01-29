@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/leooamaral/suseai-operator/internal/logging"
+	"github.com/SUSE/suse-ai-operator/internal/logging"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/registry"

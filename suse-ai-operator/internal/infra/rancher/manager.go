@@ -3,12 +3,12 @@ package rancher
 import (
 	"context"
 
-	"github.com/leooamaral/suseai-operator/api/v1alpha1"
+	"github.com/SUSE/suse-ai-operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/leooamaral/suseai-operator/internal/infra/helm"
-	logging "github.com/leooamaral/suseai-operator/internal/logging"
+	"github.com/SUSE/suse-ai-operator/internal/infra/helm"
+	logging "github.com/SUSE/suse-ai-operator/internal/logging"
 )
 
 var requiredCRDs = []string{

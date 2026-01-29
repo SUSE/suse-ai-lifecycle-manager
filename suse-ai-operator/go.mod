@@ -1,4 +1,4 @@
-module github.com/leooamaral/suseai-operator
+module github.com/SUSE/suse-ai-operator
 
 go 1.24.5
 

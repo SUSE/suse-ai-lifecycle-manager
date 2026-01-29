@@ -4,31 +4,13 @@ metadata:
   labels:
     app.kubernetes.io/name: suse-ai-operator
     app.kubernetes.io/managed-by: kustomize
-  name: suseai-ext
-spec:
-  repo:
-    name: suse-ai-extensions
-    url: "https://github.com/leooamaral/rancher-extensions.git"
-    branch: "gh-pages"
-  extension:
-    name: hello-world
-    version: "0.1.5"
-
----
-
-apiVersion: ai-platform.suse.com/v1alpha1
-kind: InstallAIExtension
-metadata:
-  labels:
-    app.kubernetes.io/name: suse-ai-operator
-    app.kubernetes.io/managed-by: kustomize
-  name: suseai-ext
+  name: suseai
 spec:
   helm:
-    name: suse-ai-extension
-    url: "ghcr.io/leooamaral/helm-charts/ui-extension-suseai-rancher-ext"
-    version: "0.1.0"
+    name: suse-ai-lifecycle-manager
+    url: "ghcr.io/suse/chart/suse-ai-lifecycle-manager"
+    version: "1.0.0"
     type: "oci"
   extension:
-    name: ui-extension-suseai-rancher-ext
-    version: "0.1.0"
+    name: suse-ai-lifecycle-manager
+    version: "1.0.0"

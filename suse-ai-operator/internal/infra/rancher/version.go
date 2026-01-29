@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	logging "github.com/leooamaral/suseai-operator/internal/logging"
+	logging "github.com/SUSE/suse-ai-operator/internal/logging"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 )

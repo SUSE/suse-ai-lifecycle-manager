@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leooamaral/suseai-operator/internal/logging"
+	"github.com/SUSE/suse-ai-operator/internal/logging"
 	"helm.sh/helm/v3/pkg/action"
 )
 
