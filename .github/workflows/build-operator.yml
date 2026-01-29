@@ -4,7 +4,7 @@ on: [push, pull_request, workflow_dispatch]
 
 env:
     CONTAINER_REGISTRY: ghcr.io/suse/suse-ai-operator
-    CHART_PATH: chart/suse-ai-operator
+    CHART_PATH: charts/suse-ai-operator
     CHART_REGISTRY: oci://ghcr.io/suse/chart
 jobs:
   container:
