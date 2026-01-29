@@ -3,12 +3,12 @@ package controller
 import (
 	"context"
 
-	"github.com/leooamaral/suseai-operator/internal/infra/rancher"
-	"github.com/leooamaral/suseai-operator/internal/logging"
+	"github.com/SUSE/suse-ai-operator/internal/infra/rancher"
+	"github.com/SUSE/suse-ai-operator/internal/logging"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	aiplatformv1alpha1 "github.com/leooamaral/suseai-operator/api/v1alpha1"
-	helmClient "github.com/leooamaral/suseai-operator/internal/infra/helm"
+	aiplatformv1alpha1 "github.com/SUSE/suse-ai-operator/api/v1alpha1"
+	helmClient "github.com/SUSE/suse-ai-operator/internal/infra/helm"
 )
 
 const finalizerName = "ai-platform.suse.com/finalizer"

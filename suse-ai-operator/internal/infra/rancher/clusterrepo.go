@@ -3,8 +3,8 @@ package rancher
 import (
 	"context"
 
-	"github.com/leooamaral/suseai-operator/api/v1alpha1"
-	logging "github.com/leooamaral/suseai-operator/internal/logging"
+	"github.com/SUSE/suse-ai-operator/api/v1alpha1"
+	logging "github.com/SUSE/suse-ai-operator/internal/logging"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"

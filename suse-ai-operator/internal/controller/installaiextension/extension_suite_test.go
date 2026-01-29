@@ -32,7 +32,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	aiplatformv1alpha1 "github.com/leooamaral/suseai-operator/api/v1alpha1"
+	aiplatformv1alpha1 "github.com/SUSE/suse-ai-operator/api/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 

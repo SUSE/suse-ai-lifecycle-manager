@@ -35,8 +35,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	aiplatformv1alpha1 "github.com/leooamaral/suseai-operator/api/v1alpha1"
-	aiextensionctrl "github.com/leooamaral/suseai-operator/internal/controller/installaiextension"
+	aiplatformv1alpha1 "github.com/SUSE/suse-ai-operator/api/v1alpha1"
+	aiextensionctrl "github.com/SUSE/suse-ai-operator/internal/controller/installaiextension"
 	// +kubebuilder:scaffold:imports
 )
 
