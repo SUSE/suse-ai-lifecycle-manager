@@ -10,4 +10,5 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: {{ include "suse-ai-operator.fullname" . }}
+    namespace: {{ .Release.Namespace }}
 {{- end }}
