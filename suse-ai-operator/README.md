@@ -1,18 +1,86 @@
-# suse-ai-operator
-// TODO(user): Add simple overview of use/purpose
+# SUSE AI Operator
+The SUSE AI Extension Operator installs and manages Rancher UI extension for SUSE AI using a declarative Kubernetes Custom Resource (CR). It acts as a bridge between Helm-based extension packaging and Rancher UIPlugin resources, handling lifecycle, validation, retries, and cleanup in a Kubernetes-native way.
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+## Purpose
+This operator exists to:
+- Install SUSE AI Rancher UI extensions safely and declaratively.
+- Prevent conflicts with operator-unmanaged Helm resources.
+- Manage Helm releases, ClusterRepos, and UIPlugins.
 
 ## Getting Started
 
 ### Prerequisites
-- go version v1.24.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+- go v1.24.0+
+- docker v17.03+
+- kubectl v1.11.3+
+- Access to a Kubernetes v1.11.3+ cluster
+- Helm 3.x
+- Rancher installed (for UIPlugin and ClusterRepo integration)
 
-### To Deploy on the cluster
+The following CRDs must exist before adding the operator:
+  - `uiplugins.catalog.cattle.io`
+  - `clusterrepos.catalog.cattle.io`
+
+### Installation
+
+The operator is distributed as a Helm chart and installs:
+- Controller Deployment
+- RBAC
+- CRDs
+- Metrics Service
+
+1. **Install the SUSE AI Operator.** First, install the operator via Helm:
+
+```sh
+helm install suse-ai-operator \
+  -n suse-ai-operator-system \
+  --create-namespace \
+  oci://ghcr.io/suse/chart/suse-ai-operator
+```
+
+This will deploy the SUSE AI Operator into the `suse-ai-operator-system` namespace.
+
+2. **Create the InstallAIExtension CR.** Once the operator is installed, apply the InstallAIExtension Custom Resource (CR) to install the required extension. Below is an example of the `extension.yaml`:
+```yaml
+apiVersion: ai-platform.suse.com/v1alpha1
+kind: InstallAIExtension
+metadata:
+  name: suseai
+spec:
+  helm:
+    name: suse-ai-lifecycle-manager
+    url: "ghcr.io/suse/chart/suse-ai-lifecycle-manager"
+    version: "1.0.0"
+    type: "oci"
+  extension:
+    name: suse-ai-lifecycle-manager
+    version: "1.0.0"
+```
+Apply this file
+```sh
+kubectl apply -f extension.yaml
+```
+
+### Uninstall
+
+1. **Remove the InstallAIExtension CR.** To remove the InstallAIExtension CR, use:
+```sh
+kubectl delete -f extension.yaml
+```
+
+2. **Uninstall the SUSE AI Operator.** To uninstall the operator, run the following command:
+```sh
+helm uninstall suse-ai-operator -n suse-ai-operator-system
+```
+
+3. **Delete the CRDs.** After uninstalling the operator, you remove the associated Custom Resource Definitions (CRDs). To delete the InstallAIExtension CRD, use:
+```sh
+kubectl delete crd installaiextension.ai-platform.suse.com
+```
+
+## Development
+
+### To Build and Test locally
 **Build and push your image to the location specified by `IMG`:**
 
 ```sh
@@ -38,7 +106,7 @@ make deploy IMG=<some-registry>/suse-ai-operator:tag
 > **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
 privileges or be logged in as admin.
 
-**Create instances of your solution**
+**Create CRs**
 You can apply the samples (examples) from the config/sample:
 
 ```sh
@@ -66,51 +134,35 @@ make uninstall
 make undeploy
 ```
 
-## Project Distribution
+## Testing
 
-Following the options to release and provide this solution to the users.
+1. **Install Rancher (or mock CRDs)**
 
-### By providing a bundle with all YAML files
+2. **Install the operator:**
 
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/suse-ai-operator:tag
+```bash
+helm install suse-ai-operator ./charts/suse-ai-operator -n suse-ai-operator-system
 ```
 
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
-
-2. Using the installer
-
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/suse-ai-operator/<tag or branch>/dist/install.yaml
+3. **Apply an extension:**
+```bash
+kubectl apply -f config/samples/installaiextension.yaml
 ```
 
-### By providing a Helm Chart
-
-1. Build the chart using the optional helm plugin
-
-```sh
-kubebuilder edit --plugins=helm/v1-alpha
+4. **Observe reconciliation:**
+```bash
+kubectl logs -l app.kubernetes.io/name=suse-ai-operator -f -n suse-ai-operator-system
 ```
 
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
+5. **Verify resources:**
+```bash
+kubectl get installaiextensions
+kubectl get uiplugins -A
+kubectl get clusterrepos
+helm list -A
+```
 
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
-
-## Doing
+<!-- ## Doing
 - [ ] change extension from gh-pages branch to container (pipeline)
 - [ ] change operator to install container 
 - [ ] helm chart for the operator
@@ -121,15 +173,7 @@ is manually re-applied afterwards.
 
 ## Tests
 - [ ] No crds available (uiplugin/clusterrepo)
-- [ ] Plugin/extension wrong name
- 
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+- [ ] Plugin/extension wrong name -->
 
 ## License
 
