@@ -162,19 +162,6 @@ kubectl get clusterrepos
 helm list -A
 ```
 
-<!-- ## Doing
-- [ ] change extension from gh-pages branch to container (pipeline)
-- [ ] change operator to install container 
-- [ ] helm chart for the operator
-
-## Next Tasks
-- [ ] Setup Repo in clusters for the AI Apps in the extension
-- [ ] Manage Gateways (MCPO, kgateway) for AI/ML
-
-## Tests
-- [ ] No crds available (uiplugin/clusterrepo)
-- [ ] Plugin/extension wrong name -->
-
 ## License
 
 Copyright 2025.
