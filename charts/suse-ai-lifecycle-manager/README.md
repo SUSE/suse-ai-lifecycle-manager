@@ -81,11 +81,11 @@ The command removes all the Kubernetes components associated with the chart and 
 ### Check pod status
 
 ```bash
-kubectl get pods -l app.kubernetes.io/name=suse-ai-lifecycle-manager
+kubectl get pods -l app.kubernetes.io/name=suse-ai-lifecycle-manager -n cattle-ui-plugin-system
 ```
 
 ### Check logs
 
 ```bash
-kubectl logs -l app.kubernetes.io/name=suse-ai-lifecycle-manager
+kubectl logs -l app.kubernetes.io/name=suse-ai-lifecycle-manager -n cattle-ui-plugin-system
 ```
