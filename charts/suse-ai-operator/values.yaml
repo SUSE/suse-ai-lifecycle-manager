@@ -6,7 +6,7 @@ nameOverride: ""
 fullnameOverride: ""
 
 manager:
-  replicas: 1
+  replicaCount: 1
   
   image:
     registry: ghcr.io

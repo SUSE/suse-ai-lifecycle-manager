@@ -1,4 +1,4 @@
-# SUSE AI Rancher UI Extension
+# SUSE AI Lifecycle Manager
 
 This chart installs the **Rancher Extension Catalog**, it contains extension assets bundled into an image and act as a catalog for custom extensions.
 1. This Chart is installed.

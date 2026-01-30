@@ -5,7 +5,7 @@ metadata:
     {{- include "suse-ai-operator.labels" . | nindent 4 }}
   name: {{ include "suse-ai-operator.fullname" . }}
 spec:
-  replicas: {{ .Values.manager.replicas }}
+  replicas: {{ .Values.manager.replicaCount }}
   selector:
     matchLabels:
       {{- include "suse-ai-operator.selectorLabels" . | nindent 6 }}
