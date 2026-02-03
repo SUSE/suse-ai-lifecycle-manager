@@ -91,16 +91,14 @@ make docker-build docker-push IMG=<some-registry>/suse-ai-operator:tag
 And it is required to have access to pull the image from the working environment.
 Make sure you have the proper permission to the registry if the above commands don’t work.
 
-**Install the CRDs into the cluster:**
+**Install the CRDs and Deploy the Operator into the cluster:**
 
 ```sh
-make install
-```
-
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
-
-```sh
-make deploy IMG=<some-registry>/suse-ai-operator:tag
+helm install suse-ai-operator ./charts/suse-ai-operator/ -n suse-ai-operator-system \
+    --create-namespace \
+    --set manager.image.registry=<some-registry> \ 
+    --set manager.image.repository=<repository-owner>/suse-ai-operator \
+    --set manager.image.tag=<tag>
 ```
 
 > **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
@@ -110,7 +108,7 @@ privileges or be logged in as admin.
 You can apply the samples (examples) from the config/sample:
 
 ```sh
-kubectl apply -k config/samples/
+kubectl apply -k samples/
 ```
 
 >**NOTE**: Ensure that the samples has default values to test it out.
@@ -119,19 +117,19 @@ kubectl apply -k config/samples/
 **Delete the instances (CRs) from the cluster:**
 
 ```sh
-kubectl delete -k config/samples/
-```
-
-**Delete the APIs(CRDs) from the cluster:**
-
-```sh
-make uninstall
+kubectl delete -k samples/
 ```
 
 **UnDeploy the controller from the cluster:**
 
 ```sh
-make undeploy
+helm uninstall suse-ai-operator -n suse-ai-operator-system
+```
+
+**Delete the APIs(CRDs) from the cluster:**
+
+```sh
+kubectl delete crd installaiextension.ai-platform.suse.com
 ```
 
 ## Testing
