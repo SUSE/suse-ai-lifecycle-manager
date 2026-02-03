@@ -50,19 +50,16 @@ func (r *InstallAIExtensionReconciler) handleDeletion(
 
 	log.Info("Handling resource deletion")
 
-	// 1️⃣ Helm cleanup (idempotent)
 	if err := helm.DeleteRelease(ctx, releaseName); err != nil {
 		log.Error(err, "Failed to delete Helm release")
 		return err
 	}
 
-	// 2️⃣ Rancher cleanup
 	if err := rancherMgr.Cleanup(ctx, ext); err != nil {
 		log.Error(err, "Failed to cleanup Rancher resources")
 		return err
 	}
 
-	// 3️⃣ Remove finalizer
 	return r.removeFinalizer(ctx, ext)
 }
 

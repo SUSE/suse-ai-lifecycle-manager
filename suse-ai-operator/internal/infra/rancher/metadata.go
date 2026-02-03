@@ -11,40 +11,6 @@ import (
 	logging "github.com/SUSE/suse-ai-operator/internal/logging"
 )
 
-// func buildExtensionMetadata(
-// 	rancherVersion string,
-// 	metadata map[string]string,
-// 	extensionName string,
-// ) (map[string]string, error) {
-// 	uiExtAPIVersion := ""
-
-// 	// sources:
-// 	// https://extensions.rancher.io/extensions/next/advanced/version-compatibility
-// 	// https://extensions.rancher.io/extensions/next/support-matrix#extension-api-support-matrix
-
-// 	if rancherVersion >= "v2.10.0" {
-// 		uiExtAPIVersion = ">= 3.0.0 < 4.0.0"
-// 	} else if rancherVersion >= "v2.9.0" {
-// 		uiExtAPIVersion = ">= 2.0.0 < 3.0.0"
-// 	} else if rancherVersion >= "v2.8.0" {
-// 		uiExtAPIVersion = ">= 1.0.0 < 2.0.0"
-// 	} else {
-// 		uiExtAPIVersion = ">= 1.0.0 < 2.0.0"
-// 	}
-
-// 	if _, ok := metadata["catalog.cattle.io/display-name"]; !ok {
-// 		metadata["catalog.cattle.io/display-name"] = extensionName
-// 	}
-// 	if _, ok := metadata["catalog.cattle.io/rancher-version"]; !ok {
-// 		metadata["catalog.cattle.io/rancher-version"] = fmt.Sprintf(">= %s", rancherVersion)
-// 	}
-// 	if _, ok := metadata["catalog.cattle.io/ui-extensions-version"]; !ok {
-// 		metadata["catalog.cattle.io/ui-extensions-version"] = uiExtAPIVersion
-// 	}
-
-// 	return metadata, nil
-// }
-
 const (
 	KeyDisplayName       = "catalog.cattle.io/display-name"
 	KeyRancherVersion    = "catalog.cattle.io/rancher-version"

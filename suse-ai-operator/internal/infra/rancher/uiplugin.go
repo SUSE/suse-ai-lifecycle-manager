@@ -22,19 +22,6 @@ func (m *Manager) ensureUIPlugin(
 			logging.KeyVersion, ext.Spec.Extension.Version,
 		)
 
-	logging.Debug(log).Info("Fetching Rancher version")
-
-	rancherVersion, err := m.getVersion(ctx)
-	if err != nil {
-		log.Error(err, "Failed to fetch Rancher version")
-		return err
-	}
-
-	logging.Debug(log).Info(
-		"Detected Rancher version",
-		"rancherVersion", rancherVersion,
-	)
-
 	ui := &unstructured.Unstructured{}
 	ui.SetAPIVersion("catalog.cattle.io/v1")
 	ui.SetKind("UIPlugin")
@@ -51,7 +38,7 @@ func (m *Manager) ensureUIPlugin(
 		"namespace", namespace,
 	)
 
-	_, err = ctrl.CreateOrUpdate(ctx, m.client, ui, func() error {
+	_, err := ctrl.CreateOrUpdate(ctx, m.client, ui, func() error {
 		if err := unstructured.SetNestedField(ui.Object, ext.Spec.Extension.Name, "spec", "plugin", "name"); err != nil {
 			return err
 		}
@@ -73,7 +60,6 @@ func (m *Manager) ensureUIPlugin(
 			metadata = map[string]string{}
 		}
 
-		// metadata, err := buildExtensionMetadata(rancherVersion, metadata, ext.Spec.Extension.Name)
 		metadata, err := buildExtensionMetadata(
 			ctx,
 			m.indexCache,

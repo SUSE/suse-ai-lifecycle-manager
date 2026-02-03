@@ -47,16 +47,12 @@ type InstallAIExtensionReconciler struct {
 // +kubebuilder:rbac:groups=ai-platform.suse.com,resources=installaiextensions,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=ai-platform.suse.com,resources=installaiextensions/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=ai-platform.suse.com,resources=installaiextensions/finalizers,verbs=update
+// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list
+
 // +kubebuilder:rbac:groups=catalog.cattle.io,resources=clusterrepos,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=catalog.cattle.io,resources=clusterrepos/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=catalog.cattle.io,resources=uiplugins,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=catalog.cattle.io,resources=uiplugins/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=management.cattle.io,resources=settings,verbs=get;list;watch
-// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get;list
-// +kubebuilder:rbac:groups=apps,resources=deployments;replicasets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=services;secrets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -79,105 +75,85 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	source, err := installaiextension.ValidateSpec(installExt.Spec)
+	// namespace := installExt.Spec.Helm.Namespace
+	fmt.Println(installExt.Spec.Helm.Namespace)
+
+	releaseName := installExt.Spec.Helm.Name
+	chartVersion := installExt.Spec.Helm.Version
+	values, err := helmClient.ConvertHelmValues(installExt.Spec.Helm.Values)
 	if err != nil {
-		log.Error(err, "failed to validate spec")
+		log.Error(err, "failed to convert Helm values")
+		return ctrl.Result{}, err
 	}
 
-	switch source {
-	case installaiextension.SourceHelm:
-		// namespace := installExt.Spec.Helm.Namespace
-		fmt.Println(installExt.Spec.Helm.Namespace)
+	chart := ""
 
-		releaseName := installExt.Spec.Helm.Name
-		chartVersion := installExt.Spec.Helm.Version
-		values, err := helmClient.ConvertHelmValues(installExt.Spec.Helm.Values)
-		if err != nil {
-			log.Error(err, "failed to convert Helm values")
-			return ctrl.Result{}, err
-		}
-
-		chart := ""
-
-		switch installExt.Spec.Helm.Type {
-		case "oci":
-			chart = "oci://" + installExt.Spec.Helm.URL
-		default:
-		}
-
-		settings := cli.New()
-		settings.SetNamespace(namespace)
-
-		helm, err := helmClient.New(settings)
-		if err != nil {
-			log.Error(err, "failed to create Helm client")
-			return ctrl.Result{}, err
-		}
-
-		rancherMgr := rancher.NewManager(r.Client, r.Scheme)
-
-		if !installExt.ObjectMeta.DeletionTimestamp.IsZero() {
-			if err := r.handleDeletion(
-				ctx,
-				&installExt,
-				helm,
-				rancherMgr,
-				releaseName,
-			); err != nil {
-				return ctrl.Result{}, err
-			}
-			return ctrl.Result{}, nil
-		}
-
-		added, err := r.ensureFinalizer(ctx, &installExt)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		if added {
-			return ctrl.Result{Requeue: true}, nil
-		}
-
-		err = helm.EnsureRelease(ctx, helmClient.ReleaseSpec{
-			Name:      releaseName,
-			Namespace: namespace,
-			ChartRef:  chart,
-			Version:   chartVersion,
-			Values:    values,
-		})
-		if err != nil {
-			// if helmClient.IsOwnershipConflict(err) {
-			// 	r.Recorder.Event(
-			// 		&installExt,
-			// 		corev1.EventTypeWarning,
-			// 		"HelmOwnershipConflict",
-			// 		"A Service already exists and is not managed by Helm. Delete the Service manually to continue installation.",
-			// 	)
-			// 	return ctrl.Result{}, nil
-			// }
-			return ctrl.Result{}, err
-		}
-
-		svc, err := kubernetes.ServiceForHelmRelease(ctx, r.Client, namespace, releaseName)
-		if err != nil {
-			msg := fmt.Sprintf("Error to fetch services")
-			log.Info(msg)
-		}
-
-		svcName, svcNamespace, svcPort, err := installaiextension.ServiceEndpoint(svc)
-		if err != nil {
-			msg := fmt.Sprintf("Error to fetch svc info")
-			log.Info(msg)
-		}
-
-		svcURL = fmt.Sprintf("http://%s.%s:%d", svcName, svcNamespace, svcPort)
-
-		if err := rancherMgr.Ensure(ctx, &installExt, svcURL); err != nil {
-			return ctrl.Result{}, err
-		}
+	switch installExt.Spec.Helm.Type {
+	case "oci":
+		chart = "oci://" + installExt.Spec.Helm.URL
+	default:
 	}
 
-	// --- Update status (separately) ---
-	// Refetch before updating status to avoid conflicts
+	settings := cli.New()
+	settings.SetNamespace(namespace)
+
+	helm, err := helmClient.New(settings)
+	if err != nil {
+		log.Error(err, "failed to create Helm client")
+		return ctrl.Result{}, err
+	}
+
+	rancherMgr := rancher.NewManager(r.Client, r.Scheme)
+
+	if !installExt.ObjectMeta.DeletionTimestamp.IsZero() {
+		if err := r.handleDeletion(
+			ctx,
+			&installExt,
+			helm,
+			rancherMgr,
+			releaseName,
+		); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
+
+	added, err := r.ensureFinalizer(ctx, &installExt)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if added {
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	err = helm.EnsureRelease(ctx, helmClient.ReleaseSpec{
+		Name:      releaseName,
+		Namespace: namespace,
+		ChartRef:  chart,
+		Version:   chartVersion,
+		Values:    values,
+	})
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	svc, err := kubernetes.ServiceForHelmRelease(ctx, r.Client, namespace, releaseName)
+	if err != nil {
+		msg := fmt.Sprintf("Error to fetch services")
+		log.Info(msg)
+	}
+
+	svcName, svcNamespace, svcPort, err := installaiextension.ServiceEndpoint(svc)
+	if err != nil {
+		msg := fmt.Sprintf("Error to fetch svc info")
+		log.Info(msg)
+	}
+
+	svcURL = fmt.Sprintf("http://%s.%s:%d", svcName, svcNamespace, svcPort)
+
+	if err := rancherMgr.Ensure(ctx, &installExt, svcURL); err != nil {
+		return ctrl.Result{}, err
+	}
 
 	var latest aiplatformv1alpha1.InstallAIExtension
 	if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
