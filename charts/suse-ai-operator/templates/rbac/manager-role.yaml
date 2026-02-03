@@ -6,30 +6,10 @@ rules:
   - apiGroups:
       - ""
     resources:
-      - events
-    verbs:
-      - create
-      - patch
-  - apiGroups:
-      - ""
-    resources:
-      - pods
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - secrets
       - services
     verbs:
-      - create
-      - delete
       - get
       - list
-      - patch
-      - update
       - watch
   - apiGroups:
       - ai-platform.suse.com
@@ -65,6 +45,57 @@ rules:
       - get
       - list
   - apiGroups:
+      - catalog.cattle.io
+    resources:
+      - clusterrepos
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - catalog.cattle.io
+    resources:
+      - clusterrepos/status
+    verbs:
+      - get
+      - patch
+      - update
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+metadata:
+  name: {{ include "suse-ai-operator.fullname" . }}
+  namespace: {{ include "suse-ai-operator.extensionsNamespace" . }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - services
+      - secrets
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
       - apps
     resources:
       - deployments
@@ -78,9 +109,15 @@ rules:
       - update
       - watch
   - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
       - catalog.cattle.io
     resources:
-      - clusterrepos
       - uiplugins
     verbs:
       - create
@@ -93,17 +130,8 @@ rules:
   - apiGroups:
       - catalog.cattle.io
     resources:
-      - clusterrepos/status
       - uiplugins/status
     verbs:
       - get
       - patch
       - update
-  - apiGroups:
-      - management.cattle.io
-    resources:
-      - settings
-    verbs:
-      - get
-      - list
-      - watch

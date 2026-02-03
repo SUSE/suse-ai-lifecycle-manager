@@ -68,6 +68,14 @@ control-plane: controller-manager
 {{- end }}
 
 {{/*
+Namespace where AI extensions (UI plugins, workloads, secrets) are deployed.
+This is intentionally separate from the operator's release namespace.
+*/}}
+{{- define "suse-ai-operator.extensionsNamespace" -}}
+{{- .Values.extensionsNamespace | default "cattle-ui-plugin-system" -}}
+{{- end -}}
+
+{{/*
 Return the proper Docker Image Registry Secret Names
 */}}
 {{- define "suse-ai-operator.imagePullSecrets" -}}
