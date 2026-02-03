@@ -26,17 +26,10 @@ import (
 
 // InstallAIExtensionSpec defines the desired state of InstallAIExtension
 type InstallAIExtensionSpec struct {
-	Repo *RepoSpec `json:"repo,omitempty"`
 	Helm *HelmSpec `json:"helm,omitempty"`
 
 	// +kubebuilder:validation:Required
 	Extension ExtensionSpec `json:"extension"`
-}
-
-type RepoSpec struct {
-	Name   string `json:"name"`
-	URL    string `json:"url"`
-	Branch string `json:"branch,omitempty"`
 }
 
 type HelmRepoType string
