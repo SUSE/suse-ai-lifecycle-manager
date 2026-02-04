@@ -38,6 +38,17 @@
             </select>
           </div>
 
+          <div class="filter-group-checkbox">
+            <input
+              id="show-installed-only"
+              v-model="showInstalledOnly"
+              type="checkbox"
+              class="checkbox"
+              aria-label="Show only installed applications"
+            />
+            <label for="show-installed-only" class="text-label">{{ t('suseai.apps.showInstalledOnly', 'Installed') }}</label>
+          </div>
+
           <div class="view-controls" role="group" aria-label="View mode selection">
             <button
               :class="['btn', 'btn-sm', viewMode === 'tiles' ? 'role-primary' : 'role-secondary']"
@@ -297,6 +308,8 @@ export default defineComponent({
     const allRepositoryApps = ref<{ [repoName: string]: AppCollectionItem[] }>({});
     const repositoriesLoaded = ref(false);
     const installedMap = ref<Record<string, InstallInfo>>({});
+    const installationStatusLoading = ref(false);
+    const showInstalledOnly = ref(false);
 
     const updatedDateFormatter = new Intl.DateTimeFormat(undefined, {
       month: 'short',
@@ -358,6 +371,10 @@ export default defineComponent({
         arr = arr.filter((app: AppCollectionItem) => app.packaging_format === selectedCategory.value);
       }
 
+      // Apply "Installed Only" filter
+      if (showInstalledOnly.value) {
+        arr = arr.filter((app: AppCollectionItem) => getInstallationInfo(app.slug_name).installed);
+      }
 
       // Apply search filter
       if (search.value) {
@@ -611,6 +628,7 @@ export default defineComponent({
       // State
       loading,
       repoLoading,
+      installationStatusLoading,
       error,
       search,
       selectedRepo,
@@ -621,6 +639,7 @@ export default defineComponent({
       repositories,
       repositoryOptions,
       tableHeaders,
+      showInstalledOnly,
 
       // Feature flags
       isAdvancedFilteringEnabled,
@@ -732,6 +751,20 @@ export default defineComponent({
           border-color: var(--outline);
           box-shadow: 0 0 0 2px var(--primary-keyboard-focus);
         }
+      }
+    }
+
+    .filter-group-checkbox {
+      display: inline;
+      margin-left: 12px;
+
+      .checkbox,
+      .text-label {
+        vertical-align: middle;
+      }
+      .text-label {
+        color: var(--body-text);
+        margin-left: 6px; /* Add space between checkbox and label */
       }
     }
 
