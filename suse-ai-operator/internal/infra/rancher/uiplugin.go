@@ -15,6 +15,7 @@ func (m *Manager) ensureUIPlugin(
 	ctx context.Context,
 	ext *v1alpha1.InstallAIExtension,
 	svcURL string,
+	namespace string,
 ) error {
 	log := logging.FromContext(ctx, "rancher.uiplugin").
 		WithValues(
@@ -27,10 +28,6 @@ func (m *Manager) ensureUIPlugin(
 	ui.SetKind("UIPlugin")
 	ui.SetName(ext.Spec.Extension.Name)
 
-	namespace := ext.Spec.Extension.Namespace
-	if namespace == "" {
-		namespace = "cattle-ui-plugin-system"
-	}
 	ui.SetNamespace(namespace)
 
 	log.Info(
@@ -86,17 +83,13 @@ func (m *Manager) ensureUIPlugin(
 func (m *Manager) deleteUIPlugin(
 	ctx context.Context,
 	ext *v1alpha1.InstallAIExtension,
+	namespace string,
 ) error {
 	log := logging.FromContext(ctx, "rancher.uiplugin").
 		WithValues(
 			logging.KeyExtension, ext.Spec.Extension.Name,
 			logging.KeyVersion, ext.Spec.Extension.Version,
 		)
-
-	namespace := ext.Spec.Extension.Namespace
-	if namespace == "" {
-		namespace = "cattle-ui-plugin-system"
-	}
 
 	log.Info(
 		"Deleting UIPlugin",

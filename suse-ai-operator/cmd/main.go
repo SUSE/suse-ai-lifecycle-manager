@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	aiplatformv1alpha1 "github.com/SUSE/suse-ai-operator/api/v1alpha1"
+	"github.com/SUSE/suse-ai-operator/internal/config"
 	aiextensionctrl "github.com/SUSE/suse-ai-operator/internal/controller/installaiextension"
 	// +kubebuilder:scaffold:imports
 )
@@ -179,10 +180,11 @@ func main() {
 	}
 
 	if err := (&aiextensionctrl.InstallAIExtensionReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("install-ai-extension-controller"),
-		Config:   mgr.GetConfig(),
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		Recorder:           mgr.GetEventRecorderFor("install-ai-extension-controller"),
+		Config:             mgr.GetConfig(),
+		ExtensionNamespace: config.GetExtensionNamespace(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "InstallAIExtension")
 		os.Exit(1)

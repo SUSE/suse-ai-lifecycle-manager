@@ -30,6 +30,7 @@ func (m *Manager) Ensure(
 	ctx context.Context,
 	ext *v1alpha1.InstallAIExtension,
 	svcURL string,
+	namespace string,
 ) error {
 
 	log := logging.FromContext(ctx, "rancher").
@@ -49,7 +50,7 @@ func (m *Manager) Ensure(
 		return err
 	}
 
-	if err := m.ensureUIPlugin(ctx, ext, svcURL); err != nil {
+	if err := m.ensureUIPlugin(ctx, ext, svcURL, namespace); err != nil {
 		return err
 	}
 

@@ -10,6 +10,7 @@ import (
 func (m *Manager) Cleanup(
 	ctx context.Context,
 	ext *v1alpha1.InstallAIExtension,
+	namespace string,
 ) error {
 	log := logging.FromContext(ctx, "rancher.cleanup").
 		WithValues(
@@ -21,7 +22,7 @@ func (m *Manager) Cleanup(
 		return nil
 	}
 
-	if err := m.deleteUIPlugin(ctx, ext); err != nil {
+	if err := m.deleteUIPlugin(ctx, ext, namespace); err != nil {
 		return err
 	}
 	logging.Debug(log).Info("Deleting UIPlugin")

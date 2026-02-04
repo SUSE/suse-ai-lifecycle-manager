@@ -40,6 +40,7 @@ func (r *InstallAIExtensionReconciler) handleDeletion(
 	helm helmClient.HelmClient,
 	rancherMgr *rancher.Manager,
 	releaseName string,
+	namespace string,
 ) error {
 
 	log := logging.FromContext(ctx, "finalizer")
@@ -55,7 +56,7 @@ func (r *InstallAIExtensionReconciler) handleDeletion(
 		return err
 	}
 
-	if err := rancherMgr.Cleanup(ctx, ext); err != nil {
+	if err := rancherMgr.Cleanup(ctx, ext, namespace); err != nil {
 		log.Error(err, "Failed to cleanup Rancher resources")
 		return err
 	}

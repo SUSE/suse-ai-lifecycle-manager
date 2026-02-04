@@ -38,10 +38,11 @@ import (
 // InstallAIExtensionReconciler reconciles a InstallAIExtension object
 type InstallAIExtensionReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Log      logr.Logger
-	Recorder record.EventRecorder
-	Config   *rest.Config
+	Scheme             *runtime.Scheme
+	Log                logr.Logger
+	Recorder           record.EventRecorder
+	Config             *rest.Config
+	ExtensionNamespace string
 }
 
 // +kubebuilder:rbac:groups=ai-platform.suse.com,resources=installaiextensions,verbs=get;list;watch;create;update;patch;delete
@@ -66,7 +67,7 @@ type InstallAIExtensionReconciler struct {
 func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("InstallAIExtension", req.NamespacedName)
 
-	namespace := "cattle-ui-plugin-system"
+	namespace := r.ExtensionNamespace
 
 	var svcURL string
 
@@ -74,9 +75,6 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if err := r.Get(ctx, req.NamespacedName, &installExt); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-
-	// namespace := installExt.Spec.Helm.Namespace
-	fmt.Println(installExt.Spec.Helm.Namespace)
 
 	releaseName := installExt.Spec.Helm.Name
 	chartVersion := installExt.Spec.Helm.Version
@@ -112,6 +110,7 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 			helm,
 			rancherMgr,
 			releaseName,
+			namespace,
 		); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -151,7 +150,7 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	svcURL = fmt.Sprintf("http://%s.%s:%d", svcName, svcNamespace, svcPort)
 
-	if err := rancherMgr.Ensure(ctx, &installExt, svcURL); err != nil {
+	if err := rancherMgr.Ensure(ctx, &installExt, svcURL, namespace); err != nil {
 		return ctrl.Result{}, err
 	}
 
