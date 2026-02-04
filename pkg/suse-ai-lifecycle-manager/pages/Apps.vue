@@ -138,6 +138,14 @@
                   </span>
                 </div>
               </div>
+              <div class="tile-actions">
+                <a v-if="app.project_url" :href="app.project_url" target="_blank" rel="noopener noreferrer" class="action-link" title="Project page" @click.stop>
+                  <i class="icon icon-external-link" />
+                </a>
+                <a v-if="app.documentation_url" :href="app.documentation_url" target="_blank" rel="noopener noreferrer" class="action-link" title="Documentation" @click.stop>
+                  <i class="icon icon-document" />
+                </a>
+              </div>
             </div>
 
             <div class="tile-content">
@@ -1390,12 +1398,23 @@ export default defineComponent({
   height: 20px;
 }
 
-/* Utility class for spacing */
-.mr-5 {
-  margin-right: 5px;
-}
-
 .app-tile-filler {
   visibility: hidden;
+}
+
+.tile-actions {
+  display: flex;
+  gap: 15px;
+
+  .action-link {
+    color: var(--muted);
+    font-size: 16px;
+    transition: color 0.2s ease;
+
+    &:hover {
+      color: var(--primary);
+      text-decoration: none;
+    }
+  }
 }
 </style>
