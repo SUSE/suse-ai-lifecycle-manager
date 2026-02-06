@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'charts/suse-ai-operator/**'
+      - 'suse-ai-operator/**'
+      - '.github/workflows/release-operator.yml'
     tags:
       - suse-ai-operator-*
 
