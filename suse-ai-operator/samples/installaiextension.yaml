@@ -1,0 +1,13 @@
+apiVersion: ai-platform.suse.com/v1alpha1
+kind: InstallAIExtension
+metadata:
+  name: suseai
+spec:
+  helm:
+    name: suse-ai-lifecycle-manager
+    url: "ghcr.io/suse/chart/suse-ai-lifecycle-manager"
+    version: "1.0.0"
+    type: "oci"
+  extension:
+    name: suse-ai-lifecycle-manager
+    version: "1.0.0"
