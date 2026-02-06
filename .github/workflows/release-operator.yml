@@ -8,9 +8,10 @@ on:
       - suse-ai-operator-*
 
 env:
-    CONTAINER_REGISTRY: ghcr.io/leooamaral/suse-ai-operator
+    CONTAINER_REGISTRY: ghcr.io/suse/suse-ai-operator
     CHART_PATH: deploy/charts/suse-ai-operator
-    CHART_REGISTRY: oci://ghcr.io/leooamaral/chart
+    CHART_REGISTRY: oci://ghcr.io/suse/chart
+    VERSION_PATH: suse-ai-operator/VERSION
 jobs:
   container:
     outputs:
@@ -34,7 +35,7 @@ jobs:
           ref=${{ github.ref }}
           case "$ref" in
             refs/heads/main)
-              BASE_VERSION=$(cat VERSION)
+              BASE_VERSION=$(cat $VERSION_PATH)
               
               git fetch --tags
 
@@ -168,7 +169,7 @@ jobs:
         run: |
           yq -i '
             .annotations."helm.sh/images" =
-            "- image: ghcr.io/leooamaral/suse-ai-operator:${{ needs.container.outputs.VERSION }}\n  name: suse-ai-operator"
+            "- image: ghcr.io/suse/suse-ai-operator:${{ needs.container.outputs.VERSION }}\n  name: suse-ai-operator"
           ' $CHART_PATH/Chart.yaml
 
       - name: Package Helm Chart
