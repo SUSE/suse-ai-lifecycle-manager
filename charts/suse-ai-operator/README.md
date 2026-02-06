@@ -98,7 +98,7 @@ For example:
 | -------------------------- | ------------------------- | ----------------------- |
 | `manager.image.registry`   | Operator image registry   | `ghcr.io`               |
 | `manager.image.repository` | Operator image repository | `suse/suse-ai-operator` |
-| `manager.image.tag`        | Operator image tag        | `0.1.0`                 |
+| `manager.image.tag`        | Operator image tag        | `""`                    |
 | `manager.image.pullPolicy` | Image pull policy         | `IfNotPresent`          |
 
 #### Pod Security Context
