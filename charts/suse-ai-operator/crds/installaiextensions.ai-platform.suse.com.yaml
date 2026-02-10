@@ -48,8 +48,6 @@ spec:
                   name:
                     minLength: 1
                     type: string
-                  namespace:
-                    type: string
                   version:
                     minLength: 1
                     type: string
@@ -61,11 +59,14 @@ spec:
                 properties:
                   name:
                     type: string
-                  namespace:
-                    type: string
-                  type:
-                    type: string
                   url:
+                    description: |-
+                      URL of the Helm repository or OCI registry.
+                      Examples:
+                        oci://ghcr.io/my-org/charts
+                        https://charts.example.com
+                    minLength: 1
+                    pattern: ^(oci://|https?://).+
                     type: string
                   values:
                     additionalProperties:
@@ -75,7 +76,6 @@ spec:
                     type: string
                 required:
                 - name
-                - type
                 - url
                 - version
                 type: object

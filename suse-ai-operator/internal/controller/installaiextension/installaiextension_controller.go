@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	urlpkg "net/url"
+
 	"github.com/go-logr/logr"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -86,10 +88,19 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	chart := ""
 
-	switch installExt.Spec.Helm.Type {
-	case "oci":
-		chart = "oci://" + installExt.Spec.Helm.URL
+	url := installExt.Spec.Helm.URL
+
+	u, err := urlpkg.Parse(url)
+	if err != nil {
+		log.Error(err, "invalid helm url %q", url)
+	}
+
+	switch u.Scheme {
+	case "oci", "https":
+		chart = url
 	default:
+		log.Error(err, "unsupported helm url scheme: %s", u.Scheme)
+		return ctrl.Result{}, err
 	}
 
 	settings := cli.New()
