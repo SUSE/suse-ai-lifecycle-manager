@@ -32,20 +32,18 @@ type InstallAIExtensionSpec struct {
 	Extension ExtensionSpec `json:"extension"`
 }
 
-type HelmRepoType string
-
-const (
-	HelmRepoTypeOCI  HelmRepoType = "oci"
-	HelmRepoTypeHTTP HelmRepoType = "http"
-)
-
 type HelmSpec struct {
-	Name      string                 `json:"name"`
-	URL       string                 `json:"url"`
-	Namespace string                 `json:"namespace,omitempty"`
-	Type      HelmRepoType           `json:"type"`
-	Version   string                 `json:"version"`
-	Values    map[string]apixv1.JSON `json:"values,omitempty"`
+	Name string `json:"name"`
+	// URL of the Helm repository or OCI registry.
+	// Examples:
+	//   oci://ghcr.io/my-org/charts
+	//   https://charts.example.com
+	//
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:Pattern=`^(oci://|https?://).+`
+	URL     string                 `json:"url"`
+	Version string                 `json:"version"`
+	Values  map[string]apixv1.JSON `json:"values,omitempty"`
 }
 
 type ExtensionSpec struct {
@@ -53,9 +51,8 @@ type ExtensionSpec struct {
 	Name string `json:"name"`
 
 	// +kubebuilder:validation:MinLength=1
-	Version   string            `json:"version"`
-	Namespace string            `json:"namespace,omitempty"`
-	Metadata  map[string]string `json:"metadata,omitempty"`
+	Version  string            `json:"version"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 // InstallAIExtensionStatus defines the observed state of InstallAIExtension.
