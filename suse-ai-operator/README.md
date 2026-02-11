@@ -49,9 +49,8 @@ metadata:
 spec:
   helm:
     name: suse-ai-lifecycle-manager
-    url: "ghcr.io/suse/chart/suse-ai-lifecycle-manager"
+    url: "oci://ghcr.io/suse/chart/suse-ai-lifecycle-manager"
     version: "1.0.0"
-    type: "oci"
   extension:
     name: suse-ai-lifecycle-manager
     version: "1.0.0"
