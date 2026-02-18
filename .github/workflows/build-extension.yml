@@ -1,17 +1,17 @@
-name: Build and Publish Extension [Container and Helm Chart]
+name: Build and Publish Extension [Container and Helm Chart - Multi-Arch]
 
 on: [push, pull_request, workflow_dispatch]
 
 env:
   CHART_PATH: charts/suse-ai-lifecycle-manager
-  CHART_REGISTRY: oci://ghcr.io/suse/chart
+  CHART_REGISTRY: oci://ghcr.io/leooamaral/chart
+  IMAGE_NAME: ghcr.io/leooamaral/suse-ai-lifecycle-manager
 
 jobs:
-  build-extension:
-    name: Build Container Image and Helm Chart
-    runs-on: ubuntu-latest
+  build-amd64:
+    name: Build Container Image and Helm Chart - amd64
+    runs-on: ubuntu-24.04
     permissions:
-      actions: write
       contents: read
       packages: write
     steps:  
@@ -34,8 +34,84 @@ jobs:
           esac
           echo "##" >> "$GITHUB_OUTPUT"
 
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Nodejs with yarn caching
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: yarn
+
       - name: Enable Corepack
         run: corepack enable
+
+      - name: Install dependencies
+        run: yarn
+
+      - name: Parse Extension Name
+        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
+        id: parsed-name
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
+        run: |
+          yarn parse-tag-name ${{ env.RELEASE_TAG }} ${{ github.run_id }} "catalog"
+
+      - name: Build and push UI image
+        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
+        env:
+          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
+        run: |
+          publish=(yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral')
+
+          if [[ -n "${{ env.RELEASE_TAG }}" ]]; then
+            publish+=(-t "$RELEASE_TAG")
+          fi
+
+          "${publish[@]}"
+
+      - name: Tag amd64
+        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
+        run: |
+          VERSION=$(jq -r .version package.json)
+          docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-amd64
+          docker push $IMAGE_NAME:$VERSION-amd64
+
+  build-arm64:
+    name: Build Container Image and Helm Chart - arm64
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:  
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        
+      - name: Calculate tags
+        id: tags 
+        shell: bash
+        run: |
+          echo "TAGS<<##" >> "$GITHUB_OUTPUT"
+          ref=${{ github.ref }}
+          case "$ref" in
+            refs/heads/main)
+              echo "latest" >> "$GITHUB_OUTPUT";;
+            refs/tags/*)
+              echo "${ref#refs/tags/}" >> "$GITHUB_OUTPUT";;
+            *)
+              echo "${{ github.sha }}" >> "$GITHUB_OUTPUT";;
+          esac
+          echo "##" >> "$GITHUB_OUTPUT"
 
       - name: Configure Git
         run: |
@@ -55,6 +131,9 @@ jobs:
           node-version: '20'
           cache: yarn
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Install dependencies
         run: yarn
 
@@ -72,7 +151,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
-          publish=(yarn publish-pkgs -c -p -i '' -r ghcr.io -o 'suse')
+          publish=(yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral')
 
           if [[ -n "${{ env.RELEASE_TAG }}" ]]; then
             publish+=(-t "$RELEASE_TAG")
@@ -80,19 +159,47 @@ jobs:
 
           "${publish[@]}"
 
-      - name: Re-checkout repository
+      - name: Tag arm64
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
-        uses: actions/checkout@v4
+        run: |
+          VERSION=$(jq -r .version package.json)
+          docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-arm64
+          docker push $IMAGE_NAME:$VERSION-arm64
+
+  manifest:
+    needs: [build-amd64, build-arm64]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+    
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch manifest
+        run: |
+          VERSION=$(echo "${GITHUB_REF_NAME}" | sed 's/^.*-//')
+
+          docker manifest create $IMAGE_NAME:$VERSION \
+            $IMAGE_NAME:$VERSION-amd64 \
+            $IMAGE_NAME:$VERSION-arm64
+
+          docker manifest push $IMAGE_NAME:$VERSION
 
       - name: Package Helm Chart
-        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
         id: package
         run: |
           chart_package=$(helm package $CHART_PATH --destination . | awk '{print $NF}')
           echo "chart_package=$chart_package" >> $GITHUB_OUTPUT
 
       - name: Publish Helm Chart
-        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
         run: |
           helm push ${{ steps.package.outputs.chart_package }} \
             $CHART_REGISTRY
