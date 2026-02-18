@@ -63,7 +63,7 @@ type InstallAIExtensionStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:resource:scope=Cluster,shortName=iae
 
 // InstallAIExtension is the Schema for the installaiextensions API
 type InstallAIExtension struct {
