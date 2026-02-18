@@ -186,12 +186,19 @@ jobs:
       - name: Create multi-arch manifest
         run: |
           VERSION=$(echo "${GITHUB_REF_NAME}" | sed 's/^.*-//')
-
+      
           docker manifest create $IMAGE_NAME:$VERSION \
-            $IMAGE_NAME:$VERSION-amd64 \
-            $IMAGE_NAME:$VERSION-arm64
-
+            --amend $IMAGE_NAME:$VERSION-amd64 \
+            --amend $IMAGE_NAME:$VERSION-arm64
+      
+          docker manifest annotate $IMAGE_NAME:$VERSION \
+            $IMAGE_NAME:$VERSION-amd64 --arch amd64
+      
+          docker manifest annotate $IMAGE_NAME:$VERSION \
+            $IMAGE_NAME:$VERSION-arm64 --arch arm64
+      
           docker manifest push $IMAGE_NAME:$VERSION
+
 
       - name: Package Helm Chart
         id: package
