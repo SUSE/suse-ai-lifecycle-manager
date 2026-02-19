@@ -82,8 +82,10 @@ jobs:
 
       - name: Tag amd64
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
+        env: 
+          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
-          VERSION=$(jq -r .version package.json)
+          VERSION=$(echo "${RELEASE_TAG}" | sed 's/^.*-//')
           docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-amd64
           docker push $IMAGE_NAME:$VERSION-amd64
 
@@ -161,8 +163,10 @@ jobs:
 
       - name: Tag arm64
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
+        env: 
+          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
-          VERSION=$(jq -r .version package.json)
+          VERSION=$(echo "${RELEASE_TAG}" | sed 's/^.*-//')
           docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-arm64
           docker push $IMAGE_NAME:$VERSION-arm64
 
