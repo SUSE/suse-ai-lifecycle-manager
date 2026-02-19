@@ -10,11 +10,15 @@
         />
       </div>
       <div class="col span-6">
-        <LabeledInput
+        <LabeledSelect
           v-model:value="namespace"
           :label="t('suseai.wizard.form.namespace', 'Namespace')"
-          :placeholder="t('suseai.wizard.form.namespacePlaceholder', 'Enter namespace')"
-          required
+          :options="namespaceOptions"
+          :placeholder="t('suseai.wizard.form.namespacePlaceholder', 'Select or create a namespace')"
+          :taggable="true"
+          :searchable="true"
+          :clearable="false"
+          :required="true"
         />
       </div>
     </div>
@@ -68,6 +72,7 @@ interface Props {
   form: BasicInfoForm;
   versionOptions: Array<{ label: string; value: string }>;
   loadingVersions: boolean;
+  namespaceOptions: Array<{ label: string; value: string }>;
 }
 
 interface Emits {
