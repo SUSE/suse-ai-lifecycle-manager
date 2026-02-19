@@ -23,7 +23,8 @@ import {
   getClusters,
   getInstalledHelmDetails,
   inferClusterRepoForChart,
-  listClusterRepos
+  listClusterRepos,
+  listNamespaces
 } from '../../services/rancher-apps';
 import { getRepoAuthForClusterRepo } from '../../services/repo-auth';
 import { persistLoad, persistSave, persistClear } from '../../services/ui-persist';
@@ -67,6 +68,7 @@ const versionInfo = ref<any | null>(null);
 const questionsLoading = ref(false);
 const versionInfoKey = ref('');
 const defaultValuesSnapshot = ref<Record<string, any>>({});
+const namespaceOptions = ref<{label: string, value: string}[]>([]);
 
 // Multi-cluster install progress state
 const showProgressModal = ref(false);
@@ -92,6 +94,50 @@ const isManageMode = computed(() => props.mode === 'manage');
 const versionOptions = computed(() =>
   (versions.value || []).map(v => ({ label: v, value: v }))
 );
+
+// Fetch all namespaces from all clusters and filter out system namespaces
+async function fetchAllNamespaces() {
+  if (!store) {
+    return;
+  }
+
+  try {
+    const clusters = await getClusters(store);
+    console.log('[SUSE-AI] All available clusters:', clusters);
+
+    const allNamespaces = new Set<string>();
+
+    await Promise.all(clusters.map(async (cluster) => {
+      console.log('[SUSE-AI] Trying to get namespaces for cluster:', cluster);
+      try {
+        const namespaces = await listNamespaces(store, cluster.id);
+        namespaces.forEach(ns => allNamespaces.add(ns));
+      } catch (e) {
+        console.warn(`[SUSE-AI] Failed to fetch namespaces for cluster ${cluster.id}:`, e);
+      }
+    }));
+
+    console.log('[SUSE-AI] Found all unique namespaces:', allNamespaces);
+
+    const systemPrefixes = ['c-', 'p-', 'kube-', 'cattle-', 'rancher', 'longhorn-', 'fleet-', 'cluster-fleet-', 'system-', 'istio-', 'neuvector', 'ingress-', 'cert-manager'];
+    const userNamespaces = Array.from(allNamespaces).filter(name => 
+        !systemPrefixes.some(prefix => name.startsWith(prefix))
+    );
+
+    const desiredDefault = `${props.slug}-system`;
+    if (!userNamespaces.includes(desiredDefault)) {
+      userNamespaces.push(desiredDefault);
+    }
+
+    const sortedNamespaces = userNamespaces.sort();
+    namespaceOptions.value = sortedNamespaces.map(ns => ({ label: ns, value: ns }));
+    
+    form.value.namespace = desiredDefault;
+
+  } catch (e) {
+    console.warn(`[SUSE-AI] Failed to fetch all namespaces:`, e);
+  }
+}
 
 // Wizard step configuration for Rancher Wizard component
 const wizardSteps = computed(() => [
@@ -184,6 +230,7 @@ const basicInfoForm = computed({
 onMounted(async () => {
   try {
     await initializeWizard();
+    await fetchAllNamespaces();
   } catch (e) {
     error.value = `Failed to initialize: ${e.message || 'Unknown error'}`;
   } finally {
@@ -969,6 +1016,7 @@ function previousStep() {
             v-model:form="basicInfoForm"
             :version-options="versionOptions"
             :loading-versions="loadingVersions"
+            :namespace-options="namespaceOptions"
           />
 
           <!-- Step: Target Cluster -->

@@ -362,10 +362,13 @@ export async function listCatalogApps($store: RancherStore, clusterId: string): 
   return res?.data?.items || res?.data || res?.items || [];
 }
 
-async function listNamespaces($store: RancherStore, clusterId: string): Promise<string[]> {
-  const url = `/k8s/clusters/${encodeURIComponent(clusterId)}/api/v1/namespaces?limit=5000`;
+export async function listNamespaces($store: RancherStore, clusterId: string): Promise<string[]> {
+  const url = clusterId === 'local'
+    ? '/api/v1/namespaces?limit=5000'
+    : `/k8s/clusters/${encodeURIComponent(clusterId)}/api/v1/namespaces?limit=5000`;
   const res = await $store.dispatch('rancher/request', { url, timeout: 20000 });
-  const items = res?.data?.items || res?.data || [];
+  const items = res?.data?.items || res?.data || res?.items || [];
+
   return (items || []).map((n: NamespaceResource) => n?.metadata?.name).filter((n: string) => !!n);
 }
 
