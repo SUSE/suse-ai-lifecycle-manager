@@ -1,6 +1,6 @@
 annotations:
   helm.sh/images: |
-    - image: ghcr.io/leooamaral/suse-ai-operator:0.1.0
+    - image: ghcr.io/suse/suse-ai-operator:0.1.0
       name: suse-ai-operator
   license: Apache-2.0
 apiVersion: v2
