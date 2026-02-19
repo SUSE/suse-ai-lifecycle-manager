@@ -1,6 +1,6 @@
 annotations:
   helm.sh/images: |
-    - image: ghcr.io/suse/suse-ai-lifecycle-manager:1.0.0
+    - image: ghcr.io/leooamaral/suse-ai-lifecycle-manager:1.0.0
       name: suse-ai-lifecycle-manager
   license: Apache-2.0
 apiVersion: v2
