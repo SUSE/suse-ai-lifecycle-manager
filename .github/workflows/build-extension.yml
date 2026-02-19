@@ -176,6 +176,22 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+
+      - name: Calculate tags
+        id: tags 
+        shell: bash
+        run: |
+          echo "TAGS<<##" >> "$GITHUB_OUTPUT"
+          ref=${{ github.ref }}
+          case "$ref" in
+            refs/heads/main)
+              echo "latest" >> "$GITHUB_OUTPUT";;
+            refs/tags/*)
+              echo "${ref#refs/tags/}" >> "$GITHUB_OUTPUT";;
+            *)
+              echo "${{ github.sha }}" >> "$GITHUB_OUTPUT";;
+          esac
+          echo "##" >> "$GITHUB_OUTPUT"
     
       - uses: docker/login-action@v3
         with:
@@ -184,8 +200,10 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create multi-arch manifest
+        env: 
+          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
-          VERSION=$(echo "${GITHUB_REF_NAME}" | sed 's/^.*-//')
+          VERSION=$(echo "${RELEASE_TAG}" | sed 's/^.*-//')
       
           docker buildx imagetools create \
             -t $IMAGE_NAME:$VERSION \
