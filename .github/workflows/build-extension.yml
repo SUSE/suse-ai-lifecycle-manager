@@ -4,8 +4,8 @@ on: [push, pull_request, workflow_dispatch]
 
 env:
   CHART_PATH: charts/suse-ai-lifecycle-manager
-  CHART_REGISTRY: oci://ghcr.io/leooamaral/chart
-  IMAGE_NAME: ghcr.io/leooamaral/suse-ai-lifecycle-manager
+  CHART_REGISTRY: oci://ghcr.io/suse/chart
+  IMAGE_NAME: ghcr.io/suse/suse-ai-lifecycle-manager
 
 jobs:
   prepare:
