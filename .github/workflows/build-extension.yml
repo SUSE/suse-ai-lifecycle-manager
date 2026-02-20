@@ -8,16 +8,11 @@ env:
   IMAGE_NAME: ghcr.io/suse/suse-ai-lifecycle-manager
 
 jobs:
-  build-amd64:
-    name: Build Container Image and Helm Chart - amd64
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: write
-    steps:  
-      - name: Checkout repository
-        uses: actions/checkout@v5
-        
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.tags.outputs.TAGS }}
+    steps:
       - name: Calculate tags
         id: tags 
         shell: bash
@@ -33,6 +28,29 @@ jobs:
               echo "${{ github.sha }}" >> "$GITHUB_OUTPUT";;
           esac
           echo "##" >> "$GITHUB_OUTPUT"
+
+  build:
+    strategy:
+      matrix:
+        arch:
+          - amd64
+          - arm64
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    name: Build Container Image
+    needs: prepare
+    env:
+      RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+    permissions:
+      contents: read
+      packages: write
+    steps:  
+      - name: Checkout repository
+        uses: actions/checkout@v5
 
       - name: Configure Git
         run: |
@@ -63,115 +81,26 @@ jobs:
         id: parsed-name
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
           yarn parse-tag-name ${{ env.RELEASE_TAG }} ${{ github.run_id }} "catalog"
 
-      - name: Build and push UI image
+      - name: Build image
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
-        env:
-          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
-          publish=(yarn publish-pkgs -c -i '' -r ghcr.io -o 'suse')
+          yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral' -t "${{ env.RELEASE_TAG }}"
 
-          if [[ -n "${{ env.RELEASE_TAG }}" ]]; then
-            publish+=(-t "$RELEASE_TAG")
-          fi
-
-          "${publish[@]}"
-
-      - name: Tag amd64
+      - name: Tag and Push Image
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
-        env: 
-          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
-          VERSION=$(echo "${RELEASE_TAG}" | sed 's/^.*-//')
-          docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-amd64
-          docker push $IMAGE_NAME:$VERSION-amd64
-
-  build-arm64:
-    name: Build Container Image and Helm Chart - arm64
-    runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: read
-      packages: write
-    steps:  
-      - name: Checkout repository
-        uses: actions/checkout@v5
-        
-      - name: Calculate tags
-        id: tags 
-        shell: bash
-        run: |
-          echo "TAGS<<##" >> "$GITHUB_OUTPUT"
-          ref=${{ github.ref }}
-          case "$ref" in
-            refs/heads/main)
-              echo "latest" >> "$GITHUB_OUTPUT";;
-            refs/tags/*)
-              echo "${ref#refs/tags/}" >> "$GITHUB_OUTPUT";;
-            *)
-              echo "${{ github.sha }}" >> "$GITHUB_OUTPUT";;
-          esac
-          echo "##" >> "$GITHUB_OUTPUT"
-
-      - name: Configure Git
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Nodejs with yarn caching
-        uses: actions/setup-node@v5
-        with:
-          node-version: '20'
-          cache: yarn
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Install dependencies
-        run: yarn
-
-      - name: Parse Extension Name
-        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
-        id: parsed-name
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
-        run: |
-          yarn parse-tag-name ${{ env.RELEASE_TAG }} ${{ github.run_id }} "catalog"
-
-      - name: Build and push UI image
-        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
-        env:
-          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
-        run: |
-          publish=(yarn publish-pkgs -c -i '' -r ghcr.io -o 'suse')
-
-          if [[ -n "${{ env.RELEASE_TAG }}" ]]; then
-            publish+=(-t "$RELEASE_TAG")
-          fi
-
-          "${publish[@]}"
-
-      - name: Tag arm64
-        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
-        env: 
-          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
-        run: |
-          VERSION=$(echo "${RELEASE_TAG}" | sed 's/^.*-//')
-          docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-arm64
-          docker push $IMAGE_NAME:$VERSION-arm64
+          VERSION=${RELEASE_TAG##*-}
+          docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-${{ matrix.arch }}
+          docker push $IMAGE_NAME:$VERSION-${{ matrix.arch }}
 
   manifest:
-    needs: [build-amd64, build-arm64]
+    name: Create Container Manifest and Helm Chart
+    needs: [prepare, build]
+    env:
+      RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
     permissions:
@@ -180,22 +109,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-
-      - name: Calculate tags
-        id: tags 
-        shell: bash
-        run: |
-          echo "TAGS<<##" >> "$GITHUB_OUTPUT"
-          ref=${{ github.ref }}
-          case "$ref" in
-            refs/heads/main)
-              echo "latest" >> "$GITHUB_OUTPUT";;
-            refs/tags/*)
-              echo "${ref#refs/tags/}" >> "$GITHUB_OUTPUT";;
-            *)
-              echo "${{ github.sha }}" >> "$GITHUB_OUTPUT";;
-          esac
-          echo "##" >> "$GITHUB_OUTPUT"
     
       - uses: docker/login-action@v3
         with:
@@ -204,10 +117,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create multi-arch manifest
-        env: 
-          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
-          VERSION=$(echo "${RELEASE_TAG}" | sed 's/^.*-//')
+          VERSION=${RELEASE_TAG##*-}
       
           docker buildx imagetools create \
             -t $IMAGE_NAME:$VERSION \
