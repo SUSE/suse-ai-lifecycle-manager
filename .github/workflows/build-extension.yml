@@ -1,23 +1,18 @@
-name: Build and Publish Extension [Container and Helm Chart]
+name: Build and Publish Extension [Container and Helm Chart - Multi-Arch]
 
 on: [push, pull_request, workflow_dispatch]
 
 env:
   CHART_PATH: charts/suse-ai-lifecycle-manager
   CHART_REGISTRY: oci://ghcr.io/suse/chart
+  IMAGE_NAME: ghcr.io/suse/suse-ai-lifecycle-manager
 
 jobs:
-  build-extension:
-    name: Build Container Image and Helm Chart
+  prepare:
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      contents: read
-      packages: write
-    steps:  
-      - name: Checkout repository
-        uses: actions/checkout@v5
-        
+    outputs:
+      release_tag: ${{ steps.tags.outputs.TAGS }}
+    steps:
       - name: Calculate tags
         id: tags 
         shell: bash
@@ -34,8 +29,28 @@ jobs:
           esac
           echo "##" >> "$GITHUB_OUTPUT"
 
-      - name: Enable Corepack
-        run: corepack enable
+  build:
+    strategy:
+      matrix:
+        arch:
+          - amd64
+          - arm64
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    name: Build Container Image
+    needs: prepare
+    env:
+      RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+    permissions:
+      contents: read
+      packages: write
+    steps:  
+      - name: Checkout repository
+        uses: actions/checkout@v5
 
       - name: Configure Git
         run: |
@@ -55,6 +70,9 @@ jobs:
           node-version: '20'
           cache: yarn
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Install dependencies
         run: yarn
 
@@ -63,36 +81,57 @@ jobs:
         id: parsed-name
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
           yarn parse-tag-name ${{ env.RELEASE_TAG }} ${{ github.run_id }} "catalog"
 
-      - name: Build and push UI image
+      - name: Build image
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
-        env:
-          RELEASE_TAG: ${{ steps.tags.outputs.TAGS }}
         run: |
-          publish=(yarn publish-pkgs -c -p -i '' -r ghcr.io -o 'suse')
+          yarn publish-pkgs -c -i '' -r ghcr.io -o 'suse' -t "${{ env.RELEASE_TAG }}"
 
-          if [[ -n "${{ env.RELEASE_TAG }}" ]]; then
-            publish+=(-t "$RELEASE_TAG")
-          fi
-
-          "${publish[@]}"
-
-      - name: Re-checkout repository
+      - name: Tag and Push Image
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
-        uses: actions/checkout@v4
+        run: |
+          VERSION=${RELEASE_TAG##*-}
+          docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-${{ matrix.arch }}
+          docker push $IMAGE_NAME:$VERSION-${{ matrix.arch }}
+
+  manifest:
+    name: Create Container Manifest and Helm Chart
+    needs: [prepare, build]
+    env:
+      RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+    
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch manifest
+        run: |
+          VERSION=${RELEASE_TAG##*-}
+      
+          docker buildx imagetools create \
+            -t $IMAGE_NAME:$VERSION \
+            $IMAGE_NAME:$VERSION-amd64 \
+            $IMAGE_NAME:$VERSION-arm64
 
       - name: Package Helm Chart
-        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
         id: package
         run: |
           chart_package=$(helm package $CHART_PATH --destination . | awk '{print $NF}')
           echo "chart_package=$chart_package" >> $GITHUB_OUTPUT
 
       - name: Publish Helm Chart
-        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
         run: |
           helm push ${{ steps.package.outputs.chart_package }} \
             $CHART_REGISTRY
