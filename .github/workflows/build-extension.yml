@@ -87,7 +87,7 @@ jobs:
       - name: Build image
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
         run: |
-          yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral' -t "${{ env.RELEASE_TAG }}"
+          yarn publish-pkgs -c -i '' -r ghcr.io -o 'suse' -t "${{ env.RELEASE_TAG }}"
 
       - name: Tag and Push Image
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
