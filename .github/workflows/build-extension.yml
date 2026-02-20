@@ -82,7 +82,6 @@ jobs:
       - name: Tag amd64
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
         run: |
-          # VERSION=$(echo "${{ env.RELEASE_TAG }}" | sed 's/^.*-//')
           VERSION=${RELEASE_TAG##*-}
           docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-amd64
           docker push $IMAGE_NAME:$VERSION-amd64
@@ -140,7 +139,6 @@ jobs:
       - name: Tag arm64
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
         run: |
-          # VERSION=$(echo "${{ env.RELEASE_TAG }}" | sed 's/^.*-//')
           VERSION=${RELEASE_TAG##*-}
           docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-arm64
           docker push $IMAGE_NAME:$VERSION-arm64
@@ -166,7 +164,6 @@ jobs:
 
       - name: Create multi-arch manifest
         run: |
-          # VERSION=$(echo "${{ env.RELEASE_TAG }}" | sed 's/^.*-//')
           VERSION=${RELEASE_TAG##*-}
       
           docker buildx imagetools create \
