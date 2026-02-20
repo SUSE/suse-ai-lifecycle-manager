@@ -85,12 +85,6 @@ const emit = defineEmits<Emits>();
 // Simple fallback function for translations
 const t = (key: string, fallback: string) => fallback;
 
-// Create individual computed properties for better reactivity
-const localForm = computed({
-  get: () => props.form,
-  set: (value: BasicInfoForm) => emit('update:form', value)
-});
-
 // Individual field computeds for better reactivity
 const release = computed({
   get: () => props.form.release,
