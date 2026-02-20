@@ -132,7 +132,9 @@ async function fetchAllNamespaces() {
     const sortedNamespaces = userNamespaces.sort();
     namespaceOptions.value = sortedNamespaces.map(ns => ({ label: ns, value: ns }));
     
-    form.value.namespace = desiredDefault;
+    if (isInstallMode.value) {
+      form.value.namespace = desiredDefault;
+    }
 
   } catch (e) {
     console.warn(`[SUSE-AI] Failed to fetch all namespaces:`, e);
