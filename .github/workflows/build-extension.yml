@@ -76,21 +76,14 @@ jobs:
 
       - name: Build and push UI image
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
-        env:
-          RELEASE_TAG: ${{ env.RELEASE_TAG }}
         run: |
-          publish=(yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral')
-
-          if [[ -n "${{ env.RELEASE_TAG }}" ]]; then
-            publish+=(-t "$RELEASE_TAG")
-          fi
-
-          "${publish[@]}"
+          yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral' -t "${{ env.RELEASE_TAG }}"
 
       - name: Tag amd64
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
         run: |
-          VERSION=$(echo "${{ env.RELEASE_TAG }}" | sed 's/^.*-//')
+          # VERSION=$(echo "${{ env.RELEASE_TAG }}" | sed 's/^.*-//')
+          VERSION=${RELEASE_TAG##*-}
           docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-amd64
           docker push $IMAGE_NAME:$VERSION-amd64
 
@@ -141,21 +134,14 @@ jobs:
 
       - name: Build and push UI image
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
-        env:
-          RELEASE_TAG: ${{ env.RELEASE_TAG }}
         run: |
-          publish=(yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral')
-
-          if [[ -n "${{ env.RELEASE_TAG }}" ]]; then
-            publish+=(-t "$RELEASE_TAG")
-          fi
-
-          "${publish[@]}"
+          yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral' -t "${{ env.RELEASE_TAG }}"
 
       - name: Tag arm64
         if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
         run: |
-          VERSION=$(echo "${{ env.RELEASE_TAG }}" | sed 's/^.*-//')
+          # VERSION=$(echo "${{ env.RELEASE_TAG }}" | sed 's/^.*-//')
+          VERSION=${RELEASE_TAG##*-}
           docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-arm64
           docker push $IMAGE_NAME:$VERSION-arm64
 
@@ -180,7 +166,8 @@ jobs:
 
       - name: Create multi-arch manifest
         run: |
-          VERSION=$(echo "${{ env.RELEASE_TAG }}" | sed 's/^.*-//')
+          # VERSION=$(echo "${{ env.RELEASE_TAG }}" | sed 's/^.*-//')
+          VERSION=${RELEASE_TAG##*-}
       
           docker buildx imagetools create \
             -t $IMAGE_NAME:$VERSION \
