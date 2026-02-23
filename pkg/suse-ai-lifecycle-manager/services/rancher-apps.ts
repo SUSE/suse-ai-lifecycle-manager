@@ -85,13 +85,13 @@ export async function getClusters($store: RancherStore): Promise<ClusterInfo[]> 
       $store.dispatch('management/findAll', { type: 'cluster' }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 20000))
     ]) as ClusterResource[];
-    return (rows || []).map((c: ClusterResource) => ({ id: c.id, name: c.metadata?.name || c.id }));
+    return (rows || []).map((c: ClusterResource) => ({ id: c.id, name: c.spec?.displayName || c.metadata?.name || c.id }));
   } catch {
     const res = await $store.dispatch('rancher/request', { url: '/v1/management.cattle.io.clusters?limit=2000', timeout: 20000 });
     const items = res?.data?.data || res?.data || [];
     return (items || []).map((c: ClusterResource) => ({
       id:   c?.metadata?.name || c?.id,
-      name: c?.metadata?.name || c?.id
+      name: c?.spec?.displayName || c?.metadata?.name || c?.id
     })).filter((x: ClusterInfo) => !!x.id);
   }
 }
