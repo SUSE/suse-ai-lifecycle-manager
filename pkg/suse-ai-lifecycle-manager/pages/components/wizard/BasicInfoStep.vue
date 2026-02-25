@@ -93,7 +93,10 @@ const release = computed({
 
 const namespace = computed({
   get: () => props.form.namespace,
-  set: (value: string) => emit('update:form', { ...props.form, namespace: value })
+  set: (value: string | { label: string }) => {
+    const namespaceName = typeof value === 'object' ? value.label : value;
+    emit('update:form', { ...props.form, namespace: namespaceName });
+  }
 });
 
 const chartRepo = computed({
