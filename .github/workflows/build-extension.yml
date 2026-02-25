@@ -1,6 +1,15 @@
 name: Build and Publish Extension [Container and Helm Chart - Multi-Arch]
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'charts/suse-ai-operator/**'
+      - 'suse-ai-operator/**'
+      - '.github/workflows/release-operator.yml'
+    tags:
+      - suse-ai-lifecycle-manager-*
 
 env:
   CHART_PATH: charts/suse-ai-lifecycle-manager
