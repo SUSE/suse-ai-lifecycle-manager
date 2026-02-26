@@ -10,11 +10,15 @@
         />
       </div>
       <div class="col span-6">
-        <LabeledInput
+        <LabeledSelect
           v-model:value="namespace"
           :label="t('suseai.wizard.form.namespace', 'Namespace')"
-          :placeholder="t('suseai.wizard.form.namespacePlaceholder', 'Enter namespace')"
-          required
+          :options="namespaceOptions"
+          :placeholder="t('suseai.wizard.form.namespacePlaceholder', 'Select or create a namespace')"
+          :taggable="true"
+          :searchable="true"
+          :clearable="false"
+          :required="true"
         />
       </div>
     </div>
@@ -68,6 +72,7 @@ interface Props {
   form: BasicInfoForm;
   versionOptions: Array<{ label: string; value: string }>;
   loadingVersions: boolean;
+  namespaceOptions: Array<{ label: string; value: string }>;
 }
 
 interface Emits {
@@ -80,12 +85,6 @@ const emit = defineEmits<Emits>();
 // Simple fallback function for translations
 const t = (key: string, fallback: string) => fallback;
 
-// Create individual computed properties for better reactivity
-const localForm = computed({
-  get: () => props.form,
-  set: (value: BasicInfoForm) => emit('update:form', value)
-});
-
 // Individual field computeds for better reactivity
 const release = computed({
   get: () => props.form.release,
@@ -94,7 +93,10 @@ const release = computed({
 
 const namespace = computed({
   get: () => props.form.namespace,
-  set: (value: string) => emit('update:form', { ...props.form, namespace: value })
+  set: (value: string | { label: string }) => {
+    const namespaceName = typeof value === 'object' ? value.label : value;
+    emit('update:form', { ...props.form, namespace: namespaceName });
+  }
 });
 
 const chartRepo = computed({
