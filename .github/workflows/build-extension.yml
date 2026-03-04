@@ -1,33 +1,112 @@
 name: Build and Publish Extension [Container and Helm Chart - Multi-Arch]
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'charts/suse-ai-operator/**'
+      - 'suse-ai-operator/**'
+      - '.github/workflows/release-operator.yml'
+    tags:
+      - suse-ai-lifecycle-manager-*
 
 env:
   CHART_PATH: charts/suse-ai-lifecycle-manager
   CHART_REGISTRY: oci://ghcr.io/suse/chart
   IMAGE_NAME: ghcr.io/suse/suse-ai-lifecycle-manager
+  VERSION_PATH: VERSION
 
 jobs:
   prepare:
-    runs-on: ubuntu-latest
     outputs:
-      release_tag: ${{ steps.tags.outputs.TAGS }}
+      VERSION: ${{ steps.tags.outputs.VERSION }}
+      CHART_VERSION: ${{ steps.tags.outputs.CHART_VERSION }}
+      PUBLISH: ${{ steps.tags.outputs.PUBLISH }}
+      METADATA_TAGS: ${{ steps.tags.outputs.METADATA_TAGS }}
+      NOTES_START_TAG: ${{ steps.tags.outputs.NOTES_START_TAG }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
       - name: Calculate tags
-        id: tags 
+        id: tags
         shell: bash
         run: |
-          echo "TAGS<<##" >> "$GITHUB_OUTPUT"
           ref=${{ github.ref }}
           case "$ref" in
             refs/heads/main)
-              echo "latest" >> "$GITHUB_OUTPUT";;
-            refs/tags/*)
-              echo "${ref#refs/tags/}" >> "$GITHUB_OUTPUT";;
+              BASE_VERSION=$(cat $VERSION_PATH)
+              
+              git fetch --tags
+
+              LAST_DEV=$(git tag \
+                --list "suse-ai-lifecycle-manager-${BASE_VERSION}-dev.*" \
+                --sort=-v:refname \
+                | head -n 1)
+
+              if [[ -z "$LAST_DEV" ]]; then
+                DEV_NUM=1
+                NOTES_START_TAG=$(git tag --list "suse-ai-lifecycle-manager-*" --sort=-v:refname | grep -v "\-dev" | head -n 1)
+              else
+                DEV_NUM="${LAST_DEV##*.}"
+                DEV_NUM=$((DEV_NUM + 1))
+                NOTES_START_TAG="$LAST_DEV"
+              fi
+
+              VERSION="${BASE_VERSION}-dev.${DEV_NUM}"
+              IMAGE_TAGS="$VERSION"
+              CHART_VERSION="$VERSION"
+
+              {
+                echo "METADATA_TAGS<<EOF"
+                echo "$VERSION"
+                echo "EOF"
+              } >> "$GITHUB_OUTPUT"
+
+              PUBLISH=true
+              ;;
+            refs/tags/suse-ai-lifecycle-manager-*)
+              VERSION="${ref#refs/tags/suse-ai-lifecycle-manager-}"
+              IMAGE_TAGS="$VERSION"
+              CHART_VERSION="$VERSION"
+              NOTES_START_TAG=""
+
+              {
+                echo "METADATA_TAGS<<EOF"
+                echo "$VERSION"
+                if [[ "$VERSION" != *"-"* ]]; then
+                  echo "latest"
+                fi
+                echo "EOF"
+              } >> "$GITHUB_OUTPUT"
+
+              PUBLISH=true
+              ;;
             *)
-              echo "${{ github.sha }}" >> "$GITHUB_OUTPUT";;
+              VERSION="${{ github.sha }}"
+              IMAGE_TAGS="$VERSION"
+              CHART_VERSION="$VERSION"
+              NOTES_START_TAG=""
+
+              {
+                echo "METADATA_TAGS<<EOF"
+                echo "$VERSION"
+                echo "EOF"
+              } >> "$GITHUB_OUTPUT"
+
+              PUBLISH=false
+              ;;
           esac
-          echo "##" >> "$GITHUB_OUTPUT"
+
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "IMAGE_TAGS=$IMAGE_TAGS" >> "$GITHUB_OUTPUT"
+          echo "PUBLISH=$PUBLISH" >> "$GITHUB_OUTPUT"
+          echo "CHART_VERSION=$CHART_VERSION" >> "$GITHUB_OUTPUT"
+          echo "NOTES_START_TAG=$NOTES_START_TAG" >> "$GITHUB_OUTPUT"
 
   build:
     strategy:
@@ -43,8 +122,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     name: Build Container Image
     needs: prepare
+    if: needs.prepare.outputs.PUBLISH == 'true'
     env:
-      RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.METADATA_TAGS }}
     permissions:
       contents: read
       packages: write
@@ -76,23 +156,32 @@ jobs:
       - name: Install dependencies
         run: yarn
 
+      - name: Sync package.json versions (dev only)
+        if: contains(env.RELEASE_TAG, '-dev.')
+        run: |
+          echo "Updating root package.json"
+          yarn --cwd . version --new-version "${{ needs.prepare.outputs.VERSION }}" --no-git-tag-version
+          
+          echo "Updating pkg/suse-ai-lifecycle-manager/package.json"
+          yarn --cwd pkg/suse-ai-lifecycle-manager version --new-version "${{ needs.prepare.outputs.VERSION }}" --no-git-tag-version
+
       - name: Parse Extension Name
-        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
-        id: parsed-name
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          yarn parse-tag-name ${{ env.RELEASE_TAG }} ${{ github.run_id }} "catalog"
+          TAG: "suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
+        run: |          
+          yarn parse-tag-name $TAG ${{ github.run_id }} "catalog"
 
       - name: Build image
-        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
+        env:
+          TAG: "suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
         run: |
-          yarn publish-pkgs -c -i '' -r ghcr.io -o 'suse' -t "${{ env.RELEASE_TAG }}"
+          yarn publish-pkgs -c -i '' -r ghcr.io -o 'suse' -t "$TAG"
 
       - name: Tag and Push Image
-        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
+        env:
+          VERSION: ${{ needs.prepare.outputs.VERSION }}
         run: |
-          VERSION=${RELEASE_TAG##*-}
           docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-${{ matrix.arch }}
           docker push $IMAGE_NAME:$VERSION-${{ matrix.arch }}
 
@@ -100,11 +189,11 @@ jobs:
     name: Create Container Manifest and Helm Chart
     needs: [prepare, build]
     env:
-      RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.METADATA_TAGS }}
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
+    if: needs.prepare.outputs.PUBLISH == 'true'
     permissions:
-      contents: read
+      contents: write
       packages: write
     steps:
       - name: Checkout repository
@@ -117,13 +206,39 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create multi-arch manifest
+        env:
+          VERSION: "${{ needs.prepare.outputs.VERSION }}"
         run: |
-          VERSION=${RELEASE_TAG##*-}
-      
-          docker buildx imagetools create \
-            -t $IMAGE_NAME:$VERSION \
-            $IMAGE_NAME:$VERSION-amd64 \
-            $IMAGE_NAME:$VERSION-arm64
+          while IFS= read -r tag; do
+            echo "Creating manifest for tag: $tag"
+          
+            docker buildx imagetools create \
+              -t $IMAGE_NAME:$tag \
+              $IMAGE_NAME:$VERSION-amd64 \
+              $IMAGE_NAME:$VERSION-arm64
+          
+          done <<< "${RELEASE_TAG}"
+
+      - name: Update Chart.yaml
+        run: |
+          yq -i '.version = "${{ needs.prepare.outputs.CHART_VERSION }}"' $CHART_PATH/Chart.yaml
+          yq -i '.appVersion = "${{ needs.prepare.outputs.VERSION }}"' $CHART_PATH/Chart.yaml
+
+      - name: Update image annotations
+        run: |
+          yq -i '
+            .annotations."helm.sh/images" =
+            "- image: ghcr.io/suse/suse-ai-lifecycle-manager:${{ needs.prepare.outputs.VERSION }}\n  name: suse-ai-lifecycle-manager"
+          ' $CHART_PATH/Chart.yaml
+
+      - name: Sync package.json versions (dev only)
+        if: contains(env.RELEASE_TAG, '-dev.')
+        run: |
+          echo "Updating root package.json"
+          yarn --cwd . version --new-version "${{ needs.prepare.outputs.VERSION }}" --no-git-tag-version
+          
+          echo "Updating pkg/suse-ai-lifecycle-manager/package.json"
+          yarn --cwd pkg/suse-ai-lifecycle-manager version --new-version "${{ needs.prepare.outputs.VERSION }}" --no-git-tag-version
 
       - name: Package Helm Chart
         id: package
@@ -135,3 +250,36 @@ jobs:
         run: |
           helm push ${{ steps.package.outputs.chart_package }} \
             $CHART_REGISTRY
+            
+      - name: Create dev git tag
+        if: needs.prepare.outputs.PUBLISH == 'true' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          TAG="suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
+          git checkout -b release/${TAG}
+
+          git add $CHART_PATH/Chart.yaml
+          git commit -m "chore(release): ${TAG}"
+
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Create pre-release and release notes for dev
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          START_TAG: ${{ needs.prepare.outputs.NOTES_START_TAG }}
+        if: needs.prepare.outputs.PUBLISH == 'true' && github.ref == 'refs/heads/main'
+        run: |
+          TAG="suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
+
+          NOTES_ARG=""
+          if [[ -n "$START_TAG" ]]; then
+            NOTES_ARG="--notes-start-tag $START_TAG"
+          fi
+
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --prerelease --fail-on-no-commits \
+            --generate-notes $NOTES_ARG
