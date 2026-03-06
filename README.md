@@ -101,6 +101,7 @@ https://github.com/SUSE/suse-ai-lifecycle-manager/pkgs/container/suse-ai-lifecyc
    2. Import Extension Catalog → Use the Catalog Image Reference: `ghcr.io/suse/suse-ai-lifecycle-manager:<version>` → Press `Load`
    3. From the Extensions page, Go to Manage Repositories. Verify if the SUSE AI Rancher Extension repository has the `Active` state. If not, refresh the connection.
    4. Go back to Extensions and install SUSE AI Rancher Extension.
+   5. Re-load Rancher Dashboard. Reload the browser to ensure the extension is loaded in the UI (ctrl+r or F5 or cmd+r).
 
 > NOTE: Replace `<version>` with a tag published in GitHub Container Registry.
 > NOTE: Newly published catalogs are not always available immediately. If the catalog does not show up after publishing, navigate to Extensions → Manage Repositories and manually refresh the repository to force a re-sync.
