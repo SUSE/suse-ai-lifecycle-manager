@@ -90,7 +90,6 @@
             </td>
             <td class="col-cluster">
               <div class="cluster-name">{{ cluster.name }}</div>
-              <div v-if="cluster.clusterId !== cluster.name" class="cluster-id">({{ cluster.clusterId }})</div>
             </td>
             <td class="col-nodes">
               <span v-if="cluster.nodeCount > 0">{{ cluster.nodeCount }}</span>
@@ -606,11 +605,6 @@ export default defineComponent({
 .cluster-name {
   font-weight: 600;
   color: var(--body-text, #111827);
-}
-
-.cluster-id {
-  font-size: 12px;
-  color: var(--muted, #64748b);
 }
 
 .resource-bar-container {
