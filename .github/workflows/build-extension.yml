@@ -222,6 +222,7 @@ jobs:
         run: |
           yq -i '.version = "${{ needs.prepare.outputs.CHART_VERSION }}"' $CHART_PATH/Chart.yaml
           yq -i '.appVersion = "${{ needs.prepare.outputs.VERSION }}"' $CHART_PATH/Chart.yaml
+          yq -i '.image.tag = "${{ needs.prepare.outputs.VERSION }}"' $CHART_PATH/values.yaml
 
       - name: Update image annotations
         run: |
@@ -260,6 +261,8 @@ jobs:
           git checkout -b release/${TAG}
 
           git add $CHART_PATH/Chart.yaml
+          git add $CHART_PATH/values.yaml
+          git add pkg/
           git commit -m "chore(release): ${TAG}"
 
           git tag "$TAG"
