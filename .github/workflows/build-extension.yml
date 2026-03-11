@@ -262,7 +262,8 @@ jobs:
 
           git add $CHART_PATH/Chart.yaml
           git add $CHART_PATH/values.yaml
-          git add pkg/
+          git add pkg/suse-ai-lifecycle-manager/package.json
+          git add package.json
           git commit -m "chore(release): ${TAG}"
 
           git tag "$TAG"
