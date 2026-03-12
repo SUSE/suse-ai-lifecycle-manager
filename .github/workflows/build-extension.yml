@@ -173,7 +173,7 @@ jobs:
 
       - name: Build image
         env:
-          TAG: "suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
+          TAG: ${{ needs.prepare.outputs.VERSION }}
         run: |
           yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral' -t "$TAG"
 
