@@ -155,6 +155,19 @@ jobs:
       - name: Install dependencies
         run: yarn
 
+      - name: Update Chart.yaml
+        run: |
+          yq -i '.version = "${{ needs.prepare.outputs.CHART_VERSION }}"' $CHART_PATH/Chart.yaml
+          yq -i '.appVersion = "${{ needs.prepare.outputs.VERSION }}"' $CHART_PATH/Chart.yaml
+          yq -i '.image.tag = "${{ needs.prepare.outputs.VERSION }}"' $CHART_PATH/values.yaml
+
+      - name: Update image annotations
+        run: |
+          yq -i '
+            .annotations."helm.sh/images" =
+            "- image: ghcr.io/leooamaral/suse-ai-lifecycle-manager:${{ needs.prepare.outputs.VERSION }}\n  name: suse-ai-lifecycle-manager"
+          ' $CHART_PATH/Chart.yaml
+
       - name: Sync package.json versions (dev only)
         if: contains(env.RELEASE_TAG, '-dev.')
         run: |
