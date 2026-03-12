@@ -6,7 +6,7 @@ global:
 
 image:
   registry: ghcr.io
-  repository: leooamaral/suse-ai-lifecycle-manager
+  repository: suse/suse-ai-lifecycle-manager
   tag: "1.0.0"
   pullPolicy: IfNotPresent
 
