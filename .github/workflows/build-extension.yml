@@ -124,13 +124,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: "suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
         run: |          
-          yarn parse-tag-name $TAG ${{ github.run_id }} "catalog"
+          yarn parse-tag-name ${{ env.TAG }} ${{ github.run_id }} "catalog"
 
       - name: Build image
         env:
           TAG: "suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
         run: |
-          yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral' -t "$TAG"
+          yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral' -t "${{ env.TAG }}"
 
       - name: Tag and Push Image
         env:
