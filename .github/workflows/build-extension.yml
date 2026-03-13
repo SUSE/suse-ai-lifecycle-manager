@@ -38,27 +38,10 @@ jobs:
           ref=${{ github.ref }}
           case "$ref" in
             refs/heads/main)
-              BASE_VERSION=$(jq -r '.version' pkg/suse-ai-lifecycle-manager/package.json)
-              
-              git fetch --tags
-
-              LAST_DEV=$(git tag \
-                --list "suse-ai-lifecycle-manager-${BASE_VERSION}-dev.*" \
-                --sort=-v:refname \
-                | head -n 1)
-
-              if [[ -z "$LAST_DEV" ]]; then
-                DEV_NUM=1
-                NOTES_START_TAG=$(git tag --list "suse-ai-lifecycle-manager-*" --sort=-v:refname | grep -v "\-dev" | head -n 1)
-              else
-                DEV_NUM="${LAST_DEV##*.}"
-                DEV_NUM=$((DEV_NUM + 1))
-                NOTES_START_TAG="$LAST_DEV"
-              fi
-
-              VERSION="${BASE_VERSION}-dev.${DEV_NUM}"
+              VERSION="${{ github.sha }}"
               IMAGE_TAGS="$VERSION"
               CHART_VERSION="$VERSION"
+              NOTES_START_TAG=""
 
               {
                 echo "METADATA_TAGS<<EOF"
@@ -156,7 +139,6 @@ jobs:
         run: yarn
 
       - name: Sync package.json versions (dev only)
-        if: contains(env.RELEASE_TAG, '-dev.')
         run: |
           echo "Updating root package.json"
           yarn --cwd . version --new-version "${{ needs.prepare.outputs.VERSION }}" --no-git-tag-version
@@ -231,7 +213,6 @@ jobs:
           ' $CHART_PATH/Chart.yaml
 
       - name: Sync package.json versions (dev only)
-        if: contains(env.RELEASE_TAG, '-dev.')
         run: |
           echo "Updating root package.json"
           yarn --cwd . version --new-version "${{ needs.prepare.outputs.VERSION }}" --no-git-tag-version
