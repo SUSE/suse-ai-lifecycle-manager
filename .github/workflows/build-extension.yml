@@ -13,63 +13,30 @@ on:
 
 env:
   CHART_PATH: charts/suse-ai-lifecycle-manager
-  CHART_REGISTRY: oci://ghcr.io/leooamaral/chart
-  IMAGE_NAME: ghcr.io/leooamaral/suse-ai-lifecycle-manager
+  CHART_REGISTRY: oci://ghcr.io/suse/chart
+  IMAGE_NAME: ghcr.io/suse/suse-ai-lifecycle-manager
 
 jobs:
   prepare:
-    outputs:
-      VERSION: ${{ steps.tags.outputs.VERSION }}
-      CHART_VERSION: ${{ steps.tags.outputs.CHART_VERSION }}
-      PUBLISH: ${{ steps.tags.outputs.PUBLISH }}
-      METADATA_TAGS: ${{ steps.tags.outputs.METADATA_TAGS }}
-      NOTES_START_TAG: ${{ steps.tags.outputs.NOTES_START_TAG }}
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.tags.outputs.TAGS }}
     steps:
       - name: Calculate tags
-        id: tags
+        id: tags 
         shell: bash
         run: |
+          echo "TAGS<<##" >> "$GITHUB_OUTPUT"
           ref=${{ github.ref }}
           case "$ref" in
-            refs/tags/suse-ai-lifecycle-manager-*)
-              VERSION="${ref#refs/tags/suse-ai-lifecycle-manager-}"
-              IMAGE_TAGS="$VERSION"
-              CHART_VERSION="$VERSION"
-              NOTES_START_TAG=""
-
-              {
-                echo "METADATA_TAGS<<EOF"
-                echo "$VERSION"
-                if [[ "$VERSION" != *"-"* ]]; then
-                  echo "latest"
-                fi
-                echo "EOF"
-              } >> "$GITHUB_OUTPUT"
-
-              PUBLISH=true
-              ;;
+            refs/heads/main)
+              echo "latest" >> "$GITHUB_OUTPUT";;
+            refs/tags/*)
+              echo "${ref#refs/tags/}" >> "$GITHUB_OUTPUT";;
             *)
-              VERSION="${{ github.sha }}"
-              IMAGE_TAGS="$VERSION"
-              CHART_VERSION="$VERSION"
-              NOTES_START_TAG=""
-
-              {
-                echo "METADATA_TAGS<<EOF"
-                echo "$VERSION"
-                echo "EOF"
-              } >> "$GITHUB_OUTPUT"
-
-              PUBLISH=false
-              ;;
+              echo "${{ github.sha }}" >> "$GITHUB_OUTPUT";;
           esac
-
-          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "IMAGE_TAGS=$IMAGE_TAGS" >> "$GITHUB_OUTPUT"
-          echo "PUBLISH=$PUBLISH" >> "$GITHUB_OUTPUT"
-          echo "CHART_VERSION=$CHART_VERSION" >> "$GITHUB_OUTPUT"
-          echo "NOTES_START_TAG=$NOTES_START_TAG" >> "$GITHUB_OUTPUT"
+          echo "##" >> "$GITHUB_OUTPUT"
 
   build:
     strategy:
@@ -85,9 +52,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     name: Build Container Image
     needs: prepare
-    if: needs.prepare.outputs.PUBLISH == 'true'
     env:
-      RELEASE_TAG: ${{ needs.prepare.outputs.METADATA_TAGS }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
     permissions:
       contents: read
       packages: write
@@ -120,22 +86,22 @@ jobs:
         run: yarn
 
       - name: Parse Extension Name
+        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
+        id: parsed-name
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: "suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
-        run: |          
-          yarn parse-tag-name ${{ env.TAG }} ${{ github.run_id }} "catalog"
+        run: |
+          yarn parse-tag-name ${{ env.RELEASE_TAG }} ${{ github.run_id }} "catalog"
 
       - name: Build image
-        env:
-          TAG: "suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
+        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
         run: |
-          yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral' -t "${{ env.TAG }}"
+          yarn publish-pkgs -c -i '' -r ghcr.io -o 'suse' -t "${{ env.RELEASE_TAG }}"
 
       - name: Tag and Push Image
-        env:
-          VERSION: ${{ needs.prepare.outputs.VERSION }}
+        if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
         run: |
+          VERSION=${RELEASE_TAG##*-}
           docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-${{ matrix.arch }}
           docker push $IMAGE_NAME:$VERSION-${{ matrix.arch }}
 
@@ -143,9 +109,9 @@ jobs:
     name: Create Container Manifest and Helm Chart
     needs: [prepare, build]
     env:
-      RELEASE_TAG: ${{ needs.prepare.outputs.METADATA_TAGS }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
     runs-on: ubuntu-latest
-    if: needs.prepare.outputs.PUBLISH == 'true'
+    if: ${{ github.event_name == 'push' && startsWith(github.ref_name, 'suse-ai-lifecycle-manager-') }}
     permissions:
       contents: read
       packages: write
@@ -160,18 +126,13 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create multi-arch manifest
-        env:
-          VERSION: "${{ needs.prepare.outputs.VERSION }}"
         run: |
-          while IFS= read -r tag; do
-            echo "Creating manifest for tag: $tag"
-          
-            docker buildx imagetools create \
-              -t $IMAGE_NAME:$tag \
-              $IMAGE_NAME:$VERSION-amd64 \
-              $IMAGE_NAME:$VERSION-arm64
-          
-          done <<< "${RELEASE_TAG}"
+          VERSION=${RELEASE_TAG##*-}
+      
+          docker buildx imagetools create \
+            -t $IMAGE_NAME:$VERSION \
+            $IMAGE_NAME:$VERSION-amd64 \
+            $IMAGE_NAME:$VERSION-arm64
 
       - name: Package Helm Chart
         id: package
