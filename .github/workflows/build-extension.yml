@@ -13,8 +13,8 @@ on:
 
 env:
   CHART_PATH: charts/suse-ai-lifecycle-manager
-  CHART_REGISTRY: oci://ghcr.io/suse/chart
-  IMAGE_NAME: ghcr.io/suse/suse-ai-lifecycle-manager
+  CHART_REGISTRY: oci://ghcr.io/leooamaral/chart
+  IMAGE_NAME: ghcr.io/leooamaral/suse-ai-lifecycle-manager
 
 jobs:
   prepare:
@@ -69,10 +69,10 @@ jobs:
               PUBLISH=true
 
               METADATA_TAGS=$(cat <<EOF
-            $VERSION
-            latest
-            EOF
-            )
+              $VERSION
+              latest
+              EOF
+              )
               ;;
             *)
               VERSION="${{ github.sha }}"
@@ -108,8 +108,6 @@ jobs:
     name: Build Container Image
     needs: prepare
     if: needs.prepare.outputs.PUBLISH == 'true'
-    env:
-      RELEASE_TAG: ${{ needs.prepare.outputs.METADATA_TAGS }}
     permissions:
       contents: read
       packages: write
@@ -142,7 +140,7 @@ jobs:
         run: yarn
 
       - name: Sync package.json versions (dev only)
-        if: contains(env.RELEASE_TAG, '-dev.')
+        if: contains(needs.prepare.outputs.VERSION, '-dev.')
         run: |
           echo "Updating root package.json"
           yarn --cwd . version --new-version "${{ needs.prepare.outputs.VERSION }}" --no-git-tag-version
@@ -161,7 +159,7 @@ jobs:
         env:
           TAG: "suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
         run: |
-          yarn publish-pkgs -c -i '' -r ghcr.io -o 'suse' -t "$TAG"
+          yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral' -t "$TAG"
 
       - name: Tag and Push Image
         env:
@@ -212,7 +210,7 @@ jobs:
           yq -i '.appVersion = "${{ needs.prepare.outputs.VERSION }}"' $CHART_PATH/Chart.yaml
           yq -i '
             .annotations."helm.sh/images" =
-            "- image: ghcr.io/suse/suse-ai-lifecycle-manager:${{ needs.prepare.outputs.VERSION }}\n  name: suse-ai-lifecycle-manager"
+            "- image: ghcr.io/leooamaral/suse-ai-lifecycle-manager:${{ needs.prepare.outputs.VERSION }}\n  name: suse-ai-lifecycle-manager"
           ' $CHART_PATH/Chart.yaml
           yq -i '.image.tag = "${{ needs.prepare.outputs.VERSION }}"' $CHART_PATH/values.yaml
 
