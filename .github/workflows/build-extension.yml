@@ -15,7 +15,6 @@ env:
   CHART_PATH: charts/suse-ai-lifecycle-manager
   CHART_REGISTRY: oci://ghcr.io/leooamaral/chart
   IMAGE_NAME: ghcr.io/leooamaral/suse-ai-lifecycle-manager
-
 jobs:
   prepare:
     outputs:
