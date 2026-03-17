@@ -68,11 +68,7 @@ jobs:
               NOTES_START_TAG=""
               PUBLISH=true
 
-              METADATA_TAGS=$(cat <<EOF
-                              $VERSION
-                              latest
-                              EOF
-                             )
+              METADATA_TAGS="$VERSION"$'\n'"latest"
               ;;
             *)
               VERSION="${{ github.sha }}"
