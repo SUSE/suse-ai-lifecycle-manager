@@ -68,10 +68,10 @@ jobs:
               PUBLISH=true
 
               METADATA_TAGS=$(cat <<EOF
-              $VERSION
-              latest
-              EOF
-              )
+                              $VERSION
+                              latest
+                              EOF
+                             )
               ;;
             *)
               VERSION="${{ github.sha }}"
@@ -214,7 +214,7 @@ jobs:
           yq -i '.image.tag = "${{ needs.prepare.outputs.VERSION }}"' $CHART_PATH/values.yaml
 
       - name: Sync package.json versions (dev only)
-        if: contains(env.RELEASE_TAG, '-dev.')
+        if: contains(needs.prepare.outputs.VERSION, '-dev.')
         run: |
           echo "Updating root package.json"
           yarn --cwd . version --new-version "${{ needs.prepare.outputs.VERSION }}" --no-git-tag-version
