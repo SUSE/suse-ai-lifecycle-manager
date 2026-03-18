@@ -16,6 +16,7 @@ env:
     CHART_PATH: charts/suse-ai-operator
     CHART_REGISTRY: oci://ghcr.io/leooamaral/chart
     VERSION_PATH: suse-ai-operator/VERSION
+    
 jobs:
   container:
     outputs:
