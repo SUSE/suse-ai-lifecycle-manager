@@ -143,6 +143,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           push: true
           platforms: linux/arm64,linux/amd64
+          annotations: ${{ steps.meta.outputs.annotations }}
 
   helm:
     needs: container
