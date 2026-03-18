@@ -132,6 +132,8 @@ jobs:
           images: ${{ env.CONTAINER_REGISTRY }}
           tags: |
             ${{ steps.tags.outputs.METADATA_TAGS }}
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
       - name: Build Docker Container
         id: push
@@ -141,9 +143,9 @@ jobs:
           context: ./suse-ai-operator
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
+          annotations: ${{ steps.meta.outputs.annotations }}
           push: true
           platforms: linux/arm64,linux/amd64
-          annotations: ${{ steps.meta.outputs.annotations }}
 
   helm:
     needs: container
