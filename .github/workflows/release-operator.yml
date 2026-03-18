@@ -148,7 +148,7 @@ jobs:
           context: ./suse-ai-operator
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
-          # annotations: ${{ steps.meta.outputs.annotations }}
+          annotations: ${{ steps.meta.outputs.annotations }}
           push: true
           platforms: linux/arm64,linux/amd64
 
