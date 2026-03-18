@@ -154,14 +154,14 @@ jobs:
       - name: Build image
         run: |
           TAG="suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
-          yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral' -t "$TAG" -p
+          yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral' -t "$TAG"
 
-      # - name: Tag and Push Image
-      #   env:
-      #     VERSION: ${{ needs.prepare.outputs.VERSION }}
-      #   run: |
-      #     docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-${{ matrix.arch }}
-      #     docker push $IMAGE_NAME:$VERSION-${{ matrix.arch }}
+      - name: Tag and Push Image
+        env:
+          VERSION: ${{ needs.prepare.outputs.VERSION }}
+        run: |
+          docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-${{ matrix.arch }}
+          docker push $IMAGE_NAME:$VERSION-${{ matrix.arch }}
 
   manifest:
     name: Create Container Manifest and Helm Chart
