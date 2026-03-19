@@ -152,6 +152,8 @@ jobs:
           yarn parse-tag-name $TAG ${{ github.run_id }} "catalog"
 
       - name: Build image
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
         run: |
           TAG="suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
           yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral' -t "$TAG"
