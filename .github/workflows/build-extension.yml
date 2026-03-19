@@ -68,7 +68,11 @@ jobs:
               NOTES_START_TAG=""
               PUBLISH=true
 
-              METADATA_TAGS="$VERSION"$'\n'"latest"
+              if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                METADATA_TAGS="$VERSION"$'\n'"latest"
+              else
+                METADATA_TAGS="$VERSION"
+              fi
               ;;
             *)
               VERSION="${{ github.sha }}"
