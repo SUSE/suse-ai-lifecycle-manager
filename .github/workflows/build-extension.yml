@@ -165,7 +165,56 @@ jobs:
         env:
           VERSION: ${{ needs.prepare.outputs.VERSION }}
         run: |
-          docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-${{ matrix.arch }}
+          skopeo copy --all \
+            --change 'LABEL org.opencontainers.image.title=""' \
+            --change 'LABEL com.suse.sle.base.lifecycle-url=""' \
+            --change 'LABEL com.suse.sle.base.vendor=""' \
+            --change 'LABEL com.suse.bci.base.source=""' \
+            --change 'LABEL com.suse.sle.base.image-type=""' \
+            --change 'LABEL com.suse.image-type=""' \
+            --change 'LABEL com.suse.sle.base.url=""' \
+            --change 'LABEL com.suse.bci.base.created=""' \
+            --change 'LABEL org.opencontainers.image.url=""' \
+            --change 'LABEL com.suse.sle.base.eula=""' \
+            --change 'LABEL org.opencontainers.image.version=""' \
+            --change 'LABEL com.suse.sle.base.created=""' \
+            --change 'LABEL com.suse.sle.base.version=""' \
+            --change 'LABEL com.suse.bci.base.version=""' \
+            --change 'LABEL com.suse.eula=""' \
+            --change 'LABEL com.suse.bci.base.reference=""' \
+            --change 'LABEL com.suse.sle.base.release-stage=""' \
+            --change 'LABEL org.opensuse.reference=""' \
+            --change 'LABEL org.opencontainers.image.source=""' \
+            --change 'LABEL io.artifacthub.package.readme-url=""' \
+            --change 'LABEL com.suse.sle.base.source=""' \
+            --change 'LABEL org.opencontainers.image.created=""' \
+            --change 'LABEL com.suse.bci.base.eula=""' \
+            --change 'LABEL com.suse.bci.base.release-stage=""' \
+            --change 'LABEL com.suse.sle.base.description=""' \
+            --change 'LABEL com.suse.bci.base.description=""' \
+            --change 'LABEL com.suse.sle.base.title=""' \
+            --change 'LABEL org.opencontainers.image.description=""' \
+            --change 'LABEL com.suse.sle.base.supportlevel=""' \
+            --change 'LABEL com.suse.lifecycle-url=""' \
+            --change 'LABEL org.openbuildservice.disturl=""' \
+            --change 'LABEL com.suse.bci.base.lifecycle-url=""' \
+            --change 'LABEL com.suse.bci.base.title=""' \
+            --change 'LABEL com.suse.bci.base.disturl=""' \
+            --change 'LABEL io.artifacthub.package.logo-url=""' \
+            --change 'LABEL com.suse.sle.base.reference=""' \
+            --change 'LABEL com.suse.bci.base.image-type=""' \
+            --change 'LABEL com.suse.supportlevel=""' \
+            --change 'LABEL com.suse.bci.base.vendor=""' \
+            --change 'LABEL com.suse.sle.base.disturl=""' \
+            --change 'LABEL com.suse.release-stage=""' \
+            --change 'LABEL org.opencontainers.image.vendor=""' \
+            --change 'LABEL com.suse.sle.base.readme-url=""' \
+            --change 'LABEL com.suse.bci.base.url=""' \
+            --change 'LABEL com.suse.sle.base.logo-url=""' \
+            --change 'LABEL com.suse.bci.base.supportlevel=""' \
+            docker://$IMAGE_NAME:$VERSION \
+            docker://$IMAGE_NAME:$VERSION-${{ matrix.arch }}
+          # docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-${{ matrix.arch }}
           docker push $IMAGE_NAME:$VERSION-${{ matrix.arch }}
 
   manifest:
