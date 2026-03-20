@@ -169,7 +169,7 @@ jobs:
           CLEAN_IMAGE="$IMAGE_NAME:$VERSION-${{ matrix.arch }}"
           
           # Create container from the original image
-          ctr=$(buildah from $ORIGINAL_IMAGE)
+          ctr=$(buildah from docker-daemon:$ORIGINAL_IMAGE)
           
           # Remove all labels
           for lbl in $(buildah inspect $ctr --format '{{range $k, $v := .Config.Labels}}{{$k}}{{"\n"}}{{end}}'); do
