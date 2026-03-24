@@ -328,9 +328,24 @@ export class AppLifecycleService {
     });
 
     for (;;) {
+      let app: any = null;
+
       try {
         const r = await $store.dispatch('rancher/request', { url, timeout: 20000 });
-        const app = (r?.data ?? r) || {};
+        app = (r?.data ?? r) || {};
+      } catch (e: unknown) {
+        lastErr = e;
+        const standardError = errorHandler.normalizeError(e);
+
+        if (standardError.status && standardError.status !== 404) {
+          logger.warn('Non-404 error during app wait', {
+            component: 'AppLifecycleService',
+            data: { releaseName, statusCode: standardError.status }
+          });
+        }
+      }
+
+      if (app) {
         const gen = app?.metadata?.generation ?? 0;
         const obs = app?.status?.observedGeneration ?? 0;
         const sum = app?.status?.summary || {};
@@ -338,11 +353,15 @@ export class AppLifecycleService {
 
         logger.debug('App status check', {
           component: 'AppLifecycleService',
-          data: { releaseName, generation: gen, observedGeneration: obs, state }
+          data: {
+            releaseName, generation: gen, observedGeneration: obs, state,
+            'metadata.state': app?.metadata?.state,
+            'status.summary': sum,
+            'status.conditions': app?.status?.conditions
+          }
         });
 
         if (obs >= gen) {
-          // Controller has processed the spec — now check if it actually succeeded
           const lowerState = (state || '').toLowerCase();
           if (lowerState === 'failed' || lowerState === 'error') {
             const errMsg = app?.metadata?.state?.message
@@ -360,16 +379,6 @@ export class AppLifecycleService {
             data: { releaseName }
           });
           return app;
-        }
-      } catch (e: unknown) {
-        lastErr = e;
-        const standardError = errorHandler.normalizeError(e);
-
-        if (standardError.status && standardError.status !== 404) {
-          logger.warn('Non-404 error during app wait', {
-            component: 'AppLifecycleService',
-            data: { releaseName, statusCode: standardError.status }
-          });
         }
       }
 

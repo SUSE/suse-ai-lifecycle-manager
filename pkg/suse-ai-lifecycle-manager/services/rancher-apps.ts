@@ -306,18 +306,33 @@ export async function waitForAppInstall(
   log('post-install: wait for App to appear', { clusterId, namespace, releaseName, timeoutMs });
 
   for (;;) {
+    let app: any = null;
+
     try {
       const r = await $store.dispatch('rancher/request', { url, timeout: 20000 });
-      const app = (r?.data ?? r) || {};
+      app = (r?.data ?? r) || {};
+    } catch (e: unknown) {
+      lastErr = e;
+      const standardError = errorHandler.normalizeError(e);
+      if (standardError.status && standardError.status !== 404) {
+        log('post-install: early error (non-404)', standardError.status);
+      }
+    }
+
+    if (app) {
       const gen = app?.metadata?.generation ?? 0;
       const obs = app?.status?.observedGeneration ?? 0;
       const sum = app?.status?.summary || {};
       const state = sum?.state || app?.status?.conditions?.find((c: { type: string; status: string }) => c?.type === 'Ready')?.status || 'Unknown';
 
-      log('post-install: app peek', { gen, obs, state, ns: namespace, name: releaseName });
+      console.log('[SUSE-AI] post-install: app peek', {
+        gen, obs, state, ns: namespace, name: releaseName,
+        'metadata.state': app?.metadata?.state,
+        'status.summary': sum,
+        'status.conditions': app?.status?.conditions
+      });
 
       if (obs >= gen) {
-        // Controller has processed the spec — now check if it actually succeeded
         const lowerState = (state || '').toLowerCase();
         if (lowerState === 'failed' || lowerState === 'error') {
           const errMsg = app?.metadata?.state?.message
@@ -327,13 +342,6 @@ export async function waitForAppInstall(
           throw new Error(errMsg);
         }
         return app;
-      }
-    } catch (e: unknown) {
-      lastErr = e;
-      // keep polling on 404; bubble others
-      const standardError = errorHandler.normalizeError(e);
-      if (standardError.status && standardError.status !== 404) {
-        log('post-install: early error (non-404)', standardError.status);
       }
     }
 
