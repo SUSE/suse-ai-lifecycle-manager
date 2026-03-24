@@ -342,6 +342,19 @@ export class AppLifecycleService {
         });
 
         if (obs >= gen) {
+          // Controller has processed the spec — now check if it actually succeeded
+          const lowerState = (state || '').toLowerCase();
+          if (lowerState === 'failed' || lowerState === 'error') {
+            const errMsg = app?.metadata?.state?.message
+              || (typeof sum?.error === 'string' ? sum.error : null)
+              || `Helm install failed (state: ${state})`;
+            logger.error('App install failed', {
+              component: 'AppLifecycleService',
+              data: { releaseName, state, errMsg }
+            });
+            throw new Error(errMsg);
+          }
+
           logger.info('App install completed successfully', {
             component: 'AppLifecycleService',
             data: { releaseName }

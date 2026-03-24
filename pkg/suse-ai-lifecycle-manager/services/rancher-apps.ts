@@ -315,7 +315,19 @@ export async function waitForAppInstall(
       const state = sum?.state || app?.status?.conditions?.find((c: { type: string; status: string }) => c?.type === 'Ready')?.status || 'Unknown';
 
       log('post-install: app peek', { gen, obs, state, ns: namespace, name: releaseName });
-      if (obs >= gen) return app; // observed the latest spec (good enough for us)
+
+      if (obs >= gen) {
+        // Controller has processed the spec — now check if it actually succeeded
+        const lowerState = (state || '').toLowerCase();
+        if (lowerState === 'failed' || lowerState === 'error') {
+          const errMsg = app?.metadata?.state?.message
+            || (typeof sum?.error === 'string' ? sum.error : null)
+            || `Helm install failed (state: ${state})`;
+          console.error('[SUSE-AI] post-install: app failed', { state, errMsg });
+          throw new Error(errMsg);
+        }
+        return app;
+      }
     } catch (e: unknown) {
       lastErr = e;
       // keep polling on 404; bubble others
