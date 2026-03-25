@@ -155,8 +155,6 @@ jobs:
           yarn parse-tag-name $TAG ${{ github.run_id }} "catalog"
 
       - name: Build image
-        env:
-          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
         run: |
           TAG="suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
           yarn publish-pkgs -c -i '' -r ghcr.io -o 'leooamaral' -t "$TAG"
@@ -182,6 +180,51 @@ jobs:
           
           # Push the cleaned image
           buildah push $CLEAN_IMAGE docker://$CLEAN_IMAGE
+
+  gh-build: 
+    name: Deploy 
+    needs: [prepare, build] 
+    env: 
+      RELEASE_TAG: "suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
+    runs-on: ubuntu-latest 
+    if: needs.prepare.outputs.PUBLISH == 'true' && !contains(needs.prepare.outputs.VERSION, '-dev.')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Nodejs with yarn caching
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: yarn
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn
+
+      - name: Parse Extension Name
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |          
+          yarn parse-tag-name ${{ env.RELEASE_TAG }} ${{ github.run_id }} "charts"
+
+      - name: Build image
+        run: |
+          yarn publish-pkgs -s ${{ github.repository }} -b "gh-pages" -t "${{ env.RELEASE_TAG }}"
 
   manifest:
     name: Create Container Manifest and Helm Chart
