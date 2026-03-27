@@ -232,7 +232,7 @@ jobs:
           yarn publish-pkgs -s ${{ github.repository }} -b "gh-pages" -t $TAG -f
 
       - name: Upload a Build Artifact
-        uses: actions/upload-artifact@v3.2.2
+        uses: actions/upload-artifact@v6
         with:
           name: charts
           path: tmp
