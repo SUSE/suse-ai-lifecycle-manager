@@ -93,7 +93,7 @@ jobs:
           echo "$METADATA_TAGS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-  build:
+  build-container:
     strategy:
       matrix:
         arch:
@@ -182,9 +182,9 @@ jobs:
           # Push the cleaned image
           buildah push $CLEAN_IMAGE docker://$CLEAN_IMAGE
 
-  gh-build: 
-    name: Deploy 
-    needs: [prepare, build] 
+  build-gh: 
+    name: Build Extension for GH branch
+    needs: prepare
     env: 
       RELEASE_TAG: "suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
     runs-on: ubuntu-latest 
@@ -231,9 +231,15 @@ jobs:
           TAG="suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
           yarn publish-pkgs -s ${{ github.repository }} -b "gh-pages" -t $TAG -f
 
+      - name: Upload a Build Artifact
+        uses: actions/upload-artifact@v3.2.2
+        with:
+          name: charts
+          path: tmp
+
   manifest:
     name: Create Container Manifest and Helm Chart
-    needs: [prepare, build]
+    needs: [prepare, build-container]
     env:
       RELEASE_TAG: ${{ needs.prepare.outputs.METADATA_TAGS }}
     runs-on: ubuntu-latest
