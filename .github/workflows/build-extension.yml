@@ -165,23 +165,8 @@ jobs:
         env:
           VERSION: ${{ needs.prepare.outputs.VERSION }}
         run: |
-          ORIGINAL_IMAGE="$IMAGE_NAME:$VERSION"
-          CLEAN_IMAGE="$IMAGE_NAME:$VERSION-${{ matrix.arch }}"
-          
-          # Create container from the original image
-          ctr=$(buildah from docker-daemon:$ORIGINAL_IMAGE)
-          
-          # Remove all labels
-          for lbl in $(buildah inspect $ctr --format '{{range $k, $v := .Config.Labels}}{{$k}}{{"\n"}}{{end}}'); do
-            buildah config --label "$lbl=" $ctr
-          done
-          
-          # Commit cleaned image
-          buildah commit $ctr $CLEAN_IMAGE
-          buildah rm $ctr
-          
-          # Push the cleaned image
-          buildah push $CLEAN_IMAGE docker://$CLEAN_IMAGE
+          docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-${{ matrix.arch }}
+          docker push $IMAGE_NAME:$VERSION-${{ matrix.arch }}
 
   manifest-container:
     name: Create Container Manifest and Helm Chart
