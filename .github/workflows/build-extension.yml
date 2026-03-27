@@ -289,6 +289,9 @@ jobs:
       RELEASE_TAG: "suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
     runs-on: ubuntu-latest 
     if: needs.prepare.outputs.PUBLISH == 'true' && !contains(needs.prepare.outputs.VERSION, '-dev.')
+    permissions:
+      actions: write
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -342,6 +345,11 @@ jobs:
       RELEASE_TAG: "suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
     runs-on: ubuntu-latest 
     if: needs.prepare.outputs.PUBLISH == 'true' && !contains(needs.prepare.outputs.VERSION, '-dev.')
+    permissions:
+      actions: write
+      contents: write
+      deployments: write
+      pages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
