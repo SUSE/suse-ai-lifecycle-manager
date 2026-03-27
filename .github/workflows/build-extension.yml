@@ -227,7 +227,7 @@ jobs:
       - name: Build image
         run: |
           TAG="suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
-          yarn publish-pkgs -s ${{ github.repository }} -b gh-pages -t $TAG
+          yarn publish-pkgs -s ${{ github.repository }} -b "gh-pages" -t $TAG
 
   manifest:
     name: Create Container Manifest and Helm Chart
