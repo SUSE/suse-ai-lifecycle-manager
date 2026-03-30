@@ -16,7 +16,6 @@ env:
     CHART_PATH: charts/suse-ai-operator
     CHART_REGISTRY: oci://ghcr.io/suse/chart
     VERSION_PATH: suse-ai-operator/VERSION
-    
 jobs:
   container:
     outputs:
@@ -133,13 +132,6 @@ jobs:
           images: ${{ env.CONTAINER_REGISTRY }}
           tags: |
             ${{ steps.tags.outputs.METADATA_TAGS }}
-          labels: |
-            maintainer=CrazyMax
-            org.opencontainers.image.title=MyCustomTitle
-            org.opencontainers.image.description=Another description
-            org.opencontainers.image.vendor=MyCompany
-        env:
-          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
       - name: Build Docker Container
         id: push
@@ -149,7 +141,6 @@ jobs:
           context: ./suse-ai-operator
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ steps.meta.outputs.tags }}
-          annotations: ${{ steps.meta.outputs.annotations }}
           push: true
           platforms: linux/arm64,linux/amd64
 
