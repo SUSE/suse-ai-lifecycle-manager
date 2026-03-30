@@ -107,6 +107,55 @@ https://github.com/SUSE/suse-ai-lifecycle-manager/pkgs/container/suse-ai-lifecyc
 > NOTE: Replace `<version>` with a tag published in GitHub Container Registry.
 > NOTE: Newly published catalogs are not always available immediately. If the catalog does not show up after publishing, navigate to Extensions → Manage Repositories and manually refresh the repository to force a re-sync.
 
+## Extension GitHub Branch
+- In addition to the OCI-based catalog container, the SUSE AI Lifecycle Manager extension can be distributed via a GitHub branch. This method hosts the extension artifacts as files within a specific branch of your repository, allowing Rancher to consume the extension directly from there.
+
+**Overview**
+- The extension is built into static assets (`index.yaml`, `.tgz`, etc.)
+- These assets are published to a GitHub branch (example, `gh-pages`)
+- Rancher consumes the extension catalog via the repo url and branch.
+
+### GitHub Branch Structure
+- Once the artifacts are pushed to the GitHub branch, the repository will expose the extension files like so:
+```
+https://github.com/<org>/<repo>/tree/gh-pages
+├── index.yaml
+├── assets/
+│   ├── index.yaml
+│   └── suse-ai-lifecycle-manager/
+│       ├── suse-ai-lifecycle-manager-<version>.tgz
+│       └── ...
+├── charts/
+│   └── suse-ai-lifecycle-manager/
+│       ├── <version>/
+│       │   ├── templates/
+│       │   │   ├── _helpers.tpl
+│       │   │   └── cr.yaml
+│       │   ├── Chart.yaml
+│       │   └── values.yaml
+│       └── ...
+└── extensions/
+    └── suse-ai-lifecycle-manager/
+        ├── <version>/
+        │   ├── plugin/
+        │   │   └── ...
+        │   └── files.txt
+        └── ...
+```
+This structure mirrors the catalog format that Rancher expects.
+
+### Consuming the Extension from the GitHub Branch in Rancher
+- To load the extension from a GitHub branch:
+   1. Navigate to Extensions → Manage Repositories
+   2. Click Create New Repository
+   3. Add a Name, then select `Git repository containing Helm chart or cluster template definitions`
+   4. Enter the `Git Repo URL` and the `Git Branch` (e.g., `extension-artifacts`)
+   5. Click Create
+   6. Wait until the the SUSE AI Lifecycle Manager repository has the `Active` state.
+   7. Go back to Extensions and install SUSE AI Lifecycle Manager.
+   8. Re-load Rancher Dashboard. Reload the browser to ensure the extension is loaded in the UI (ctrl+r or F5 or cmd+r).
+   9. The "SUSE AI Lifecycle Manager" logo will now appear on the left panel of the Rancher Dashboard.
+
 ## Contributing
 
 When contributing to this extension:
