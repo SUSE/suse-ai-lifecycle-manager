@@ -395,9 +395,10 @@ async function refreshVersions() {
     if (form.value.chartVersion) {
       await ensureVersionInfoLoaded();
 
-      // Load default values for install mode
+      // Load default values for install mode, then resolve pull secret names
       if (isInstallMode.value) {
         await loadDefaultValues({ skipVersionInfoFetch: true });
+        await resolvePullSecretNames();
       }
     }
   } finally {
@@ -450,6 +451,88 @@ async function loadDefaultValues(options: { skipVersionInfoFetch?: boolean } = {
     error.value = e?.message || 'Failed to fetch default values.';
   } finally {
     loadingValues.value = false;
+  }
+}
+
+/**
+ * Resolve pull secret names from repo credentials and subchart dependencies,
+ * then inject them into form.values so the user can see them in the Configuration step.
+ */
+async function resolvePullSecretNames() {
+  if (!store || !form.value.chartRepo || !form.value.chartName || !form.value.chartVersion) {
+    return;
+  }
+
+  const allPullSecrets = new Set<string>();
+
+  try {
+    // Resolve credentials from the selected ClusterRepo
+    const repoCtx = await getRepoAuthForClusterRepo(store, form.value.chartRepo);
+    const hasRepoCredentials = !!repoCtx.auth?.username && !!repoCtx.auth?.password;
+
+    if (hasRepoCredentials) {
+      const desiredSecretBase = repoCtx.secretName || `repo-${form.value.chartRepo}`;
+      const secretName = `suse-ai-pull-secret-${desiredSecretBase.replace(/[^a-z0-9-]/g, '-')}`;
+      allPullSecrets.add(secretName);
+    }
+
+    // Check subchart dependencies for additional pull secrets
+    const chartYaml = await fetchChartYaml(store, form.value.chartRepo, form.value.chartName, form.value.chartVersion);
+    if (chartYaml?.dependencies) {
+      let clusterRepos: any[] = [];
+      try {
+        clusterRepos = await listClusterRepos(store);
+      } catch (e: any) {
+        console.warn('[SUSE-AI] Failed to list cluster repos for dependency secrets:', e?.message || e);
+      }
+
+      const repos = clusterRepos
+        .filter((r: any) => r?.metadata?.name && (r?.spec?.url || r?.spec?.gitRepo || r?.spec?.ociRepo))
+        .map((r: any) => ({
+          name: r.metadata.name,
+          url: r.spec.url || r.spec.gitRepo || r.spec.ociRepo
+        }));
+      const processedRepos = new Set<string>();
+
+      for (const dep of chartYaml.dependencies) {
+        if (!dep.repository) continue;
+
+        const normalizeUrl = (url: string) => url?.replace(/\/+$/, '').toLowerCase();
+        const repo = repos.find((r: any) => normalizeUrl(r.url) === normalizeUrl(dep.repository));
+
+        if (!repo || processedRepos.has(repo.name)) continue;
+        processedRepos.add(repo.name);
+
+        const subRepoCtx = await getRepoAuthForClusterRepo(store, repo.name);
+        if (!subRepoCtx.auth?.username || !subRepoCtx.auth?.password) continue;
+
+        const subDesiredSecretBase = subRepoCtx.secretName || `repo-${repo.name}`;
+        const secretName = `suse-ai-pull-secret-${subDesiredSecretBase.replace(/[^a-z0-9-]/g, '-')}`;
+        allPullSecrets.add(secretName);
+      }
+    }
+
+    // Inject resolved secret names into form values
+    if (allPullSecrets.size > 0) {
+      const pullSecrets = Array.from(allPullSecrets);
+      const addSecrets = (arr: any): any[] => {
+        const list = Array.isArray(arr) ? arr.slice() : [];
+        for (const secretName of pullSecrets) {
+          const hasStr = list.some((e: any) => e === secretName);
+          const hasObj = list.some((e: any) => e && typeof e === 'object' && e.name === secretName);
+          if (!hasStr && !hasObj) {
+            list.push({ name: secretName });
+          }
+        }
+        return list;
+      };
+
+      form.value.values.global = form.value.values.global || {};
+      form.value.values.global.imagePullSecrets = addSecrets(form.value.values.global?.imagePullSecrets);
+      form.value.values.imagePullSecrets = addSecrets(form.value.values.imagePullSecrets);
+    }
+  } catch (e: any) {
+    console.warn('[SUSE-AI] Failed to resolve pull secret names (will retry at install time):', e?.message || e);
   }
 }
 
@@ -515,6 +598,7 @@ async function onVersionChange() {
 
   if (isInstallMode.value) {
     await loadDefaultValues({ skipVersionInfoFetch: true });
+    await resolvePullSecretNames();
   }
 
   // Persist form state
@@ -857,26 +941,12 @@ async function installToCluster(
 
   onProgress(45, 'Configuring image pull secrets...');
 
+  // Pull secret names are already in form.value.values (populated by resolvePullSecretNames).
+  // Here we only need to attach them to service accounts.
   const v = JSON.parse(JSON.stringify(form.value.values || {}));
   const pullSecrets = Array.from(allPullSecrets);
 
-  // Only add imagePullSecrets if we have a secret name (i.e., repo has authentication)
   if (pullSecrets.length > 0) {
-    const addSecrets = (arr: any): any[] => {
-      const list = Array.isArray(arr) ? arr.slice() : [];
-      for (const secretName of pullSecrets) {
-        const hasStr = list.some((e: any) => e === secretName);
-        const hasObj = list.some((e: any) => e && typeof e === 'object' && e.name === secretName);
-        if (!hasStr && !hasObj) {
-          list.push({ name: secretName });
-        }
-      }
-      return list;
-    };
-    v.global = v.global || {};
-    v.global.imagePullSecrets = addSecrets(v.global.imagePullSecrets);
-    v.imagePullSecrets = addSecrets(v.imagePullSecrets);
-
     const saCandidates = new Set<string>(['default']);
     const vs = (v as any).serviceAccount || {};
     if (typeof vs?.name === 'string' && vs.name.trim()) saCandidates.add(vs.name.trim());
