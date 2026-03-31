@@ -15,6 +15,7 @@ env:
   CHART_PATH: charts/suse-ai-lifecycle-manager
   CHART_REGISTRY: oci://ghcr.io/suse/chart
   IMAGE_NAME: ghcr.io/suse/suse-ai-lifecycle-manager
+  GH_BRANCH: gh-pages
   
 jobs:
   prepare:
@@ -93,7 +94,7 @@ jobs:
           echo "$METADATA_TAGS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-  build:
+  build-container:
     strategy:
       matrix:
         arch:
@@ -167,9 +168,9 @@ jobs:
           docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:$VERSION-${{ matrix.arch }}
           docker push $IMAGE_NAME:$VERSION-${{ matrix.arch }}
 
-  manifest:
+  manifest-container:
     name: Create Container Manifest and Helm Chart
-    needs: [prepare, build]
+    needs: [prepare, build-container]
     env:
       RELEASE_TAG: ${{ needs.prepare.outputs.METADATA_TAGS }}
     runs-on: ubuntu-latest
@@ -265,3 +266,91 @@ jobs:
             --title "${TAG}" \
             --prerelease --fail-on-no-commits \
             --generate-notes $NOTES_ARG
+
+  build-gh: 
+    name: Build Extension for GH branch
+    needs: prepare
+    env: 
+      RELEASE_TAG: "suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
+    runs-on: ubuntu-latest 
+    if: needs.prepare.outputs.PUBLISH == 'true' && !contains(needs.prepare.outputs.VERSION, '-dev.')
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Nodejs with yarn caching
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '20'
+          cache: yarn
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn
+
+      - name: Parse Extension Name
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |          
+          yarn parse-tag-name ${{ env.RELEASE_TAG }} ${{ github.run_id }} "charts"
+
+      - name: Build image
+        run: |
+          yarn publish-pkgs -s ${{ github.repository }} -b "${{ env.GH_BRANCH }}" -t ${{ env.RELEASE_TAG }} -f
+
+      - name: Upload a Build Artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: charts
+          path: tmp
+
+  release-gh:
+    name: Release Extension for GH branch
+    needs: [prepare, build-gh]
+    env: 
+      RELEASE_TAG: "suse-ai-lifecycle-manager-${{ needs.prepare.outputs.VERSION }}"
+    runs-on: ubuntu-latest 
+    if: needs.prepare.outputs.PUBLISH == 'true' && !contains(needs.prepare.outputs.VERSION, '-dev.')
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: ${{ env.GH_BRANCH }}
+
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Download build artifact
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: charts
+
+      - name: Commit build
+        run: |
+          git add ./{assets,charts,extensions,index.yaml}
+          git commit -a -m "CI Build Artifacts"
+          git push
