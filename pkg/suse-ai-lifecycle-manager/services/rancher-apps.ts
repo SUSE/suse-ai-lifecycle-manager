@@ -204,35 +204,44 @@ export async function createOrUpgradeApp(
         });
         log('App upgrade successful. Result:', upgradeResult);
         log('=== Completed createOrUpgradeApp (upgrade) ===');
-        return;
+        return { upgraded: true };
       } catch (upgradeError: unknown) {
         const standardError = errorHandler.handleApiError(upgradeError, 'upgrade', { releaseName, namespace });
         throw new Error(`Failed to upgrade app: ${standardError.message}`);
       }
     }
 
-    // For install actions, check if app exists first and use PUT if it does
+    // For install actions, check if app exists first and use upgrade if it does
     try {
       log('Checking for existing App...', { namespace, releaseName, checkUrl: appUrl });
-      const existing = await $store.dispatch('rancher/request', { url: appUrl, timeout: 20000 });
-      // Extract resourceVersion for app update
-      const resourceVersion = existing?.data?.metadata?.resourceVersion
-                           || existing?.metadata?.resourceVersion;
+      await $store.dispatch('rancher/request', { url: appUrl, timeout: 20000 });
 
-      if (resourceVersion) {
-        log('App exists, performing upgrade (PUT)', { resourceVersion });
-        appPayload.metadata.resourceVersion = resourceVersion;
-        const upgradeResult = await $store.dispatch('rancher/request', {
-          url:    appUrl,
-          method: 'PUT',
-          data:   appPayload,
+      // App exists — use clusterRepo upgrade action to re-trigger Helm
+      log('App exists, performing upgrade via clusterRepo action');
+      const upgradeUrl = `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/catalog.cattle.io.clusterrepos/${chart.repoName}?action=upgrade`;
+      const upgradeData = {
+        charts,
+        namespace,
+        clusterId,
+        wait: true,
+        timeout: '600s',
+        noHooks: false,
+        disableOpenAPIValidation: false,
+        skipCRDs: false
+      };
+
+      try {
+        await $store.dispatch('rancher/request', {
+          method: 'post',
+          url: upgradeUrl,
+          data: upgradeData,
           timeout: 20000
         });
-        log('App upgrade successful. Result:', upgradeResult);
-      } else {
-        log('ERROR: App exists but could not retrieve resourceVersion from any path');
-        log('Full existing object structure:', JSON.stringify(existing, null, 2));
-        throw new Error('App exists but could not retrieve resourceVersion.');
+        log('App upgrade successful');
+        return { upgraded: true };
+      } catch (upgradeError: unknown) {
+        const standardError = errorHandler.handleApiError(upgradeError, 'upgrade', { releaseName, namespace });
+        throw new Error(`Failed to upgrade app: ${standardError.message}`);
       }
     } catch (e: unknown) {
       const standardError = errorHandler.normalizeError(e);
@@ -287,6 +296,7 @@ export async function createOrUpgradeApp(
   }
   
   log('=== Completed createOrUpgradeApp ===');
+  return { upgraded: false };
 }
 
 /* ====================== verify app appears and becomes ready ===================== */
@@ -296,7 +306,8 @@ export async function waitForAppInstall(
   clusterId: string,
   namespace: string,
   releaseName: string,
-  timeoutMs = 90_000
+  timeoutMs = 90_000,
+  isRetry = false
 ): Promise<AppCRD> {
   const errorHandler = createErrorHandler($store, 'RancherApps');
   const url = `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/catalog.cattle.io/v1/namespaces/${encodeURIComponent(namespace)}/apps/${encodeURIComponent(releaseName)}`;
@@ -304,6 +315,9 @@ export async function waitForAppInstall(
   let lastErr: unknown = null;
 
   log('post-install: wait for App to appear', { clusterId, namespace, releaseName, timeoutMs });
+
+  let initialObs = -1;
+  let initialState = '';
 
   for (;;) {
     let app: any = null;
@@ -325,23 +339,35 @@ export async function waitForAppInstall(
       const sum = app?.status?.summary || {};
       const state = sum?.state || app?.status?.conditions?.find((c: { type: string; status: string }) => c?.type === 'Ready')?.status || 'Unknown';
 
+      if (initialObs < 0) {
+        initialObs = obs;
+        initialState = (state || '').toLowerCase();
+      }
+
       console.log('[SUSE-AI] post-install: app peek', {
-        gen, obs, state, ns: namespace, name: releaseName,
+        gen, obs, initialObs, state, ns: namespace, name: releaseName,
         'metadata.state': app?.metadata?.state,
         'status.summary': sum,
         'status.conditions': app?.status?.conditions
       });
 
       if (obs >= gen) {
-        const lowerState = (state || '').toLowerCase();
-        if (lowerState === 'failed' || lowerState === 'error') {
-          const errMsg = app?.metadata?.state?.message
-            || (typeof sum?.error === 'string' ? sum.error : null)
-            || `Helm install failed (state: ${state})`;
-          console.error('[SUSE-AI] post-install: app failed', { state, errMsg });
-          throw new Error(errMsg);
+        // If the initial state was already failed, wait for a new reconciliation
+        // to avoid reading stale status from a previous operation
+        const isStale = isRetry && (initialState === 'failed' || initialState === 'error') && obs <= initialObs;
+        if (isStale) {
+          // Keep polling — controller hasn't processed the new operation yet
+        } else {
+          const lowerState = (state || '').toLowerCase();
+          if (lowerState === 'failed' || lowerState === 'error') {
+            const errMsg = app?.metadata?.state?.message
+              || (typeof sum?.error === 'string' ? sum.error : null)
+              || `Helm install failed (state: ${state})`;
+            console.error('[SUSE-AI] post-install: app failed', { state, errMsg });
+            throw new Error(errMsg);
+          }
+          return app;
         }
-        return app;
       }
     }
 
