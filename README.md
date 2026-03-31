@@ -112,13 +112,13 @@ https://github.com/SUSE/suse-ai-lifecycle-manager/pkgs/container/suse-ai-lifecyc
 
 **Overview**
 - The extension is built into static assets (`index.yaml`, `.tgz`, etc.)
-- These assets are published to a GitHub branch (example, `gh-pages`)
+- These assets are published to a GitHub branch (example, `gh-extension`)
 - Rancher consumes the extension catalog via the repo url and branch.
 
 ### GitHub Branch Structure
 - Once the artifacts are pushed to the GitHub branch, the repository will expose the extension files like so:
 ```
-https://github.com/<org>/<repo>/tree/gh-pages
+https://github.com/<org>/<repo>/tree/gh-extension
 ├── index.yaml
 ├── assets/
 │   ├── index.yaml
@@ -149,7 +149,7 @@ This structure mirrors the catalog format that Rancher expects.
    1. Navigate to Extensions → Manage Repositories
    2. Click Create New Repository
    3. Add a Name, then select `Git repository containing Helm chart or cluster template definitions`
-   4. Enter the `Git Repo URL` and the `Git Branch` (e.g., `extension-artifacts`)
+   4. Enter the `Git Repo URL` and the `Git Branch` (e.g., `gh-extension`)
    5. Click Create
    6. Wait until the the SUSE AI Lifecycle Manager repository has the `Active` state.
    7. Go back to Extensions and install SUSE AI Lifecycle Manager.
