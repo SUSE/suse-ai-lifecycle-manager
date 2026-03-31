@@ -85,6 +85,16 @@ const APP_RESOURCE_PROFILES: Record<string, AppResourceProfile> = {
     slug: 'vllm',
     name: 'vLLM',
     requirements: { cpu: 4, memory: 16, gpu: 12, storage: 100 }
+  },
+  'qdrant': {
+    slug: 'qdrant',
+    name: 'Qdrant',
+    requirements: { cpu: 2, memory: 4, storage: 10 }
+  },
+  'litellm': {
+    slug: 'litellm',
+    name: 'LiteLLM',
+    requirements: { cpu: 4, memory: 8, storage: 10 }
   }
 };
 
