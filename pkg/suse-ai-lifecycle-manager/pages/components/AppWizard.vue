@@ -971,7 +971,7 @@ async function installToCluster(
     values: v
   });
 
-  await createOrUpgradeApp(
+  const { upgraded } = await createOrUpgradeApp(
     store, clusterId, form.value.namespace, form.value.release,
     { repoName: form.value.chartRepo, chartName: form.value.chartName, version: form.value.chartVersion },
     v,
@@ -981,7 +981,7 @@ async function installToCluster(
   onProgress(75, 'Waiting for app deployment...');
 
   try {
-    await waitForAppInstall(store, clusterId, form.value.namespace, form.value.release, 180_000);
+    await waitForAppInstall(store, clusterId, form.value.namespace, form.value.release, 180_000, upgraded);
   } catch (e: any) {
     console.error('[SUSE-AI] post-install app status (peek): ', { error: e?.message || e });
     throw new Error(`App resource did not appear in namespace ${form.value.namespace}. Check Rancher logs and ClusterRepo permissions.`);

@@ -96,7 +96,7 @@ export class AppLifecycleService {
     chart: ChartRef,
     values: Record<string, unknown>,
     preferredAction: 'install' | 'upgrade' = 'install'
-  ): Promise<void> {
+  ): Promise<{ upgraded: boolean }> {
 
     const errorHandler = createErrorHandler($store, 'AppLifecycleService');
 
@@ -188,34 +188,45 @@ export class AppLifecycleService {
             data: { releaseName }
           });
 
-          return;
+          return { upgraded: true };
         } catch (upgradeError: unknown) {
           const standardError = errorHandler.handleApiError(upgradeError, 'upgrade', { releaseName, namespace });
           throw new Error(`Failed to upgrade app: ${standardError.message}`);
         }
       }
 
-      // For install actions, check if app exists first and use PUT if it does
+      // For install actions, check if app exists first and use upgrade if it does
       try {
         logger.debug('Checking for existing app', {
           component: 'AppLifecycleService',
           data: { namespace, releaseName }
         });
 
-        const existing = await $store.dispatch('rancher/request', { url: appUrl, timeout: 20000 });
-        const resourceVersion = existing?.data?.metadata?.resourceVersion || existing?.metadata?.resourceVersion;
+        await $store.dispatch('rancher/request', { url: appUrl, timeout: 20000 });
 
-        if (resourceVersion) {
-          logger.info('App exists, performing upgrade', {
-            component: 'AppLifecycleService',
-            data: { releaseName, resourceVersion }
-          });
+        // App exists — use clusterRepo upgrade action to re-trigger Helm
+        logger.info('App exists, performing upgrade via clusterRepo action', {
+          component: 'AppLifecycleService',
+          data: { releaseName }
+        });
 
-          appPayload.metadata.resourceVersion = resourceVersion;
+        const upgradeUrl = `/k8s/clusters/${encodeURIComponent(clusterId)}/v1/catalog.cattle.io.clusterrepos/${chart.repoName}?action=upgrade`;
+        const upgradeData = {
+          charts,
+          namespace,
+          clusterId,
+          wait: true,
+          timeout: '600s',
+          noHooks: false,
+          disableOpenAPIValidation: false,
+          skipCRDs: false
+        };
+
+        try {
           await $store.dispatch('rancher/request', {
-            url: appUrl,
-            method: 'PUT',
-            data: appPayload,
+            method: 'post',
+            url: upgradeUrl,
+            data: upgradeData,
             timeout: 20000
           });
 
@@ -223,8 +234,11 @@ export class AppLifecycleService {
             component: 'AppLifecycleService',
             data: { releaseName }
           });
-        } else {
-          throw new Error('App exists but could not retrieve resourceVersion.');
+
+          return { upgraded: true };
+        } catch (upgradeError: unknown) {
+          const upgradeStandardError = errorHandler.handleApiError(upgradeError, 'upgrade', { releaseName, namespace });
+          throw new Error(`Failed to upgrade app: ${upgradeStandardError.message}`);
         }
       } catch (e: unknown) {
         const standardError = errorHandler.normalizeError(e);
@@ -282,6 +296,8 @@ export class AppLifecycleService {
       component: 'AppLifecycleService',
       data: { releaseName }
     });
+
+    return { upgraded: false };
   }
 
   /**
@@ -315,7 +331,8 @@ export class AppLifecycleService {
     clusterId: string,
     namespace: string,
     releaseName: string,
-    timeoutMs = 90_000
+    timeoutMs = 90_000,
+    isRetry = false
   ): Promise<AppCRD> {
     const errorHandler = createErrorHandler($store, 'AppLifecycleService');
     const url = `/k8s/clusters/${encodeURIComponent(clusterId)}/apis/catalog.cattle.io/v1/namespaces/${encodeURIComponent(namespace)}/apps/${encodeURIComponent(releaseName)}`;
@@ -327,27 +344,15 @@ export class AppLifecycleService {
       data: { clusterId, namespace, releaseName, timeoutMs }
     });
 
+    let initialObs = -1;
+    let initialState = '';
+
     for (;;) {
+      let app: any = null;
+
       try {
         const r = await $store.dispatch('rancher/request', { url, timeout: 20000 });
-        const app = (r?.data ?? r) || {};
-        const gen = app?.metadata?.generation ?? 0;
-        const obs = app?.status?.observedGeneration ?? 0;
-        const sum = app?.status?.summary || {};
-        const state = sum?.state || app?.status?.conditions?.find((c: { type: string; status: string }) => c?.type === 'Ready')?.status || 'Unknown';
-
-        logger.debug('App status check', {
-          component: 'AppLifecycleService',
-          data: { releaseName, generation: gen, observedGeneration: obs, state }
-        });
-
-        if (obs >= gen) {
-          logger.info('App install completed successfully', {
-            component: 'AppLifecycleService',
-            data: { releaseName }
-          });
-          return app;
-        }
+        app = (r?.data ?? r) || {};
       } catch (e: unknown) {
         lastErr = e;
         const standardError = errorHandler.normalizeError(e);
@@ -357,6 +362,53 @@ export class AppLifecycleService {
             component: 'AppLifecycleService',
             data: { releaseName, statusCode: standardError.status }
           });
+        }
+      }
+
+      if (app) {
+        const gen = app?.metadata?.generation ?? 0;
+        const obs = app?.status?.observedGeneration ?? 0;
+        const sum = app?.status?.summary || {};
+        const state = sum?.state || app?.status?.conditions?.find((c: { type: string; status: string }) => c?.type === 'Ready')?.status || 'Unknown';
+
+        if (initialObs < 0) {
+          initialObs = obs;
+          initialState = (state || '').toLowerCase();
+        }
+
+        logger.debug('App status check', {
+          component: 'AppLifecycleService',
+          data: {
+            releaseName, generation: gen, observedGeneration: obs, initialObs, state,
+            'metadata.state': app?.metadata?.state,
+            'status.summary': sum,
+            'status.conditions': app?.status?.conditions
+          }
+        });
+
+        if (obs >= gen) {
+          // If the initial state was already failed, wait for a new reconciliation
+          // to avoid reading stale status from a previous operation
+          const isStale = isRetry && (initialState === 'failed' || initialState === 'error') && obs <= initialObs;
+          if (!isStale) {
+            const lowerState = (state || '').toLowerCase();
+            if (lowerState === 'failed' || lowerState === 'error') {
+              const errMsg = app?.metadata?.state?.message
+                || (typeof sum?.error === 'string' ? sum.error : null)
+                || `Helm install failed (state: ${state})`;
+              logger.error('App install failed', {
+                component: 'AppLifecycleService',
+                data: { releaseName, state, errMsg }
+              });
+              throw new Error(errMsg);
+            }
+
+            logger.info('App install completed successfully', {
+              component: 'AppLifecycleService',
+              data: { releaseName }
+            });
+            return app;
+          }
         }
       }
 
