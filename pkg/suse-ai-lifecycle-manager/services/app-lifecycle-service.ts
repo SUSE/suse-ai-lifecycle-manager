@@ -403,11 +403,15 @@ export class AppLifecycleService {
               throw new Error(errMsg);
             }
 
-            logger.info('App install completed successfully', {
-              component: 'AppLifecycleService',
-              data: { releaseName }
-            });
-            return app;
+            // Only return for terminal success states; keep polling for transitional states
+            const transitional = ['installing', 'pending', 'pending-install', 'pending-upgrade', 'pending-rollback'];
+            if (!transitional.includes(lowerState)) {
+              logger.info('App install completed successfully', {
+                component: 'AppLifecycleService',
+                data: { releaseName }
+              });
+              return app;
+            }
           }
         }
       }
