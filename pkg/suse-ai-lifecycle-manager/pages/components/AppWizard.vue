@@ -664,8 +664,6 @@ async function submit() {
       await performMultiClusterInstall();
     } else {
       await performUpgrade();
-      // For upgrade, redirect immediately
-      navigateToAppInstances();
     }
   } catch (e: any) {
     error.value = e?.message || 'Operation failed';
@@ -816,9 +814,14 @@ async function onProgressModalRetryAll() {
 
   submitting.value = true;
 
-  // Re-run installation with parallelization
   const clusterIds = installProgress.value.map(p => p.clusterId);
-  await installWithConcurrencyLimit(clusterIds, INSTALL_CONCURRENCY);
+
+  if (isManageMode.value) {
+    await upgradeSingleCluster(clusterIds[0]);
+  } else {
+    // Re-run installation with parallelization
+    await installWithConcurrencyLimit(clusterIds, INSTALL_CONCURRENCY);
+  }
 
   submitting.value = false;
 }
@@ -838,9 +841,14 @@ async function onProgressModalRetryFailed() {
 
   submitting.value = true;
 
-  // Retry failed clusters with parallelization
   const failedIds = failedClusters.map(p => p.clusterId);
-  await installWithConcurrencyLimit(failedIds, INSTALL_CONCURRENCY);
+
+  if (isManageMode.value) {
+    await upgradeSingleCluster(failedIds[0]);
+  } else {
+    // Re-run installation with parallelization
+    await installWithConcurrencyLimit(failedIds, INSTALL_CONCURRENCY);
+  }
 
   submitting.value = false;
 }
@@ -1007,15 +1015,91 @@ async function installToCluster(
 }
 
 async function performUpgrade() {
-  for (const cid of form.value.clusters) {
-    await ensureNamespace(store, cid, form.value.namespace);
-    await createOrUpgradeApp(
-      store, cid, form.value.namespace, form.value.release,
-      { repoName: form.value.chartRepo, chartName: form.value.chartName, version: form.value.chartVersion },
-      form.value.values,
-      'upgrade'
-    );
+  const clusterId = form.value.clusters[0];
+
+  // Initialize progress for the single cluster
+  installProgress.value = [{
+    clusterId,
+    clusterName: await getClusterDisplayName(clusterId),
+    status: 'pending' as const,
+    progress: 0,
+    message: 'Waiting to start...'
+  }];
+
+  showProgressModal.value = true;
+
+  await upgradeSingleCluster(clusterId);
+
+  submitting.value = false;
+}
+
+// Upgrade a single cluster and update progress
+async function upgradeSingleCluster(clusterId: string): Promise<void> {
+  updateClusterProgress(clusterId, {
+    status: 'installing',
+    progress: 10,
+    message: 'Starting upgrade...'
+  });
+
+  try {
+    await upgradeToCluster(clusterId, (progress, message) => {
+      updateClusterProgress(clusterId, { progress, message });
+    });
+
+    updateClusterProgress(clusterId, {
+      status: 'success',
+      progress: 100,
+      message: 'Upgrade completed successfully'
+    });
+  } catch (e: any) {
+    updateClusterProgress(clusterId, {
+      status: 'failed',
+      progress: 0,
+      message: 'Upgrade failed',
+      error: e?.message || 'Unknown error'
+    });
   }
+}
+
+// Upgrade a single cluster with progress callback
+async function upgradeToCluster(
+  clusterId: string,
+  onProgress: (progress: number, message: string) => void
+) {
+  onProgress(15, 'Preparing namespace...');
+  await ensureNamespace(store, clusterId, form.value.namespace);
+
+  onProgress(40, 'Upgrading Helm chart...');
+
+  const v = JSON.parse(JSON.stringify(form.value.values || {}));
+
+  console.log('[SUSE-AI] calling upgrade ', {
+    cluster: clusterId,
+    repo: form.value.chartRepo,
+    chart: form.value.chartName,
+    version: form.value.chartVersion,
+    ns: form.value.namespace,
+    release: form.value.release,
+    values: v
+  });
+
+  await createOrUpgradeApp(
+    store, clusterId, form.value.namespace, form.value.release,
+    { repoName: form.value.chartRepo, chartName: form.value.chartName, version: form.value.chartVersion },
+    v,
+    'upgrade'
+  );
+
+  onProgress(70, 'Waiting for app deployment...');
+
+  try {
+    await waitForAppInstall(store, clusterId, form.value.namespace, form.value.release, 180_000, true);
+  } catch (e: any) {
+    console.error('[SUSE-AI] post-upgrade app status (peek): ', { error: e?.message || e });
+    throw new Error(e?.message || `App upgrade failed in namespace ${form.value.namespace}`);
+  }
+
+  onProgress(100, 'Upgrade complete');
 }
 
 // Custom wizard navigation methods
@@ -1185,7 +1269,7 @@ function previousStep() {
     <InstallProgressModal
       :show="showProgressModal"
       :progress="installProgress"
-      :title="`Installing ${(route.query.n as string) || props.slug}`"
+      :title="`${isInstallMode ? 'Installing' : 'Upgrading'} ${(route.query.n as string) || props.slug}`"
       @done="onProgressModalDone"
       @cancel="onProgressModalCancel"
       @retry-all="onProgressModalRetryAll"

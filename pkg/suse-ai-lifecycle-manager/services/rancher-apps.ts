@@ -352,9 +352,9 @@ export async function waitForAppInstall(
       });
 
       if (obs >= gen) {
-        // If the initial state was already failed, wait for a new reconciliation
-        // to avoid reading stale status from a previous operation
-        const isStale = isRetry && (initialState === 'failed' || initialState === 'error') && obs <= initialObs;
+        // On retry/upgrade, wait for observedGeneration to increment
+        // to avoid reading stale status from the previous operation
+        const isStale = isRetry && obs <= initialObs;
         if (isStale) {
           // Keep polling — controller hasn't processed the new operation yet
         } else {
