@@ -366,7 +366,11 @@ export async function waitForAppInstall(
             console.error('[SUSE-AI] post-install: app failed', { state, errMsg });
             throw new Error(errMsg);
           }
-          return app;
+          // Only return for terminal success states; keep polling for transitional states
+          const transitional = ['installing', 'pending', 'pending-install', 'pending-upgrade', 'pending-rollback'];
+          if (!transitional.includes(lowerState)) {
+            return app;
+          }
         }
       }
     }
