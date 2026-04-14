@@ -1,0 +1,29 @@
+{
+  "name": "suse-ai-lifecycle-manager",
+  "description": "SUSE AI Lifecycle Manager",
+  "version": "1.1.0",
+  "private": false,
+  "rancher": true,
+  "icon": "https://raw.githubusercontent.com/SUSE/suse-ai-lifecycle-manager/refs/heads/main/pkg/suse-ai-lifecycle-manager/assets/logo.svg",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
+    "@vue/cli-plugin-babel": "~5.0.0",
+    "@vue/cli-service": "~5.0.0",
+    "@vue/cli-plugin-typescript": "~5.0.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-promise": "^7.1.0",
+    "husky": "^9.1.7",
+    "vue-tsc": "^2.0.29"
+  },
+  "files": [
+    "**/*"
+  ],
+  "main": "suse-ai-lifecycle-manager-1.1.0.umd.min.js"
+}
