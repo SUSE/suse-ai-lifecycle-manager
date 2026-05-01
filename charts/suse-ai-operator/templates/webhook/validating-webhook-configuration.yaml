@@ -1,0 +1,34 @@
+{{- if .Values.webhook.enable }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "suse-ai-operator.fullname" . }}-validating
+  {{- if .Values.webhook.certManager.enable }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ include "suse-ai-operator.namespaceName" . }}/{{ include "suse-ai-operator.fullname" . }}-serving-cert
+  {{- end }}
+  labels:
+    {{- include "suse-ai-operator.labels" . | nindent 4 }}
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: {{ include "suse-ai-operator.serviceName" (dict "context" . "suffix" "webhook-service") }}
+        namespace: {{ include "suse-ai-operator.namespaceName" . }}
+        path: /validate-ai-platform-suse-com-v1beta1-installaiextension
+    failurePolicy: Fail
+    matchPolicy: Equivalent
+    name: vinstallaiextension.ai-platform.suse.com
+    rules:
+      - apiGroups:
+          - ai-platform.suse.com
+        apiVersions:
+          - v1beta1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - installaiextensions
+    sideEffects: None
+{{- end }}

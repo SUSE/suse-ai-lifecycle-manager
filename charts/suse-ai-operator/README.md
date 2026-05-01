@@ -184,8 +184,8 @@ This removes all Kubernetes resources created by the chart **except CRDs**, whic
 |--------------------------|----------------------------------------------|----------|
 | `extension.enable`       | Create an InstallAIExtension CR with the chart | `true` |
 | `extension.crName`       | Name of the InstallAIExtension               | `suseai` |
-| `extension.chartVersion` | Helm chart version for the extension         | `1.0.0`  |
-| `extension.version`      | Extension version (`spec.extension.version`) | `1.0.0`  |
+| `extension.chartVersion` | Helm chart version for the extension         | `1.1.0`  |
+| `extension.version`      | Extension version (`spec.extension.version`) | `1.1.0`  |
 
 > When enabled, the CR is created as a `post-install`/`post-upgrade` hook to ensure the operator is ready. On `helm uninstall`, a `pre-delete` cleanup Job deletes the CR first so the operator can run its finalizer before being removed.
 

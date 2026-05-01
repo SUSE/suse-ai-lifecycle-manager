@@ -33,14 +33,27 @@ spec:
             - {{ . }}
           {{- end }}
           {{- if .Values.webhook.enable }}
+            - --enable-webhooks
             - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
           {{- end }}
 
+          {{- with .Values.manager.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+          {{- if or .Values.webhook.enable .Values.metrics.enable }}
           ports:
           {{- if .Values.webhook.enable }}
             - containerPort: {{ .Values.webhook.port }}
               name: webhook-server
               protocol: TCP
+          {{- end }}
+          {{- if .Values.metrics.enable }}
+            - containerPort: {{ .Values.metrics.port }}
+              name: metrics
+              protocol: TCP
+          {{- end }}
           {{- end }}
           
           {{- if .Values.manager.probes.liveness.enabled }}
@@ -53,13 +66,13 @@ spec:
           {{- end }}
           resources:
             {{- if .Values.manager.resources }}
-            {{- toYaml .Values.manager.resources | nindent 20 }}
+            {{- toYaml .Values.manager.resources | nindent 12 }}
             {{- else }}
             {}
             {{- end }}
           securityContext:
             {{- if .Values.manager.securityContext }}
-            {{- toYaml .Values.manager.securityContext | nindent 20 }}
+            {{- toYaml .Values.manager.securityContext | nindent 12 }}
             {{- else }}
             {}
             {{- end }}
@@ -84,14 +97,19 @@ spec:
         {{- end }}
       securityContext:
         {{- if .Values.manager.podSecurityContext }}
-        {{- toYaml .Values.manager.podSecurityContext | nindent 14 }}
+        {{- toYaml .Values.manager.podSecurityContext | nindent 8 }}
         {{- else }}
         {}
         {{- end }}
+      {{- with .Values.manager.nodeSelector }}
       nodeSelector:
-        {{- toYaml .Values.manager.nodeSelector | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.manager.tolerations }}
       tolerations:
-        {{- toYaml .Values.manager.tolerations | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.manager.affinity }}
       affinity:
-        {{- toYaml .Values.manager.affinity | nindent 8 }}
-      
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

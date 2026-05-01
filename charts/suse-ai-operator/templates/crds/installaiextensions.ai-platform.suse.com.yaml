@@ -145,6 +145,9 @@ spec:
                     - version
                     type: object
                 type: object
+                x-kubernetes-validations:
+                - message: source must specify either helm or git, not both
+                  rule: '!(has(self.helm) && has(self.git))'
             required:
             - extension
             type: object
@@ -256,10 +259,22 @@ spec:
                     - version
                     type: object
                 type: object
+                x-kubernetes-validations:
+                - message: source must specify either helm or git
+                  rule: 'has(self.helm) || has(self.git)'
+                - message: source must specify either helm or git, not both
+                  rule: '!(has(self.helm) && has(self.git))'
             required:
             - extension
             - source
             type: object
+            x-kubernetes-validations:
+            - message: versionPolicy "unmanaged" is only supported with git sources
+              rule: '!has(self.source.helm) || self.extension.versionPolicy != ''unmanaged'''
+            - message: spec.extension.version is required for helm sources
+              rule: '!has(self.source.helm) || self.extension.version != '''''
+            - message: spec.source.helm.version is required
+              rule: '!has(self.source.helm) || self.source.helm.version != '''''
           status:
             description: status defines the observed state of InstallAIExtension
             properties:

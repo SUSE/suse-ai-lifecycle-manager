@@ -10,7 +10,7 @@ manager:
   
   image:
     registry: ghcr.io
-    repository: suse/suse-ai-operator
+    repository: leooamaral/suse-ai-operator
     tag: ""
     pullPolicy: IfNotPresent
 
@@ -75,6 +75,30 @@ extension:
   crName: suseai
   chartVersion: 1.1.0
   version: 1.1.0
+  cleanup:
+    image:
+      registry: registry.suse.com
+      repository: suse/kubectl
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 100m
+        memory: 64Mi
+      requests:
+        cpu: 10m
+        memory: 32Mi
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
 
 webhook:
   enable: true
