@@ -11,4 +11,4 @@ spec:
   extension:
     name: suse-ai-lifecycle-manager
     version: "1.1.0"
-    policyVersion: "unmanaged"
+    versionPolicy: "unmanaged"
