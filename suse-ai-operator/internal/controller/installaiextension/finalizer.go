@@ -26,9 +26,10 @@ func (r *InstallAIExtensionReconciler) ensureFinalizer(
 	}
 
 	log.Info("Adding finalizer")
+	patch := client.MergeFrom(ext.DeepCopy())
 	ext.Finalizers = append(ext.Finalizers, finalizerName)
 
-	if err := r.Update(ctx, ext); err != nil {
+	if err := r.Patch(ctx, ext, patch); err != nil {
 		return false, err
 	}
 
@@ -63,7 +64,7 @@ func (r *InstallAIExtensionReconciler) handleDeletion(
 	deployRelease := ""
 	if ext.Spec.Source.Helm != nil {
 		deployRelease = deploymentReleaseName(ext)
-	} else if ext.Annotations != nil && ext.Annotations[annotationLastSourceType] == "helm" {
+	} else if ext.Annotations != nil && ext.Annotations[annotationLastSourceType] == aiplatformv1beta1.SourceTypeHelm {
 		deployRelease = ext.Annotations[annotationLastHelmRelease]
 	}
 	if deployRelease != "" {
@@ -77,7 +78,7 @@ func (r *InstallAIExtensionReconciler) handleDeletion(
 	if ext.Annotations != nil {
 		lastPolicy = ext.Annotations[annotationLastVersionPolicy]
 	}
-	if lastPolicy == "unmanaged" {
+	if lastPolicy == aiplatformv1beta1.VersionPolicyUnmanaged {
 		uiRelease := ext.Spec.Extension.Name
 		if ext.Annotations != nil && ext.Annotations[annotationLastUIPluginRelease] != "" {
 			uiRelease = ext.Annotations[annotationLastUIPluginRelease]
@@ -105,9 +106,10 @@ func (r *InstallAIExtensionReconciler) removeFinalizer(
 	log := logging.FromContext(ctx, "finalizer")
 
 	log.Info("Removing finalizer")
+	patch := client.MergeFrom(ext.DeepCopy())
 	ext.Finalizers = RemoveString(ext.Finalizers, finalizerName)
 
-	if err := r.Update(ctx, ext); err != nil {
+	if err := r.Patch(ctx, ext, patch); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			return nil
 		}

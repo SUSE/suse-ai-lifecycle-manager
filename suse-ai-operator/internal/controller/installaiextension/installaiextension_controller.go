@@ -46,6 +46,7 @@ const (
 	annotationLastClusterRepo     = "ai-platform.suse.com/last-cluster-repo-name"
 	annotationLastUIPluginRelease = "ai-platform.suse.com/last-uiplugin-release-name"
 	annotationLastVersionPolicy   = "ai-platform.suse.com/last-version-policy"
+	annotationWaitingSince        = "ai-platform.suse.com/waiting-since"
 )
 
 // InstallAIExtensionReconciler reconciles a InstallAIExtension object
@@ -96,48 +97,12 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	// Check extension name uniqueness
-	if err := r.checkExtensionNameUniqueness(ctx, &installExt); err != nil {
-		if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error()); setErr != nil {
-			log.Error(setErr, "failed to update status")
-		}
-		return ctrl.Result{}, nil // user error, don't requeue
-	}
-
 	// Detect source type change and clean up old resources
 	if err := r.detectAndCleanupSourceChange(ctx, log, &installExt, rancherMgr, namespace); err != nil {
-		if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error()); setErr != nil {
+		if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error(), ""); setErr != nil {
 			log.Error(setErr, "failed to update status")
 		}
 		return ctrl.Result{}, err
-	}
-
-	// Validate mutual exclusivity of source types
-	if installExt.Spec.Source.Helm != nil && installExt.Spec.Source.Git != nil {
-		lastSource := ""
-		if installExt.Annotations != nil {
-			lastSource = installExt.Annotations[annotationLastSourceType]
-		}
-		// Strip the old source, keep the new one
-		if lastSource == "helm" {
-			installExt.Spec.Source.Helm = nil
-		} else {
-			installExt.Spec.Source.Git = nil
-		}
-		if err := r.Update(ctx, &installExt); err != nil {
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	// Validate versionPolicy is compatible with source type
-	policy := installExt.Spec.Extension.VersionPolicy
-	if installExt.Spec.Source.Helm != nil && policy == "unmanaged" {
-		msg := "versionPolicy \"unmanaged\" is only supported with git sources"
-		if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, msg); setErr != nil {
-			log.Error(setErr, "failed to update status")
-		}
-		return ctrl.Result{}, nil // user error, don't requeue
 	}
 
 	var svcURL string
@@ -146,7 +111,7 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 	case installExt.Spec.Source.Helm != nil:
 		svcURL, err = r.reconcileHelmSource(ctx, log, &installExt, namespace)
 		if err != nil {
-			if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error()); setErr != nil {
+			if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error(), ""); setErr != nil {
 				log.Error(setErr, "failed to update status")
 			}
 			return ctrl.Result{}, err
@@ -164,6 +129,14 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 			return r.handleNotReady(ctx, &installExt, log)
 		}
 
+		if installExt.Annotations != nil && installExt.Annotations[annotationWaitingSince] != "" {
+			patch := client.MergeFrom(installExt.DeepCopy())
+			delete(installExt.Annotations, annotationWaitingSince)
+			if err := r.Patch(ctx, &installExt, patch); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
 	case installExt.Spec.Source.Git != nil:
 		// Git: no deployment to check
 
@@ -176,22 +149,15 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 	requeueAfter := time.Duration(0)
 
 	switch installExt.Spec.Extension.VersionPolicy {
-	case "unmanaged":
+	case aiplatformv1beta1.VersionPolicyUnmanaged:
 		// No version resolution; ensureUIPluginRelease handles install-once
 
-	default: // "managed" or empty
+	default: // managed or empty
 		if installExt.Spec.Extension.Version == "" {
-			if installExt.Spec.Source.Helm != nil {
-				msg := "spec.extension.version is required for helm sources"
-				if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, msg); setErr != nil {
-					log.Error(setErr, "failed to update status")
-				}
-				return ctrl.Result{}, nil
-			}
 			// Git source with no version: resolve latest
 			ver, err := rancherMgr.ResolveLatestVersion(ctx, &installExt, svcURL)
 			if err != nil {
-				if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error()); setErr != nil {
+				if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error(), ""); setErr != nil {
 					log.Error(setErr, "failed to update status")
 				}
 				return ctrl.Result{}, err
@@ -206,22 +172,22 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// Ensure ClusterRepo
 	if err := rancherMgr.Ensure(ctx, resolvedExt, svcURL, namespace); err != nil {
-		if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error()); setErr != nil {
+		if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error(), ""); setErr != nil {
 			log.Error(setErr, "failed to update status")
 		}
 		return ctrl.Result{}, err
 	}
 
-	if resolvedExt.Spec.Extension.VersionPolicy == "unmanaged" {
+	if resolvedExt.Spec.Extension.VersionPolicy == aiplatformv1beta1.VersionPolicyUnmanaged {
 		if err := r.ensureUIPluginRelease(ctx, log, resolvedExt, svcURL, namespace); err != nil {
-			if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error()); setErr != nil {
+			if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error(), ""); setErr != nil {
 				log.Error(setErr, "failed to update status")
 			}
 			return ctrl.Result{}, err
 		}
 	} else {
 		if err := rancherMgr.EnsureUIPlugin(ctx, resolvedExt, svcURL, namespace); err != nil {
-			if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error()); setErr != nil {
+			if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error(), ""); setErr != nil {
 				log.Error(setErr, "failed to update status")
 			}
 			return ctrl.Result{}, err
@@ -236,8 +202,7 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Everything succeeded — only update status if not already installed
 	if installExt.Status.Phase != aiplatformv1beta1.PhaseInstalled || installExt.Status.ResolvedVersion != resolvedVersion {
 		msg := fmt.Sprintf("Extension %s installed", installExt.Spec.Extension.Name)
-		installExt.Status.ResolvedVersion = resolvedVersion
-		if err := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseInstalled, msg); err != nil {
+		if err := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseInstalled, msg, resolvedVersion); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -255,11 +220,15 @@ func deploymentReleaseName(ext *aiplatformv1beta1.InstallAIExtension) string {
 func (r *InstallAIExtensionReconciler) setStatus(
 	ctx context.Context,
 	ext *aiplatformv1beta1.InstallAIExtension,
-	phase, message string,
+	phase, message, resolvedVersion string,
 ) error {
+	patch := client.MergeFrom(ext.DeepCopy())
 	ext.Status.Phase = phase
 	ext.Status.Message = message
-	return r.Status().Update(ctx, ext)
+	if resolvedVersion != "" {
+		ext.Status.ResolvedVersion = resolvedVersion
+	}
+	return r.Status().Patch(ctx, ext, patch)
 }
 
 func (r *InstallAIExtensionReconciler) handleNotReady(
@@ -270,17 +239,16 @@ func (r *InstallAIExtensionReconciler) handleNotReady(
 
 	// Only set installing if not already in that state
 	if ext.Status.Phase != aiplatformv1beta1.PhaseInstalling {
-		if err := r.setStatus(ctx, ext, aiplatformv1beta1.PhaseInstalling, "Waiting for deployment to be ready"); err != nil {
+		if err := r.setStatus(ctx, ext, aiplatformv1beta1.PhaseInstalling, "Waiting for deployment to be ready", ""); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 
 	// Use annotation to track when we started waiting, since we no longer have conditions
-	const waitingSinceAnnotation = "ai-platform.suse.com/waiting-since"
 	var waitingSince time.Time
 
 	if ext.Annotations != nil {
-		if ts, ok := ext.Annotations[waitingSinceAnnotation]; ok {
+		if ts, ok := ext.Annotations[annotationWaitingSince]; ok {
 			if t, err := time.Parse(time.RFC3339, ts); err == nil {
 				waitingSince = t
 			}
@@ -289,26 +257,28 @@ func (r *InstallAIExtensionReconciler) handleNotReady(
 
 	if waitingSince.IsZero() {
 		waitingSince = time.Now()
+		patch := client.MergeFrom(ext.DeepCopy())
 		if ext.Annotations == nil {
 			ext.Annotations = make(map[string]string)
 		}
-		ext.Annotations[waitingSinceAnnotation] = waitingSince.Format(time.RFC3339)
-		if err := r.Update(ctx, ext); err != nil {
+		ext.Annotations[annotationWaitingSince] = waitingSince.Format(time.RFC3339)
+		if err := r.Patch(ctx, ext, patch); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 
 	if time.Since(waitingSince) > readinessTimeout {
 		msg := fmt.Sprintf("Deployment not ready after %s", readinessTimeout)
-		if err := r.setStatus(ctx, ext, aiplatformv1beta1.PhaseFailed, msg); err != nil {
+		if err := r.setStatus(ctx, ext, aiplatformv1beta1.PhaseFailed, msg, ""); err != nil {
 			return ctrl.Result{}, err
 		}
 		// Clean up annotation
-		delete(ext.Annotations, waitingSinceAnnotation)
+		patch := client.MergeFrom(ext.DeepCopy())
+		delete(ext.Annotations, annotationWaitingSince)
 		if len(ext.Annotations) == 0 {
 			ext.Annotations = nil
 		}
-		if err := r.Update(ctx, ext); err != nil {
+		if err := r.Patch(ctx, ext, patch); err != nil {
 			return ctrl.Result{}, err
 		}
 		// Still requeue — deployment might recover
@@ -320,40 +290,14 @@ func (r *InstallAIExtensionReconciler) handleNotReady(
 	return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 }
 
-// --- Extension name uniqueness ---
-
-func (r *InstallAIExtensionReconciler) checkExtensionNameUniqueness(
-	ctx context.Context,
-	ext *aiplatformv1beta1.InstallAIExtension,
-) error {
-	var list aiplatformv1beta1.InstallAIExtensionList
-	if err := r.List(ctx, &list); err != nil {
-		return fmt.Errorf("failed to list InstallAIExtension resources: %w", err)
-	}
-
-	for _, other := range list.Items {
-		if other.Name == ext.Name {
-			continue
-		}
-		if other.Spec.Extension.Name == ext.Spec.Extension.Name {
-			return fmt.Errorf(
-				"extension name %q is already used by InstallAIExtension %q",
-				ext.Spec.Extension.Name,
-				other.Name,
-			)
-		}
-	}
-	return nil
-}
-
 // --- Source change detection and cleanup ---
 
 func currentSourceType(ext *aiplatformv1beta1.InstallAIExtension) string {
 	if ext.Spec.Source.Helm != nil {
-		return "helm"
+		return aiplatformv1beta1.SourceTypeHelm
 	}
 	if ext.Spec.Source.Git != nil {
-		return "git"
+		return aiplatformv1beta1.SourceTypeGit
 	}
 	return ""
 }
@@ -380,7 +324,7 @@ func (r *InstallAIExtensionReconciler) detectAndCleanupSourceChange(
 		log.Info("Source type changed, cleaning up old resources")
 
 		// Clean up old helm release if switching away from helm
-		if lastSource == "helm" {
+		if lastSource == aiplatformv1beta1.SourceTypeHelm {
 			oldRelease := ext.Annotations[annotationLastHelmRelease]
 			if oldRelease != "" {
 				log.Info("Deleting old helm release", "release", oldRelease)
@@ -397,7 +341,7 @@ func (r *InstallAIExtensionReconciler) detectAndCleanupSourceChange(
 		}
 	}
 
-	if current == "helm" {
+	if current == aiplatformv1beta1.SourceTypeHelm {
 		oldRelease := ext.Annotations[annotationLastHelmRelease]
 		newRelease := deploymentReleaseName(ext)
 		if oldRelease != "" && oldRelease != newRelease {
@@ -434,18 +378,18 @@ func (r *InstallAIExtensionReconciler) detectAndCleanupSourceChange(
 	// Clean up UIPlugin on version policy change
 	lastPolicy := ext.Annotations[annotationLastVersionPolicy]
 	if lastPolicy == "" {
-		lastPolicy = "managed"
+		lastPolicy = aiplatformv1beta1.VersionPolicyManaged
 	}
 	currentPolicy := ext.Spec.Extension.VersionPolicy
 	if currentPolicy == "" {
-		currentPolicy = "managed"
+		currentPolicy = aiplatformv1beta1.VersionPolicyManaged
 	}
 
 	if lastPolicy != currentPolicy {
 		log.Info("Version policy changed, cleaning up UIPlugin",
 			"previousPolicy", lastPolicy, "currentPolicy", currentPolicy)
 
-		if lastPolicy == "unmanaged" {
+		if lastPolicy == aiplatformv1beta1.VersionPolicyUnmanaged {
 			// unmanaged → managed: delete UIPlugin helm release so ctrl.CreateOrUpdate can take over
 			oldUIRelease := ext.Annotations[annotationLastUIPluginRelease]
 			if oldUIRelease != "" {
@@ -514,7 +458,7 @@ func (r *InstallAIExtensionReconciler) updateSourceAnnotations(
 		return nil
 	}
 
-	// Apply changes
+	patch := client.MergeFrom(ext.DeepCopy())
 	for k, v := range expected {
 		ext.Annotations[k] = v
 	}
@@ -522,7 +466,7 @@ func (r *InstallAIExtensionReconciler) updateSourceAnnotations(
 		delete(ext.Annotations, annotationLastHelmRelease)
 	}
 
-	return r.Update(ctx, ext)
+	return r.Patch(ctx, ext, patch)
 }
 
 // --- Helm source reconciliation ---

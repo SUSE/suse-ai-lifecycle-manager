@@ -65,10 +65,10 @@ spec:
     helm:
       name: suse-ai-lifecycle-manager
       url: "oci://ghcr.io/suse/chart/suse-ai-lifecycle-manager"
-      version: "1.0.0"
+      version: "1.1.0"
   extension:
     name: suse-ai-lifecycle-manager
-    version: "1.0.0"
+    version: "1.1.0"
 ```
 
 **Or Using a Git source (managed, pinned version):**
@@ -84,7 +84,7 @@ spec:
       branch: gh-pages
   extension:
     name: suse-ai-lifecycle-manager
-    version: "1.0.0"
+    version: "1.1.0"
 ```
 
 **Or Using a Git source (managed, latest version):**
@@ -115,7 +115,7 @@ spec:
       branch: gh-pages
   extension:
     name: suse-ai-lifecycle-manager
-    version: "1.0.0"
+    version: "1.1.0"
     versionPolicy: unmanaged
 ```
 

@@ -43,6 +43,7 @@ type InstallAIExtensionSpec struct {
 	Extension ExtensionSpec `json:"extension"`
 }
 
+// +kubebuilder:validation:XValidation:rule="!(has(self.helm) && has(self.git))",message="source must specify either helm or git, not both"
 type SourceSpec struct {
 	// Helm chart source
 	// +optional

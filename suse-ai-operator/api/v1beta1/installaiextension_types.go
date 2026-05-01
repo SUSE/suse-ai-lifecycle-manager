@@ -21,10 +21,20 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	VersionPolicyManaged   = "managed"
+	VersionPolicyUnmanaged = "unmanaged"
+	SourceTypeHelm         = "helm"
+	SourceTypeGit          = "git"
+)
+
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // InstallAIExtensionSpec defines the desired state of InstallAIExtension
+// +kubebuilder:validation:XValidation:rule="!has(self.source.helm) || self.extension.versionPolicy != 'unmanaged'",message="versionPolicy \"unmanaged\" is only supported with git sources"
+// +kubebuilder:validation:XValidation:rule=”!has(self.source.helm) || self.extension.version != ''”,message=”spec.extension.version is required for helm sources”
+// +kubebuilder:validation:XValidation:rule=”!has(self.source.helm) || self.source.helm.version != ''”,message=”spec.source.helm.version is required”
 type InstallAIExtensionSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
@@ -38,6 +48,8 @@ type InstallAIExtensionSpec struct {
 	Extension ExtensionSpec `json:"extension"`
 }
 
+// +kubebuilder:validation:XValidation:rule="has(self.helm) || has(self.git)",message="source must specify either helm or git"
+// +kubebuilder:validation:XValidation:rule="!(has(self.helm) && has(self.git))",message="source must specify either helm or git, not both"
 type SourceSpec struct {
 	// Helm chart source
 	// +optional

@@ -15,30 +15,27 @@ func (src *InstallAIExtension) ConvertTo(dstRaw conversion.Hub) error {
 		return fmt.Errorf("expected *v1beta1.InstallAIExtension, got %T", dstRaw)
 	}
 
-	// ObjectMeta
 	dst.ObjectMeta = src.ObjectMeta
 
-	// Spec.Extension
 	dst.Spec.Extension = v1beta1.ExtensionSpec{
 		Name:     src.Spec.Extension.Name,
 		Version:  src.Spec.Extension.Version,
 		Metadata: src.Spec.Extension.Metadata,
 	}
 
-	// Spec.Source — prefer source over deprecated helm
 	if src.Spec.Source != nil {
-		if src.Spec.Source.Helm != nil {
+		switch {
+		case src.Spec.Source.Git != nil:
+			dst.Spec.Source.Git = &v1beta1.GitSpec{
+				Repo:   src.Spec.Source.Git.Repo,
+				Branch: src.Spec.Source.Git.Branch,
+			}
+		case src.Spec.Source.Helm != nil:
 			dst.Spec.Source.Helm = &v1beta1.HelmSpec{
 				Name:    src.Spec.Source.Helm.Name,
 				URL:     src.Spec.Source.Helm.URL,
 				Version: src.Spec.Source.Helm.Version,
 				Values:  src.Spec.Source.Helm.Values,
-			}
-		}
-		if src.Spec.Source.Git != nil {
-			dst.Spec.Source.Git = &v1beta1.GitSpec{
-				Repo:   src.Spec.Source.Git.Repo,
-				Branch: src.Spec.Source.Git.Branch,
 			}
 		}
 	} else if src.Spec.Helm != nil {

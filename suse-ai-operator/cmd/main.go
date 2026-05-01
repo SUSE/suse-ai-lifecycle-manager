@@ -42,7 +42,6 @@ import (
 
 	aiplatformv1beta1 "github.com/SUSE/suse-ai-operator/api/v1beta1"
 
-	conversionwebhook "sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -68,6 +67,7 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var enableWebhooks bool
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -86,6 +86,8 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.BoolVar(&enableWebhooks, "enable-webhooks", false,
+		"Enable webhook server for conversion and validation webhooks.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -110,21 +112,24 @@ func main() {
 	}
 
 	// Initial webhook TLS options
-	webhookTLSOpts := tlsOpts
-	webhookServerOptions := webhook.Options{
-		TLSOpts: webhookTLSOpts,
+	var webhookServer webhook.Server
+	if enableWebhooks {
+		webhookTLSOpts := tlsOpts
+		webhookServerOptions := webhook.Options{
+			TLSOpts: webhookTLSOpts,
+		}
+
+		if len(webhookCertPath) > 0 {
+			setupLog.Info("Initializing webhook certificate watcher using provided certificates",
+				"webhook-cert-path", webhookCertPath, "webhook-cert-name", webhookCertName, "webhook-cert-key", webhookCertKey)
+
+			webhookServerOptions.CertDir = webhookCertPath
+			webhookServerOptions.CertName = webhookCertName
+			webhookServerOptions.KeyName = webhookCertKey
+		}
+
+		webhookServer = webhook.NewServer(webhookServerOptions)
 	}
-
-	if len(webhookCertPath) > 0 {
-		setupLog.Info("Initializing webhook certificate watcher using provided certificates",
-			"webhook-cert-path", webhookCertPath, "webhook-cert-name", webhookCertName, "webhook-cert-key", webhookCertKey)
-
-		webhookServerOptions.CertDir = webhookCertPath
-		webhookServerOptions.CertName = webhookCertName
-		webhookServerOptions.KeyName = webhookCertKey
-	}
-
-	webhookServer := webhook.NewServer(webhookServerOptions)
 
 	// Metrics endpoint is enabled in 'config/default/kustomization.yaml'. The Metrics options configure the server.
 	// More info:
@@ -196,7 +201,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	mgr.GetWebhookServer().Register("/convert", conversionwebhook.NewWebhookHandler(mgr.GetScheme()))
+	if enableWebhooks {
+		if err := ctrl.NewWebhookManagedBy(mgr).
+			For(&aiplatformv1beta1.InstallAIExtension{}).
+			WithValidator(&aiplatformv1beta1.InstallAIExtensionCustomValidator{
+				Client: mgr.GetClient(),
+			}).
+			Complete(); err != nil {
+			setupLog.Error(err, "unable to create validating webhook", "webhook", "InstallAIExtension")
+			os.Exit(1)
+		}
+	}
 
 	// +kubebuilder:scaffold:builder
 
