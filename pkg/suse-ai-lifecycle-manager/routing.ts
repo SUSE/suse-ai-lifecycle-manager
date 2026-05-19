@@ -57,7 +57,7 @@ export default [
   {
     name:      `c-cluster-${PRODUCT}-${PAGE_TYPES.SETTINGS}`,
     path:      `/c/:cluster/${PRODUCT}/${PAGE_TYPES.SETTINGS}`,
-    component: () => import('./pages/Apps.vue'), // Placeholder for now
+    component: () => import('./pages/Settings.vue'),
     meta:      { product: PRODUCT, category: 'settings' }
   },
 

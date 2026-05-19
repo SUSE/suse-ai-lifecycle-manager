@@ -2,7 +2,7 @@ import type { IPlugin } from '@shell/core/types';
 import suseaiStore from './store/suseai-common';
 import {
   PRODUCT,
-  BLANK_CLUSTER,
+  MANAGEMENT_CLUSTER,
   SUSEAI_PRODUCT,
   VIRTUAL_TYPES,
   BASIC_TYPES,
@@ -20,17 +20,17 @@ export function init($plugin: IPlugin, store: RancherStore) {
 
   // Configure product following standard patterns
   product({
-    category: SUSEAI_PRODUCT.category,
-    name: PRODUCT,
     icon: 'suseai',
     inStore: SUSEAI_PRODUCT.inStore,
+    isMultiClusterApp: true,
+    showClusterSwitcher: false,
     weight: SUSEAI_PRODUCT.weight,
-    to: { 
-      name: `c-cluster-${PRODUCT}-${PAGE_TYPES.APPS}`, 
-      params: { product: PRODUCT, cluster: BLANK_CLUSTER }, 
-      meta: { product: PRODUCT } 
+    to: {
+      name: `c-cluster-${PRODUCT}-${PAGE_TYPES.APPS}`,
+      params: { product: PRODUCT, cluster: MANAGEMENT_CLUSTER },
+      meta: { product: PRODUCT, cluster: MANAGEMENT_CLUSTER }
     }
-  });
+  } as any);
 
   // Register virtual types following standard patterns
   VIRTUAL_TYPES.forEach(vType => {

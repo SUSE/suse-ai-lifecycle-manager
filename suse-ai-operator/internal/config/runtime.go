@@ -10,3 +10,12 @@ func GetExtensionNamespace() string {
 	}
 	return DefaultExtensionNamespace
 }
+
+const DefaultOperatorNamespace = "suse-ai-operator"
+
+func GetOperatorNamespace() string {
+	if ns := os.Getenv("OPERATOR_NAMESPACE"); ns != "" {
+		return ns
+	}
+	return DefaultOperatorNamespace
+}

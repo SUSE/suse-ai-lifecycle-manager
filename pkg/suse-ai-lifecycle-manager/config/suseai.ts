@@ -8,6 +8,7 @@ import { PRODUCT_NAME, PRODUCT_SLUG, EXTENSION_VERSION } from '../utils/constant
 
 // === Product Constants ===
 export const PRODUCT = PRODUCT_SLUG;
+export const MANAGEMENT_CLUSTER = 'local';
 export const BLANK_CLUSTER = '_';
 
 // === Product Definition ===
@@ -109,11 +110,20 @@ export const VIRTUAL_TYPES: VirtualTypeConfig[] = [
       params: { product: PRODUCT, cluster: BLANK_CLUSTER },
       meta: { product: PRODUCT }
     }
+  },
+  {
+    name:  PAGE_TYPES.SETTINGS,
+    label: 'Settings',
+    route: {
+      name:   `c-cluster-${ PRODUCT }-${ PAGE_TYPES.SETTINGS }`,
+      params: { product: PRODUCT, cluster: MANAGEMENT_CLUSTER },
+      meta:   { product: PRODUCT, cluster: MANAGEMENT_CLUSTER }
+    }
   }
 ];
 
 // === Basic Types Configuration ===
-export const BASIC_TYPES = [PAGE_TYPES.APPS];
+export const BASIC_TYPES = [PAGE_TYPES.APPS, PAGE_TYPES.SETTINGS];
 
 // === Product Metadata ===
 export const PRODUCT_METADATA = {

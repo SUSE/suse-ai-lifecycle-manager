@@ -69,3 +69,6 @@ rbacHelpers:
 metrics:
   enable: true
   port: 8443
+
+api:
+  port: 8080

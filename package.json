@@ -8,11 +8,12 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@rancher/shell": "^3.0.4"
+    "@rancher/shell": "^3.0.11"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.1.0",
     "@commitlint/config-conventional": "^20.0.0",
+    "@types/js-yaml": "^4.0.9",
     "husky": "^9.0.0"
   },
   "resolutions": {

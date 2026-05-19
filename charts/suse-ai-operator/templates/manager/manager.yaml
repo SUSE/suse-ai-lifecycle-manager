@@ -32,7 +32,11 @@ spec:
           {{- range .Values.manager.args }}
             - {{ . }}
           {{- end }}
-          
+            - --api-bind-address=:{{ .Values.api.port }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.port }}
+              protocol: TCP
           {{- if .Values.manager.probes.liveness.enabled }}
           livenessProbe:
             {{- omit .Values.manager.probes.liveness "enabled" | toYaml | nindent 12 }}
@@ -53,6 +57,14 @@ spec:
             {{- else }}
             {}
             {{- end }}
+          env:
+            - name: OPERATOR_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          {{- range .Values.manager.env }}
+            - {{ toYaml . | nindent 14 | trim }}
+          {{- end }}
           volumeMounts:
             - mountPath: /home/nonroot/.cache
               name: helm-cache

@@ -17,9 +17,12 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
+	"net/http"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -36,8 +39,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	aiplatformv1alpha1 "github.com/SUSE/suse-ai-operator/api/v1alpha1"
+	"github.com/SUSE/suse-ai-operator/internal/api"
 	"github.com/SUSE/suse-ai-operator/internal/config"
 	aiextensionctrl "github.com/SUSE/suse-ai-operator/internal/controller/installaiextension"
+	settingsctrl "github.com/SUSE/suse-ai-operator/internal/controller/settings"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -80,6 +85,8 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	var apiBindAddr string
+	flag.StringVar(&apiBindAddr, "api-bind-address", ":8080", "The address the operator API binds to.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -189,6 +196,13 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "InstallAIExtension")
 		os.Exit(1)
 	}
+	if err := (&settingsctrl.SettingsReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Settings")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -200,8 +214,30 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Start the operator HTTP API server.
+	operatorNamespace := config.GetOperatorNamespace()
+	mux := http.NewServeMux()
+	api.NewSettingsHandler(mgr.GetClient(), operatorNamespace).Register(mux)
+	srv := &http.Server{Addr: apiBindAddr, Handler: api.Chain(mux)}
+
+	ctx := ctrl.SetupSignalHandler()
+	go func() {
+		setupLog.Info("starting operator API", "address", apiBindAddr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			setupLog.Error(err, "operator API server exited unexpectedly")
+		}
+	}()
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			setupLog.Error(err, "HTTP server shutdown failed")
+		}
+	}()
+
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}

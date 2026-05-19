@@ -64,6 +64,26 @@ rules:
       - get
       - patch
       - update
+  - apiGroups:
+      - ai-platform.suse.com
+    resources:
+      - settings
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ai-platform.suse.com
+    resources:
+      - settings/status
+    verbs:
+      - get
+      - patch
+      - update
 
 ---
 

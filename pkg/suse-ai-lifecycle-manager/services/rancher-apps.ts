@@ -578,7 +578,7 @@ async function getRepoIndex($store: RancherStore, repoName: string): Promise<Rep
   const res = await $store.dispatch('rancher/request', { url: indexLink, timeout: 20000 });
   const payload = (res?.data ?? res);
   dbg('index payload', payload);
-  if (typeof payload === 'string') return yaml.load(payload);
+  if (typeof payload === 'string') return yaml.load(payload) as RepositoryIndex | null;
   if (payload && typeof payload === 'object' && 'entries' in payload) return payload as RepositoryIndex;
   if (payload && typeof payload === 'object' && 'data' in payload && payload.data && typeof payload.data === 'object' && 'entries' in payload.data) return payload.data as RepositoryIndex;
   return null;
