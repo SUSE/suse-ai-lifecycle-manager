@@ -283,6 +283,10 @@ function populateFromUrlParams() {
     if (instanceCluster) {
       form.value.clusters = [instanceCluster];
     }
+    const deployStrategy = query.deployStrategy as string || '';
+    if (deployStrategy === 'FleetBundle' || deployStrategy === 'GitOps' || deployStrategy === 'Helm') {
+      form.value.deployType = deployStrategy;
+    }
   }
 }
 
@@ -334,14 +338,46 @@ async function initializeManageMode() {
   if (!store) throw new Error('Store not available');
 
   const targetCluster = form.value.clusters[0];
+  if (!targetCluster) throw new Error('No cluster specified for manage mode');
 
-  if (!targetCluster) {
-    throw new Error('No cluster specified for manage mode');
+  // Load values and chart details from the AIWorkload CR first.
+  await loadAIWorkloadDetails();
+
+  // For Helm deployments, sync with the live Helm release to get the most current values.
+  if (form.value.deployType === 'Helm') {
+    await loadInstalledAppDetails(targetCluster);
   }
+}
 
-  // Load app details from the target cluster
-  // If app doesn't exist, loadInstalledAppDetails will throw an error
-  await loadInstalledAppDetails(targetCluster);
+async function loadAIWorkloadDetails() {
+  try {
+    const { items } = await listAIWorkloads();
+    const workload = items.find(
+      w => w.metadata.name === form.value.release && w.metadata.namespace === form.value.namespace
+    );
+    if (!workload) return;
+
+    // Sync chart identity fields from the AIWorkload CR.
+    const app = workload.spec.source.app;
+    if (app?.chartName)    form.value.chartName    = app.chartName;
+    if (app?.chartVersion) form.value.chartVersion = app.chartVersion;
+    if (app?.chartRepo)    form.value.chartRepo    = app.chartRepo;
+
+    // Authoritative deploy strategy from the CR.
+    if (workload.spec.deployStrategy) {
+      form.value.deployType = workload.spec.deployStrategy;
+    }
+
+    // For non-Helm strategies, the live Helm release isn't accessible — use stored component values.
+    if (form.value.deployType !== 'Helm') {
+      const vals = workload.spec.componentValues?.[0]?.values;
+      if (vals && Object.keys(vals).length > 0) {
+        form.value.values = vals;
+      }
+    }
+  } catch (e) {
+    console.warn('[SUSE-AI] Could not load AIWorkload details (non-fatal):', e);
+  }
 }
 
 async function loadInstalledAppDetails(clusterId: string) {
@@ -576,7 +612,7 @@ async function onWizardFinish() {
 function onWizardCancel() {
   persistClear(PKEY);
   router?.push({
-    name:   `c-cluster-suseai-apps`,
+    name:   isManageMode.value ? `c-cluster-suseai-workloads` : `c-cluster-suseai-apps`,
     params: { cluster: route?.params?.cluster },
   });
 }
@@ -1130,7 +1166,7 @@ async function performUpgrade() {
 
   try {
     await upgradeSingleCluster(clusterId);
-    await recordAIWorkload('', 'Helm');
+    await recordAIWorkload('', form.value.deployType);
   } finally {
     submitting.value = false;
   }
@@ -1277,6 +1313,7 @@ function previousStep() {
             :loading-versions="loadingVersions"
             :namespace-options="namespaceOptions"
             :release-disabled="isManageMode"
+            :namespace-disabled="isManageMode"
           />
 
           <!-- Step: Target Cluster -->

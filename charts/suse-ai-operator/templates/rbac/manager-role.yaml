@@ -154,6 +154,7 @@ rules:
       - aiworkloads
     verbs:
       - create
+      - delete
       - get
       - list
       - patch

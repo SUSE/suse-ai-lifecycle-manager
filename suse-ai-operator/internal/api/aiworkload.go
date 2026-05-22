@@ -48,6 +48,7 @@ func (h *AIWorkloadHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/aiworkloads", h.listAIWorkloads)
 	mux.HandleFunc("POST /api/v1/namespaces/{namespace}/aiworkloads", h.createAIWorkload)
 	mux.HandleFunc("PATCH /api/v1/namespaces/{namespace}/aiworkloads/{name}", h.updateAIWorkload)
+	mux.HandleFunc("DELETE /api/v1/namespaces/{namespace}/aiworkloads/{name}", h.deleteAIWorkload)
 }
 
 func (h *AIWorkloadHandler) listAIWorkloads(w http.ResponseWriter, r *http.Request) {
@@ -194,6 +195,30 @@ func (h *AIWorkloadHandler) updateAIWorkload(w http.ResponseWriter, r *http.Requ
 
 	wl.ManagedFields = nil
 	writeJSON(w, http.StatusOK, wl)
+}
+
+func (h *AIWorkloadHandler) deleteAIWorkload(w http.ResponseWriter, r *http.Request) {
+	namespace := r.PathValue("namespace")
+	name := r.PathValue("name")
+	if namespace == "" || name == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("%w: namespace and name are required", ErrInvalidInput))
+		return
+	}
+
+	wl := &aiplatformv1alpha1.AIWorkload{}
+	wl.Name = name
+	wl.Namespace = namespace
+
+	if err := h.client.Delete(r.Context(), wl); err != nil {
+		if errors.IsNotFound(err) {
+			writeError(w, http.StatusNotFound, fmt.Errorf("deployment %q not found in namespace %q", name, namespace))
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Compile-time guard.

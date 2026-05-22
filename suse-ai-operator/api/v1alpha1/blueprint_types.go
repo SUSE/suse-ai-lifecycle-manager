@@ -53,6 +53,9 @@ type BlueprintSpec struct {
 	// Description is an optional human-readable description.
 	// +optional
 	Description string `json:"description,omitempty"`
+	// Deprecated marks this blueprint version as deprecated.
+	// +optional
+	Deprecated bool `json:"deprecated,omitempty"`
 	// Components are the Helm charts included in this blueprint.
 	// +kubebuilder:validation:MinItems=1
 	Components []BlueprintComponent `json:"components"`

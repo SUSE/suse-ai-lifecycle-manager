@@ -57,6 +57,14 @@ export function deleteBlueprint(name: string): Promise<void> {
   });
 }
 
+export async function updateBlueprintDeprecated(name: string, deprecated: boolean): Promise<Blueprint> {
+  const bp = await getBlueprint(name);
+  return blueprintFetch(`/api/v1/blueprints/${ encodeURIComponent(name) }`, {
+    method: 'PUT',
+    body:   JSON.stringify({ spec: { ...bp.spec, deprecated } }),
+  });
+}
+
 // blueprintCRName derives the CR name matching the backend logic.
 // Build-metadata suffix (+...) is stripped since '+' is illegal in Kubernetes names.
 // "My AI Stack", "1.0.0" → "my-ai-stack-1-0-0"

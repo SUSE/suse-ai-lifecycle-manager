@@ -13,6 +13,11 @@
             />
           </div>
 
+          <label class="deprecated-toggle">
+            <input v-model="showDeprecated" type="checkbox" class="checkbox" />
+            <span>Show deprecated</span>
+          </label>
+
           <button class="btn role-primary ml-auto" @click="navigateCreate" type="button">
             Create
           </button>
@@ -49,11 +54,11 @@
                     @click.stop
                   >
                     <option
-                      v-for="bp in versions"
+                      v-for="bp in visibleVersionsFor(versions)"
                       :key="bp.spec.version"
                       :value="bp.spec.version"
                     >
-                      v{{ bp.spec.version }}
+                      {{ versionLabel(bp) }}
                     </option>
                   </select>
                 </div>
@@ -71,10 +76,18 @@
               <button class="btn role-primary btn-sm" @click="navigateInstall(family, versions)" type="button">
                 Install
               </button>
-              <button class="btn role-secondary btn-sm" @click="navigateEdit(family, versions)" type="button">
+              <button v-if="isAdmin" class="btn role-secondary btn-sm" @click="navigateEdit(family, versions)" type="button">
                 Edit
               </button>
-              <button class="btn role-secondary btn-sm" @click="confirmDelete(family, versions)" type="button">
+              <button
+                v-if="isAdmin"
+                class="btn role-secondary btn-sm"
+                @click="confirmDeprecate(family, versions)"
+                type="button"
+              >
+                {{ isSelectedDeprecated(family, versions) ? 'Undeprecate' : 'Deprecate' }}
+              </button>
+              <button v-if="isAdmin" class="btn role-secondary btn-sm" @click="confirmDelete(family, versions)" type="button">
                 Delete
               </button>
             </div>
@@ -108,15 +121,49 @@
           </div>
         </div>
       </div>
+
+      <!-- Deprecate / Undeprecate confirmation modal -->
+      <div v-if="deprecateModal.show" class="modal-overlay" @click.self="deprecateModal.show = false">
+        <div class="modal-content">
+          <h3>{{ deprecateModal.currentlyDeprecated ? 'Undeprecate' : 'Deprecate' }} Blueprint</h3>
+          <p>
+            {{ deprecateModal.currentlyDeprecated ? 'Undeprecate' : 'Deprecate' }}
+            <strong>{{ deprecateModal.displayName }}</strong> v{{ deprecateModal.version }}?
+          </p>
+          <p v-if="!deprecateModal.currentlyDeprecated" class="text-muted modal-hint">
+            Deprecated blueprints are hidden from the Blueprints page by default.
+            Users with existing deployments are not affected.
+          </p>
+          <Banner
+            v-if="!deprecateModal.currentlyDeprecated && deprecateModal.activeWorkloads.length"
+            color="warning"
+            class="mb-10"
+          >
+            <strong>Warning:</strong> The following deployments are currently using this blueprint version:
+            <ul class="mt-5">
+              <li v-for="wl in deprecateModal.activeWorkloads" :key="wl.metadata.name">
+                {{ wl.metadata.namespace }}/{{ wl.metadata.name }}
+              </li>
+            </ul>
+          </Banner>
+          <div class="modal-buttons">
+            <button class="btn role-secondary" @click="deprecateModal.show = false">Cancel</button>
+            <button class="btn role-primary" @click="executeDeprecate" :disabled="deprecateModal.saving">
+              <i v-if="deprecateModal.saving" class="icon icon-spinner icon-spin" />
+              {{ deprecateModal.currentlyDeprecated ? 'Undeprecate' : 'Deprecate' }}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </main>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, onMounted, getCurrentInstance, reactive } from 'vue';
+import { defineComponent, ref, computed, watch, onMounted, getCurrentInstance, reactive } from 'vue';
 import { Banner } from '@components/Banner';
 import {
-  listBlueprints, deleteBlueprint, groupBlueprintsByFamily, latestVersion,
+  listBlueprints, deleteBlueprint, updateBlueprintDeprecated, groupBlueprintsByFamily, latestVersion,
 } from '../utils/blueprint-api';
 import { listAIWorkloads } from '../utils/operator-api';
 import type { Blueprint } from '../types/blueprint-types';
@@ -131,27 +178,34 @@ export default defineComponent({
     const $route    = vm.$route;
     const cluster   = ($route?.params?.cluster as string) || '_';
 
-    const loading    = ref(true);
-    const error      = ref<string | null>(null);
-    const search     = ref('');
-    const blueprints = ref<Blueprint[]>([]);
+    const loading         = ref(true);
+    const error           = ref<string | null>(null);
+    const search          = ref('');
+    const blueprints      = ref<Blueprint[]>([]);
     const selectedVersions = ref<Record<string, string>>({});
+    const showDeprecated  = ref(false);
 
-    const deleteModal = reactive({
-      show:          false,
-      family:        '',
-      displayName:   '',
-      version:       '',
-      crName:        '',
-      activeWorkloads: [] as any[],
-      deleting:      false,
-    });
+    // Global Administrator check — true only when the current user has globalRoleName === 'admin'.
+    const isAdmin = ref(false);
 
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    function isDeprecated(bp: Blueprint): boolean {
+      return bp.spec.deprecated === true;
+    }
+
+    function visibleVersionsFor(versions: Blueprint[]): Blueprint[] {
+      if (showDeprecated.value) return versions;
+      return versions.filter(bp => !isDeprecated(bp));
+    }
+
+    // ── Computed ───────────────────────────────────────────────────────────────
     const families = computed(() => groupBlueprintsByFamily(blueprints.value));
 
     const filteredFamilies = computed(() => {
       const q = search.value.toLowerCase();
       return [...families.value.entries()].filter(([, versions]) => {
+        // When not showing deprecated, hide families that have no visible versions.
+        if (!showDeprecated.value && visibleVersionsFor(versions).length === 0) return false;
         if (!q) return true;
         const bp = versions[0];
         return (
@@ -162,13 +216,30 @@ export default defineComponent({
       });
     });
 
-    function latestFor(versions: Blueprint[]) {
-      return latestVersion(versions);
-    }
+    // When the user hides deprecated, bump any selected-version that is deprecated
+    // to the latest non-deprecated version for that family.
+    watch(showDeprecated, (showNow) => {
+      if (showNow) return;
+      const updates: Record<string, string> = {};
+      for (const [family, versions] of families.value.entries()) {
+        const cur = selectedVersions.value[family];
+        const bp  = versions.find(v => v.spec.version === cur);
+        if (bp && isDeprecated(bp)) {
+          const fallback = versions.find(v => !isDeprecated(v));
+          if (fallback) updates[family] = fallback.spec.version;
+        }
+      }
+      if (Object.keys(updates).length) {
+        selectedVersions.value = { ...selectedVersions.value, ...updates };
+      }
+    });
 
     function selectedVersion(family: string, versions: Blueprint[]): Blueprint {
       const v = selectedVersions.value[family];
-      return versions.find(b => b.spec.version === v) || latestVersion(versions);
+      // If the stored version is deprecated and deprecated are hidden, fall back.
+      const candidate = versions.find(b => b.spec.version === v);
+      if (candidate && (!isDeprecated(candidate) || showDeprecated.value)) return candidate;
+      return visibleVersionsFor(versions)[0] || latestVersion(versions);
     }
 
     function componentCount(versions: Blueprint[], family: string): number {
@@ -179,6 +250,11 @@ export default defineComponent({
       return selectedVersion(family, versions).spec.description || '';
     }
 
+    function versionLabel(bp: Blueprint): string {
+      return isDeprecated(bp) ? `v${ bp.spec.version } (deprecated)` : `v${ bp.spec.version }`;
+    }
+
+    // ── Data loading ───────────────────────────────────────────────────────────
     async function refresh() {
       loading.value = true;
       error.value = null;
@@ -188,9 +264,11 @@ export default defineComponent({
         const updates: Record<string, string> = {};
         for (const [family, versions] of groupBlueprintsByFamily(blueprints.value).entries()) {
           const current = selectedVersions.value[family];
-          const stillExists = current && versions.some(v => v.spec.version === current);
-          if (!stillExists) {
-            updates[family] = latestVersion(versions).spec.version;
+          const visible = visibleVersionsFor(versions);
+          const stillVisible = current && visible.some(v => v.spec.version === current);
+          if (!stillVisible) {
+            const pick = visible[0] || latestVersion(versions);
+            updates[family] = pick.spec.version;
           }
         }
         if (Object.keys(updates).length) {
@@ -203,6 +281,7 @@ export default defineComponent({
       }
     }
 
+    // ── Navigation ─────────────────────────────────────────────────────────────
     function navigateCreate() {
       $router.push({ name: `c-cluster-${ PRODUCT }-blueprint-create`, params: { cluster } });
     }
@@ -225,23 +304,37 @@ export default defineComponent({
       });
     }
 
+    // ── Shared active-workloads lookup ──────────────────────────────────────────
+    async function fetchActiveWorkloads(family: string, version: string) {
+      try {
+        const wls = await listAIWorkloads();
+        return (wls.items || []).filter(wl => {
+          const src = wl.spec.source.blueprint;
+          return src?.name === family && src?.version === version;
+        });
+      } catch {
+        return [];
+      }
+    }
+
+    // ── Delete modal ───────────────────────────────────────────────────────────
+    const deleteModal = reactive({
+      show:            false,
+      family:          '',
+      displayName:     '',
+      version:         '',
+      crName:          '',
+      activeWorkloads: [] as any[],
+      deleting:        false,
+    });
+
     async function confirmDelete(family: string, versions: Blueprint[]) {
       const bp = selectedVersion(family, versions);
       deleteModal.family      = family;
       deleteModal.displayName = bp.spec.displayName;
       deleteModal.version     = bp.spec.version;
       deleteModal.crName      = bp.metadata.name;
-      deleteModal.activeWorkloads = [];
-
-      try {
-        const wls = await listAIWorkloads();
-        deleteModal.activeWorkloads = (wls.items || []).filter(wl => {
-          const src = wl.spec.source.blueprint;
-          return src?.name === family && src?.version === bp.spec.version;
-        });
-      } catch (e) {
-        console.warn('[SUSE-AI] Could not verify active workloads:', e);
-      }
+      deleteModal.activeWorkloads = await fetchActiveWorkloads(family, bp.spec.version);
       deleteModal.show = true;
     }
 
@@ -259,12 +352,77 @@ export default defineComponent({
       }
     }
 
-    onMounted(refresh);
+    // ── Deprecate modal ────────────────────────────────────────────────────────
+    const deprecateModal = reactive({
+      show:            false,
+      family:          '',
+      displayName:     '',
+      version:         '',
+      crName:          '',
+      currentlyDeprecated: false,
+      activeWorkloads: [] as any[],
+      saving:          false,
+    });
+
+    async function confirmDeprecate(family: string, versions: Blueprint[]) {
+      const bp = selectedVersion(family, versions);
+      deprecateModal.family             = family;
+      deprecateModal.displayName        = bp.spec.displayName;
+      deprecateModal.version            = bp.spec.version;
+      deprecateModal.crName             = bp.metadata.name;
+      deprecateModal.currentlyDeprecated = isDeprecated(bp);
+      deprecateModal.activeWorkloads    = deprecateModal.currentlyDeprecated
+        ? []
+        : await fetchActiveWorkloads(family, bp.spec.version);
+      deprecateModal.show = true;
+    }
+
+    async function executeDeprecate() {
+      deprecateModal.saving = true;
+      try {
+        await updateBlueprintDeprecated(deprecateModal.crName, !deprecateModal.currentlyDeprecated);
+        deprecateModal.show = false;
+        await refresh();
+      } catch (e: any) {
+        error.value = e?.message || 'Failed to update blueprint';
+        deprecateModal.show = false;
+      } finally {
+        deprecateModal.saving = false;
+      }
+    }
+
+    function isSelectedDeprecated(family: string, versions: Blueprint[]): boolean {
+      return isDeprecated(selectedVersion(family, versions));
+    }
+
+    function latestFor(versions: Blueprint[]) {
+      return latestVersion(versions);
+    }
+
+    async function checkAdminRole() {
+      try {
+        const grbs  = await vm.$store.dispatch('management/findAll', { type: 'management.cattle.io.globalrolebinding' });
+        const user  = vm.$store.getters['auth/user'];
+        const userId = user?.id;
+        isAdmin.value = !!(userId && grbs.some((grb: any) => grb.userName === userId && grb.globalRoleName === 'admin'));
+      } catch (e) {
+        console.warn('[SUSE-AI] checkAdminRole failed — admin actions will be hidden:', e);
+        isAdmin.value = false;
+      }
+    }
+
+    onMounted(() => {
+      refresh();
+      checkAdminRole();
+    });
 
     return {
-      loading, error, search, filteredFamilies, selectedVersions, deleteModal,
-      latestFor, componentCount, descriptionFor,
-      refresh, navigateCreate, navigateEdit, navigateInstall, confirmDelete, executeDelete,
+      loading, error, search, filteredFamilies, selectedVersions,
+      showDeprecated, isAdmin,
+      deleteModal, deprecateModal,
+      latestFor, isDeprecated, isSelectedDeprecated, visibleVersionsFor, versionLabel, componentCount, descriptionFor,
+      refresh, navigateCreate, navigateEdit, navigateInstall,
+      confirmDelete, executeDelete, confirmDeprecate, executeDeprecate,
     };
   },
 });
@@ -277,6 +435,7 @@ export default defineComponent({
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-wrap: wrap;
     .search-box .input-sm {
       width: 200px;
       height: 32px;
@@ -289,6 +448,17 @@ export default defineComponent({
     }
     .ml-auto { margin-left: auto; }
   }
+}
+
+.deprecated-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--body-text);
+  cursor: pointer;
+  user-select: none;
+  .checkbox { cursor: pointer; }
 }
 .tiles-grid {
   display: grid;
@@ -374,8 +544,15 @@ export default defineComponent({
   &.btn-sm { height: 28px; padding: 0 12px; font-size: 12px; }
   &.role-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-text); }
   &.role-secondary { background: var(--body-bg); border-color: var(--border); color: var(--body-text); }
+  &.role-secondary.btn-warn { color: var(--warning); border-color: var(--warning); }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
   .icon-spin { animation: spin 1s linear infinite; }
+}
+
+.modal-hint {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 12px;
 }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>

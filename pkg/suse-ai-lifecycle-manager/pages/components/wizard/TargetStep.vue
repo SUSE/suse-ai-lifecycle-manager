@@ -2,7 +2,6 @@
 import { computed } from 'vue';
 import { RcItemCard } from '@components/RcItemCard';
 import ClusterResourceTable from '../ClusterResourceTable.vue';
-import ClusterSelect from '../ClusterSelect.vue';
 import type { AIWorkloadDeployStrategy } from '../../../types/aiworkload-types';
 
 interface Props {
@@ -21,7 +20,7 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const isInstallMode = computed(() => props.mode === 'install');
+const isManageMode = computed(() => props.mode === 'manage');
 const hasNonLocalClusters = computed(() => props.clusters.some(c => c !== 'local'));
 
 const deployTypeCards = [
@@ -46,6 +45,7 @@ const deployTypeCards = [
 ];
 
 function onCardClick(id: AIWorkloadDeployStrategy) {
+  if (isManageMode.value) return;
   if (id === 'Helm' && hasNonLocalClusters.value) return;
   emit('update:deployType', id);
 }
@@ -53,46 +53,38 @@ function onCardClick(id: AIWorkloadDeployStrategy) {
 
 <template>
   <div class="target-step">
-    <template v-if="isInstallMode">
-      <label class="lbl">Deployment Type</label>
-      <div class="deploy-type-grid">
-        <RcItemCard
-          v-for="card in deployTypeCards"
-          :id="card.id"
-          :key="card.id"
-          :header="card.header"
-          :image="card.image"
-          :content="card.content"
-          :selected="deployType === card.id"
-          :clickable="!(card.id === 'Helm' && hasNonLocalClusters)"
-          variant="small"
-          :class="{ 'card-disabled': card.id === 'Helm' && hasNonLocalClusters }"
-          @card-click="onCardClick(card.id)"
-        />
-      </div>
-      <p v-if="hasNonLocalClusters" class="hint">
-        Helm is only available for the local management cluster. Use Fleet Bundle or Fleet Git for multi-cluster deployments.
-      </p>
-      <label class="lbl mt-16">Select Target Cluster(s)</label>
-      <ClusterResourceTable
-        :multi-select="true"
-        :selected-clusters="clusters"
-        :app-slug="appSlug"
-        :app-name="appName"
-        :disabled="false"
-        @update:selected-clusters="$emit('update:clusters', $event)"
+    <label class="lbl">Deployment Type</label>
+    <div class="deploy-type-grid">
+      <RcItemCard
+        v-for="card in deployTypeCards"
+        :id="card.id"
+        :key="card.id"
+        :header="card.header"
+        :image="card.image"
+        :content="card.content"
+        :selected="deployType === card.id"
+        :clickable="!isManageMode && !(card.id === 'Helm' && hasNonLocalClusters)"
+        variant="small"
+        :class="{ 'card-disabled': isManageMode || (card.id === 'Helm' && hasNonLocalClusters) }"
+        @card-click="onCardClick(card.id)"
       />
-    </template>
-    <template v-else>
-      <label class="lbl">Target Cluster</label>
-      <ClusterSelect
-        :model-value="clusters[0] || ''"
-        :disabled="true"
-      />
-      <p class="hint">
-        Changes will be applied only to the cluster in the current context and cannot be changed in Manage mode.
-      </p>
-    </template>
+    </div>
+    <p v-if="!isManageMode && hasNonLocalClusters" class="hint">
+      Helm is only available for the local management cluster. Use Fleet Bundle or Fleet Git for multi-cluster deployments.
+    </p>
+
+    <label class="lbl mt-16">{{ isManageMode ? 'Target Cluster' : 'Select Target Cluster(s)' }}</label>
+    <ClusterResourceTable
+      :multi-select="!isManageMode"
+      :selected-clusters="clusters"
+      :app-slug="appSlug"
+      :app-name="appName"
+      :disabled="isManageMode"
+      @update:selected-clusters="isManageMode ? undefined : $emit('update:clusters', $event)"
+    />
+    <p v-if="isManageMode" class="hint">
+      Target cluster and deployment type are read-only in Manage mode.
+    </p>
   </div>
 </template>
 

@@ -85,6 +85,14 @@ export default [
     meta:      { product: PRODUCT, category: 'blueprint-install' }
   },
 
+  // AI Workloads page - all deployed workloads across Apps and Blueprints
+  {
+    name:      `c-cluster-${ PRODUCT }-${ PAGE_TYPES.WORKLOADS }`,
+    path:      `/c/:cluster/${ PRODUCT }/${ PAGE_TYPES.WORKLOADS }`,
+    component: () => import('./pages/AIWorkloads.vue'),
+    meta:      { product: PRODUCT, category: 'workloads' }
+  },
+
   // Legacy routes (kept for compatibility during transition)
   {
     name:      `c-cluster-${PRODUCT}-home`,

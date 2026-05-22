@@ -20,6 +20,7 @@
           :searchable="true"
           :clearable="false"
           :required="true"
+          :disabled="props.namespaceDisabled"
         />
       </div>
     </div>
@@ -66,6 +67,7 @@ interface Props {
   loadingVersions: boolean;
   namespaceOptions: Array<{ label: string; value: string }>;
   releaseDisabled?: boolean;
+  namespaceDisabled?: boolean;
 }
 
 interface Emits {

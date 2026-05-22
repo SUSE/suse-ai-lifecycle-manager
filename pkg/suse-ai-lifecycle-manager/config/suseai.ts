@@ -91,6 +91,16 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     },
     icon: 'blueprint'
   },
+  {
+    name:  'workloads',
+    label: 'Workloads',
+    route: {
+      name:   `c-cluster-${ PRODUCT }-workloads`,
+      params: { product: PRODUCT, cluster: BLANK_CLUSTER },
+      meta:   { product: PRODUCT }
+    },
+    icon: 'list-flat'
+  },
 ];
 
 // === Page Definitions ===
@@ -100,6 +110,7 @@ export const PAGE_TYPES = {
   MANAGE:       'manage',
   REPOSITORIES: 'repositories',
   BLUEPRINTS:   'blueprints',
+  WORKLOADS:    'workloads',
   SETTINGS:     'settings'
 } as const;
 
@@ -114,12 +125,12 @@ export interface VirtualTypeConfig {
 
 export const VIRTUAL_TYPES: VirtualTypeConfig[] = [
   {
-    name: PAGE_TYPES.APPS,
+    name:  PAGE_TYPES.APPS,
     label: 'Apps',
     route: {
-      name: `c-cluster-${PRODUCT}-${PAGE_TYPES.APPS}`,
+      name:   `c-cluster-${PRODUCT}-${PAGE_TYPES.APPS}`,
       params: { product: PRODUCT, cluster: BLANK_CLUSTER },
-      meta: { product: PRODUCT }
+      meta:   { product: PRODUCT }
     }
   },
   {
@@ -127,6 +138,15 @@ export const VIRTUAL_TYPES: VirtualTypeConfig[] = [
     label: 'Blueprints',
     route: {
       name:   `c-cluster-${ PRODUCT }-${ PAGE_TYPES.BLUEPRINTS }`,
+      params: { product: PRODUCT, cluster: BLANK_CLUSTER },
+      meta:   { product: PRODUCT }
+    }
+  },
+  {
+    name:  PAGE_TYPES.WORKLOADS,
+    label: 'Workloads',
+    route: {
+      name:   `c-cluster-${ PRODUCT }-${ PAGE_TYPES.WORKLOADS }`,
       params: { product: PRODUCT, cluster: BLANK_CLUSTER },
       meta:   { product: PRODUCT }
     }
@@ -142,8 +162,16 @@ export const VIRTUAL_TYPES: VirtualTypeConfig[] = [
   }
 ];
 
+// Explicit sidebar ordering: higher weight = higher in the list.
+export const NAV_WEIGHTS: Record<string, number> = {
+  [PAGE_TYPES.APPS]:       40,
+  [PAGE_TYPES.BLUEPRINTS]: 30,
+  [PAGE_TYPES.WORKLOADS]:  20,
+  [PAGE_TYPES.SETTINGS]:   10,
+};
+
 // === Basic Types Configuration ===
-export const BASIC_TYPES = [PAGE_TYPES.APPS, PAGE_TYPES.BLUEPRINTS, PAGE_TYPES.SETTINGS];
+export const BASIC_TYPES = [PAGE_TYPES.APPS, PAGE_TYPES.BLUEPRINTS, PAGE_TYPES.WORKLOADS, PAGE_TYPES.SETTINGS];
 
 // === Product Metadata ===
 export const PRODUCT_METADATA = {

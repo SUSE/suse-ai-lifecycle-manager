@@ -78,6 +78,9 @@ spec:
                   type: object
                 minItems: 1
                 type: array
+              deprecated:
+                description: Deprecated marks this blueprint version as deprecated.
+                type: boolean
               description:
                 description: Description is an optional human-readable description.
                 type: string

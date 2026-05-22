@@ -9,6 +9,7 @@ export interface BlueprintSpec {
   displayName:  string;
   version:      string;
   description?: string;
+  deprecated?:  boolean;
   components:   BlueprintComponent[];
 }
 

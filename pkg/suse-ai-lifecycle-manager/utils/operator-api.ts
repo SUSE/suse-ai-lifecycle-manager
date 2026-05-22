@@ -88,6 +88,13 @@ export function listAIWorkloads(): Promise<{ items: AIWorkload[] }> {
   return operatorFetch('/api/v1/aiworkloads');
 }
 
+export function deleteAIWorkload(namespace: string, name: string): Promise<void> {
+  return operatorFetch(
+    `/api/v1/namespaces/${ encodeURIComponent(namespace) }/aiworkloads/${ encodeURIComponent(name) }`,
+    { method: 'DELETE' },
+  );
+}
+
 export function publishToFleetGit(bundleName: string, bundleYAML: string): Promise<{ commit: string }> {
   return operatorFetch('/api/v1/git/publish', {
     method: 'POST',
