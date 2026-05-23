@@ -93,24 +93,12 @@
         {{ filteredApps.length }} {{ filteredApps.length === 1 ? 'application' : 'applications' }} found for "{{ search }}"
       </div>
 
-      <!-- Repository loading indicator -->
-      <div v-if="repoLoading && !loading" class="repo-loading" aria-live="polite">
-        <div class="loading-banner">
-          <i class="icon icon-spinner icon-spin" aria-hidden="true" />
-          <span>{{ t('suseai.apps.loadingRepo', 'Loading repository applications...') }}</span>
-        </div>
-      </div>
-
       <!-- Main content area - always present to avoid layout jumps -->
       <div class="main-content">
         <!-- Results/Loading summary - fixed position to prevent jumps -->
         <div class="results-summary" aria-live="polite">
           <div v-if="filteredApps.length" class="results-text">
             Showing {{ filteredApps.length }} of {{ filteredApps.length }} applications
-            <span v-if="repoLoading" class="loading-text">
-              <i class="icon icon-spinner icon-spin small-spinner" aria-hidden="true" />
-              (Loading additional apps...)
-            </span>
           </div>
           <div v-else-if="!loading && !error" class="results-text">
             No applications found
@@ -139,9 +127,6 @@
                 <div class="tile-meta">
                   <span v-if="app.packaging_format" class="tile-meta-item">
                     {{ formatPackagingType(app.packaging_format) }}
-                  </span>
-                  <span v-if="app.last_updated_at" class="tile-meta-item">
-                    Updated {{ formatUpdatedDate(app.last_updated_at) }}
                   </span>
                 </div>
               </div>
@@ -256,7 +241,7 @@
         <div v-if="!loading && !filteredApps.length && !error" class="empty-state-content">
           <i class="icon icon-folder-open icon-4x text-muted" />
           <h3>{{ t('suseai.apps.noApps', 'No applications found') }}</h3>
-          <p class="text-muted">{{ t('suseai.apps.noAppsDesc', 'Try adjusting your search or repository filter.') }}</p>
+          <p class="text-muted">{{ t('suseai.apps.noAppsDesc', 'Try adjusting your search or filter.') }}</p>
         </div>
       </div>
     </div>
@@ -264,17 +249,12 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, computed, getCurrentInstance, onMounted, ref, watch } from 'vue';
+import { defineComponent, computed, getCurrentInstance, onMounted, ref } from 'vue';
 import type { RouteLocationRaw } from 'vue-router';
 // Using basic HTML table instead of ResourceTable to avoid import issues
-import type { AppCollectionItem, AppRepository } from '../services/app-collection';
-import { fetchSuseAiApps, fetchClusterRepositories, fetchAllRepositoryApps, fetchAppsFromRepository, getClusterRepoNameFromUrl } from '../services/app-collection';
-import { discoverExistingInstall, getClusters, deleteApp } from '../services/rancher-apps';
-import { getTableHeaders } from '../config/table-headers';
-import AppResource from '../models/app/app-resource';
-import { PRODUCT } from '../config/suseai';
-import { featureEnabled } from '../utils/feature-flags';
-import { FEATURE_FLAGS } from '../utils/constants';
+import type { AppCollectionItem } from '../services/app-collection';
+import { fetchSuseAiApps, getClusterRepoNameFromUrl } from '../services/app-collection';
+import { discoverExistingInstall, getClusters } from '../services/rancher-apps';
 
 type InstallInfo = {
   installed: boolean;
@@ -300,88 +280,28 @@ export default defineComponent({
 
     // State
     const loading = ref(true);
-    const repoLoading = ref(false);
     const error = ref<string | null>(null);
     const search = ref('');
-    const DEFAULT_REPO = 'suse-ai-apps';
-    const selectedRepo = ref(DEFAULT_REPO);
-    const selectedCategory = ref('all');
-    const viewMode = ref('tiles'); // Default to tiles view
+    const selectedRepo = ref('suse-ai');
+    const viewMode = ref('tiles');
     const items = ref<AppCollectionItem[]>([]);
     const clusters = ref<Array<{id: string; name: string}>>([]);
-    const repositories = ref<AppRepository[]>([]);
-    const allRepositoryApps = ref<{ [repoName: string]: AppCollectionItem[] }>({});
-    const repositoriesLoaded = ref(false);
     const installedMap = ref<Record<string, InstallInfo>>({});
-    const installationStatusLoading = ref(false);
     const showInstalledOnly = ref(false);
 
-    const updatedDateFormatter = new Intl.DateTimeFormat(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
+    // "SUSE AI Library" is the built-in merged source (App Collection + SUSE Registry).
+    // Additional repos configured in Settings will be appended here in a future iteration.
+    const repositoryOptions = computed(() => [
+      { label: 'SUSE AI Library', value: 'suse-ai' },
+    ]);
 
-    const formatUpdatedDate = (value?: string) => {
-      if (!value) {
-        return '';
-      }
-
-      const date = new Date(value);
-
-      if (Number.isNaN(date.getTime())) {
-        return '';
-      }
-
-      try {
-        return updatedDateFormatter.format(date);
-      } catch (err) {
-        console.warn('[SUSE-AI] Failed to format updated date', err);
-        return date.toLocaleDateString();
-      }
-    };
-
-    // Computed properties - using local data for now until store is fully integrated
     const filteredApps = computed(() => {
-      let arr: AppCollectionItem[] = [];
+      let arr = items.value.slice();
 
-      // Select apps based on repository
-      if (selectedRepo.value === DEFAULT_REPO) {
-        arr = items.value.slice();
-      } else if (selectedRepo.value === 'all') {
-        // Use Map to deduplicate apps by slug_name
-        const appMap = new Map<string, AppCollectionItem>();
-
-        // Add SUSE AI apps first
-        items.value.forEach((app: AppCollectionItem) => {
-          appMap.set(app.slug_name, app);
-        });
-
-        // Add repository apps, but don't override existing ones
-        Object.values(allRepositoryApps.value).forEach(repoApps => {
-          repoApps.forEach((app: AppCollectionItem) => {
-            if (!appMap.has(app.slug_name)) {
-              appMap.set(app.slug_name, app);
-            }
-          });
-        });
-
-        arr = Array.from(appMap.values());
-      } else {
-        arr = allRepositoryApps.value[selectedRepo.value] || [];
-      }
-
-      // Apply category filter
-      if (selectedCategory.value !== 'all') {
-        arr = arr.filter((app: AppCollectionItem) => app.packaging_format === selectedCategory.value);
-      }
-
-      // Apply "Installed Only" filter
       if (showInstalledOnly.value) {
         arr = arr.filter((app: AppCollectionItem) => getInstallationInfo(app.slug_name).installed);
       }
 
-      // Apply search filter
       if (search.value) {
         const searchLower = search.value.toLowerCase();
         arr = arr.filter((app: AppCollectionItem) =>
@@ -392,39 +312,6 @@ export default defineComponent({
       }
 
       return arr;
-    });
-
-    const repositoryOptions = computed(() => {
-      const options = [
-        { label: 'SUSE AI Apps', value: DEFAULT_REPO },
-        { label: 'All Repositories', value: 'all' }
-      ];
-
-      repositories.value.forEach(repo => {
-        options.push({
-          label: repo.displayName || repo.name,
-          value: repo.name
-        });
-      });
-
-      return options;
-    });
-
-    const tableHeaders = computed(() => {
-      return getTableHeaders('apps');
-    });
-
-    // Feature flag computed properties
-    const isAdvancedFilteringEnabled = computed(() => {
-      return featureEnabled(FEATURE_FLAGS.ADVANCED_FILTERING, currentClusterId, store);
-    });
-
-    const isMultiClusterEnabled = computed(() => {
-      return featureEnabled(FEATURE_FLAGS.MULTI_CLUSTER, currentClusterId, store);
-    });
-
-    const isBulkOperationsEnabled = computed(() => {
-      return featureEnabled(FEATURE_FLAGS.BULK_OPERATIONS, currentClusterId, store);
     });
 
     // Methods
@@ -455,25 +342,11 @@ export default defineComponent({
       img.src = require('../assets/generic-app.svg');
     };
 
-    const navigateToClusterEvents = (clusterId: string) => {
-      try {
-        const targetUrl = `/c/${clusterId}/explorer#cluster-events`;
-        console.log('[SUSE-AI] Navigating to cluster events:', { clusterId, targetUrl });
-        $router.push(targetUrl);
-      } catch (e) {
-        console.error('[SUSE-AI] Failed to navigate to cluster events:', e);
-      }
-    };
-
     const refresh = async () => {
       loading.value = true;
       error.value = null;
       try {
-        await Promise.all([
-          loadApps(),
-          loadClusters(),
-          loadRepositories()
-        ]);
+        await Promise.all([loadApps(), loadClusters()]);
       } catch (err) {
         console.error('Failed to refresh:', err);
         error.value = 'Failed to refresh applications';
@@ -484,12 +357,8 @@ export default defineComponent({
 
     const loadApps = async () => {
       try {
-        // Use direct API call for now, will integrate with store later
-        const apps = await fetchSuseAiApps(currentClusterId);
+        const apps = await fetchSuseAiApps(store);
         items.value = apps;
-
-        // Also update store for future integration
-        await store.dispatch(`${PRODUCT}/apps/fetchAllApps`, { clusterId: currentClusterId });
         await loadInstallationStates();
       } catch (err) {
         console.error('Failed to load apps:', err);
@@ -503,16 +372,6 @@ export default defineComponent({
         clusters.value = clusterList;
       } catch (err) {
         console.error('Failed to load clusters:', err);
-      }
-    };
-
-    const loadRepositories = async () => {
-      try {
-        const repos = await fetchClusterRepositories(store);
-        repositories.value = repos;
-        console.log('[SUSE-AI] Found repositories:', repos.map(r => r.name));
-      } catch (err) {
-        console.error('Failed to load repositories:', err);
       }
     };
 
@@ -533,12 +392,6 @@ export default defineComponent({
         }
       }
 
-      // Also update store for future integration
-      try {
-        await store.dispatch(`${PRODUCT}/discoverInstallations`);
-      } catch (err) {
-        console.error('Failed to update store installations:', err);
-      }
     };
 
     const onTileClick = async (app: AppCollectionItem) => {
@@ -556,65 +409,10 @@ export default defineComponent({
         if (repoName) {
           route.query = { ...route.query, repo: repoName };
         }
-      } else if (selectedRepo.value && selectedRepo.value !== 'all' && selectedRepo.value !== DEFAULT_REPO) {
-        route.query = { ...route.query, repo: selectedRepo.value };
       }
 
       await $router.push(route);
     };
-
-    // Watch for repository selection changes
-    watch(selectedRepo, async (newRepo, oldRepo) => {
-      if (newRepo === oldRepo) return;
-
-      console.log('[SUSE-AI] Repository changed:', { from: oldRepo, to: newRepo });
-
-      try {
-        // Clear existing installation info to prevent stale data
-        installedMap.value = {};
-
-        if (newRepo === DEFAULT_REPO) {
-          const apps = await fetchSuseAiApps(currentClusterId);
-          items.value = apps;
-        } else if (newRepo === 'all') {
-          // Load all repository apps if not already loaded
-          repoLoading.value = true;
-          error.value = null;
-          console.log('[SUSE-AI] Loading all repository apps...');
-          const repoAppsMap = await fetchAllRepositoryApps(store);
-          allRepositoryApps.value = repoAppsMap;
-          repositoriesLoaded.value = true;
-          console.log('[SUSE-AI] Loaded apps from repositories:', Object.keys(allRepositoryApps.value));
-
-          // Combine all apps into items.value for installation state discovery
-          const appMap = new Map<string, AppCollectionItem>();
-          Object.values(allRepositoryApps.value).forEach(repoApps => {
-            repoApps.forEach((app: AppCollectionItem) => {
-              appMap.set(app.slug_name, app);
-            });
-          });
-          items.value = Array.from(appMap.values());
-        } else {
-          // Load specific repository if not already loaded
-          if (!allRepositoryApps.value[newRepo]) {
-            repoLoading.value = true;
-            error.value = null;
-            console.log('[SUSE-AI] Loading apps from repository:', newRepo);
-            const repoApps = await fetchAppsFromRepository(store, newRepo);
-            allRepositoryApps.value[newRepo] = repoApps;
-            console.log('[SUSE-AI] Loaded apps from repository:', { repo: newRepo, count: repoApps.length });
-          }
-          items.value = allRepositoryApps.value[newRepo] || [];
-        }
-        // After loading new apps, update their installation states
-        await loadInstallationStates();
-      } catch (err) {
-        console.error('[SUSE-AI] Failed to load repository apps:', err);
-        error.value = `Failed to load apps from repository: ${newRepo}`;
-      } finally {
-        repoLoading.value = false;
-      }
-    });
 
     // Initialize
     onMounted(() => {
@@ -629,24 +427,14 @@ export default defineComponent({
     return {
       // State
       loading,
-      repoLoading,
-      installationStatusLoading,
       error,
       search,
       selectedRepo,
-      selectedCategory,
+      repositoryOptions,
       viewMode,
       filteredApps,
       clusters,
-      repositories,
-      repositoryOptions,
-      tableHeaders,
       showInstalledOnly,
-
-      // Feature flags
-      isAdvancedFilteringEnabled,
-      isMultiClusterEnabled,
-      isBulkOperationsEnabled,
 
       // Methods
       refresh,
@@ -654,7 +442,6 @@ export default defineComponent({
       getInstallationInfo,
       getBadgeClass,
       formatPackagingType,
-      formatUpdatedDate,
       getClusterDisplayName,
       logoFor,
       onImgError,

@@ -10,24 +10,51 @@ const route = vm.$route;
 
 const editName    = route.query.editName    as string | undefined;
 const fromVersion = route.query.fromVersion as string | undefined;
+const copyFrom    = route.query.copyFrom    as string | undefined;
+const copyVersion = route.query.copyVersion as string | undefined;
 
-const loading = ref(!!editName);
+const loading = ref(!!(editName || copyFrom));
 const prefill = ref<BlueprintSpec | undefined>(undefined);
 
 onMounted(async () => {
-  if (!editName || !fromVersion) { loading.value = false; return; }
-  try {
-    const crName = blueprintCRName(editName, fromVersion);
-    const bp     = await getBlueprint(crName);
-    prefill.value = {
-      ...bp.spec,
-      version: suggestNextPatch(bp.spec.version),
-    };
-  } catch (e) {
-    console.warn('[SUSE-AI] Failed to load blueprint for edit:', e);
-  } finally {
-    loading.value = false;
+  if (editName && fromVersion) {
+    try {
+      const crName = blueprintCRName(editName, fromVersion);
+      const bp     = await getBlueprint(crName);
+      prefill.value = {
+        ...bp.spec,
+        version: suggestNextPatch(bp.spec.version),
+      };
+    } catch (e) {
+      console.warn('[SUSE-AI] Failed to load blueprint for edit:', e);
+    } finally {
+      loading.value = false;
+    }
+    return;
   }
+
+  if (copyFrom && copyVersion) {
+    try {
+      const crName = blueprintCRName(copyFrom, copyVersion);
+      const bp     = await getBlueprint(crName);
+      prefill.value = {
+        displayName: `Copy of ${ bp.spec.displayName }`,
+        version:     '1.0.0',
+        description: bp.spec.description,
+        components:  bp.spec.components.map(c => ({
+          ...c,
+          values: c.values ? JSON.parse(JSON.stringify(c.values)) : undefined,
+        })),
+      };
+    } catch (e) {
+      console.warn('[SUSE-AI] Failed to load blueprint for copy:', e);
+    } finally {
+      loading.value = false;
+    }
+    return;
+  }
+
+  loading.value = false;
 });
 
 function suggestNextPatch(version: string): string {

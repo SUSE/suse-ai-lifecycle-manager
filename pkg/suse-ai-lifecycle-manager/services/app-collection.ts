@@ -31,160 +31,6 @@ function normalizeLogoUrl(logo?: string): string | undefined {
   return logo.startsWith('/logos/') ? `https://api.apps.rancher.io${logo}` : logo;
 }
 
-/**
- * Keep the raw list "as const" so string literals (like 'HELM_CHART') are not widened to `string`.
- * Do NOT annotate with AppCollectionItem here; we preserve the literals then map to the interface.
- */
-const RAW_APPS = [
-    {
-      "name": "Milvus",
-      "slug_name": "milvus",
-      "description": "Milvus is a high-performance vector database built for scale. It is used by AI applications to organize and search through large amount of unstructured data, such as text, images, and multi-modal information.",
-      "project_url": "https://milvus.io/",
-      "documentation_url": "https://milvus.io/docs",
-      "source_code_url": "https://github.com/milvus-io/milvus",
-      "logo_url": "https://apps.rancher.io/logos/milvus.png",
-      "changelog_url": "https://milvus.io/docs/release_notes.md",
-      "last_updated_at": "2025-04-01T16:10:58.370403Z",
-      "packaging_format": "HELM_CHART",
-      "repository_url": "oci://dp.apps.rancher.io/charts"    
-    },
-    {
-      "name": "Ollama",
-      "slug_name": "ollama",
-      "description": "Get up and running with Llama 3.2, Mistral, Gemma 2, and other large language models.",
-      "project_url": "https://ollama.com/",
-      "documentation_url": "https://github.com/ollama/ollama/tree/main/docs",
-      "source_code_url": "https://github.com/ollama/ollama",
-      "logo_url": "https://apps.rancher.io/logos/ollama.png",
-      "changelog_url": "https://github.com/ollama/ollama/releases",
-      "last_updated_at": "2025-08-18T22:23:44.766307Z",
-      "packaging_format": "HELM_CHART",
-      "repository_url": "oci://dp.apps.rancher.io/charts"    
-    },
-    {
-      "name": "Open WebUI",
-      "slug_name": "open-webui",
-      "description": "Open WebUI is an extensible, feature-rich, and user-friendly self-hosted WebUI designed to operate entirely offline. It supports various LLM runners, including Ollama and OpenAI-compatible APIs.",
-      "project_url": "https://openwebui.com/",
-      "documentation_url": "https://docs.openwebui.com/",
-      "source_code_url": "https://github.com/open-webui/open-webui",
-      "logo_url": "https://apps.rancher.io/logos/open-webui.png",
-      "changelog_url": "https://github.com/open-webui/open-webui/releases",
-      "last_updated_at": "2025-06-02T14:49:46.188913Z",
-      "packaging_format": "HELM_CHART",
-      "repository_url": "oci://dp.apps.rancher.io/charts"    
-    },
-    {
-      "name": "Open WebUI mcpo",
-      "slug_name": "open-webui-mcpo",
-      "description": "A simple, secure MCP-to-OpenAPI proxy server.",
-      "project_url": "https://openwebui.com",
-      "documentation_url": "https://docs.openwebui.com/openapi-servers/mcp",
-      "source_code_url": "https://github.com/open-webui/mcpo",
-      "logo_url": "https://apps.rancher.io/logos/open-webui-mcpo.png",
-      "last_updated_at": "2025-11-16T22:51:30.016188Z",
-      "packaging_format": "HELM_CHART",
-      "repository_url": "oci://dp.apps.rancher.io/charts"    
-    },
-    {
-      "name": "Open WebUI Pipelines",
-      "slug_name": "open-webui-pipelines",
-      "description": "Pipelines bring modular, customizable workflows to any UI client supporting OpenAI API specs and much more! Easily extend functionalities, integrate unique logic, and create dynamic workflows with just a few lines of code.",
-      "project_url": "https://openwebui.com",
-      "documentation_url": "https://docs.openwebui.com/pipelines",
-      "source_code_url": "https://github.com/open-webui/pipelines",
-      "logo_url": "https://apps.rancher.io/logos/open-webui-pipelines.png",
-      "last_updated_at": "2025-05-23T16:25:14.076326Z",
-      "packaging_format": "HELM_CHART",
-      "repository_url": "oci://dp.apps.rancher.io/charts"    
-    },
-    {
-      "name": "PyTorch",
-      "slug_name": "pytorch",
-      "description": "PyTorch is a machine learning library based on the Torch library, used for applications such as computer vision and natural language processing",
-      "project_url": "https://pytorch.org",
-      "documentation_url": "https://pytorch.org/docs/stable",
-      "source_code_url": "https://github.com/pytorch/pytorch",
-      "logo_url": "https://apps.rancher.io/logos/pytorch.png",
-      "changelog_url": "https://github.com/pytorch/pytorch/releases",
-      "last_updated_at": "2025-05-16T13:41:26.542743Z",
-      "packaging_format": "HELM_CHART",
-      "repository_url": "oci://dp.apps.rancher.io/charts"    
-    },
-    {
-      "name": "SUSE AI Deployer",
-      "slug_name": "suse-ai-deployer",
-      "description": "A Meta Helm chart for deploying SUSE AI components",
-      "project_url": "https://github.com/SUSE/suse-ai-deployer",
-      "documentation_url": "https://documentation.suse.com/suse-ai",
-      "source_code_url": "https://github.com/SUSE/suse-ai-deployer",
-      "logo_url": "https://apps.rancher.io/logos/suse-ai-deployer.png",
-      "changelog_url": "https://github.com/SUSE/suse-ai-deployer/releases",
-      "last_updated_at": "2025-07-04T08:22:01.087184Z",
-      "packaging_format": "HELM_CHART",
-      "repository_url": "oci://dp.apps.rancher.io/charts"    
-    },
-    {
-      "name": "SUSE AI Observability Extension",
-      "slug_name": "suse-ai-observability-extension",
-      "description": "The SUSE AI Observability Extension enhances SUSE Observability with AI-optimized dashboards and visualizations. It seamlessly integrates with applications instrumented using the OpenLIT SDK.",
-      "project_url": "https://github.com/SUSE/suse-ai-observability-extension",
-      "source_code_url": "https://github.com/SUSE/suse-ai-observability-extension",
-      "logo_url": "https://apps.rancher.io/logos/suse-ai-observability-extension.png",
-      "changelog_url": "https://github.com/SUSE/suse-ai-observability-extension/releases",
-      "last_updated_at": "2025-07-29T11:56:35.688301Z",
-      "packaging_format": "HELM_CHART",
-      "repository_url": "oci://dp.apps.rancher.io/charts"    
-    },
-    {
-      "name": "vLLM",
-      "slug_name": "vllm",
-      "description": "A high-throughput and memory-efficient inference and serving engine for LLMs.",
-      "project_url": "https://github.com/vllm-project/vllm",
-      "documentation_url": "https://docs.vllm.ai/en/stable",
-      "source_code_url": "https://github.com/vllm-project/vllm",
-      "logo_url": "https://apps.rancher.io//logos/vllm.png",
-      "changelog_url": "https://github.com/vllm-project/vllm/releases",
-      "last_updated_at": "2025-09-30T08:22:20.607991Z",
-      "packaging_format": "HELM_CHART",
-      "repository_url": "oci://dp.apps.rancher.io/charts"    
-    },
-    {
-      "name": "Qdrant",
-      "slug_name": "qdrant",
-      "description": "High-performance, massive-scale Vector Database and Vector Search Engine for the next generation of AI.",
-      "project_url": "https://github.com/qdrant/qdrant",
-      "documentation_url": "https://qdrant.tech/documentation/",
-      "source_code_url": "https://github.com/qdrant/qdrant",
-      "logo_url": "https://qdrant.github.io/qdrant-helm/logo_with_text.svg",
-      "changelog_url": "https://github.com/qdrant/qdrant/releases",
-      "last_updated_at": "2025-12-19T17:45:42Z",
-      "packaging_format": "HELM_CHART",
-      "repository_url": "oci://registry.suse.com/ai/charts"    
-    },
-    {
-      "name": "LiteLLM",
-      "slug_name": "litellm",
-      "description": "Python SDK, Proxy Server (AI Gateway) to call 100+ LLM APIs in OpenAI (or native) format, with cost tracking, guardrails, loadbalancing and logging. [Bedrock, Azure, OpenAI, VertexAI, Cohere, Anthropic, Sagemaker, HuggingFace, VLLM, NVIDIA NIM] ",
-      "project_url": "https://github.com/BerriAI/litellm",
-      "documentation_url": "https://docs.litellm.ai/docs/",
-      "source_code_url": "https://github.com/BerriAI/litellm",
-      "logo_url": "https://raw.githubusercontent.com/BerriAI/litellm/refs/heads/main/litellm/proxy/logo.jpg",
-      "changelog_url": "https://github.com/BerriAI/litellm/releases",
-      "last_updated_at": "2026-01-17T19:55:30Z",
-      "packaging_format": "HELM_CHART",
-      "repository_url": "oci://registry.suse.com/ai/charts"    
-    }
-] as const;
-
-/** Freeze literals, normalize logos, and coerce packaging_format to the union */
-const STATIC_APPS: AppCollectionItem[] = RAW_APPS.map(it => ({
-  ...it,
-  logo_url: normalizeLogoUrl(it.logo_url),
-  packaging_format: it.packaging_format as PackagingFormat,
-  repository_url: it.repository_url
-}));
 
 /** Find repository name by URL */
 export async function findRepositoryByUrl($store: any, targetUrl: string): Promise<string | null> {
@@ -203,9 +49,29 @@ export async function getClusterRepoNameFromUrl($store: any, repoUrl: string): P
   return await findRepositoryByUrl($store, repoUrl);
 }
 
-/** Static list for now (ignore store/auth). */
+/** Fetch apps from SUSE Application Collection and SUSE Registry, merged and sorted alphabetically. */
 export async function fetchSuseAiApps($store: any): Promise<AppCollectionItem[]> {
-  return STATIC_APPS.slice();
+  const repos = await fetchClusterRepositories($store);
+  const appCollectionRepo = repos.find(r => r.url === APP_COLLECTION_REPO_URL);
+  const suseRegistryRepo  = repos.find(r => r.url === SUSE_REGISTRY_REPO_URL);
+
+  const [appCollectionApps, suseRegistryApps] = await Promise.all([
+    appCollectionRepo
+      ? fetchAppsFromRepository($store, appCollectionRepo.name).then(apps => apps.map(a => ({ ...a, repository_url: APP_COLLECTION_REPO_URL })))
+      : Promise.resolve([] as AppCollectionItem[]),
+    suseRegistryRepo
+      ? fetchAppsFromRepository($store, suseRegistryRepo.name).then(apps => apps.map(a => ({ ...a, repository_url: SUSE_REGISTRY_REPO_URL })))
+      : Promise.resolve([] as AppCollectionItem[]),
+  ]);
+
+  // App Collection takes precedence on dedup
+  const appMap = new Map<string, AppCollectionItem>();
+  for (const app of appCollectionApps) appMap.set(app.slug_name, app);
+  for (const app of suseRegistryApps) {
+    if (!appMap.has(app.slug_name)) appMap.set(app.slug_name, app);
+  }
+
+  return Array.from(appMap.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Repository information */

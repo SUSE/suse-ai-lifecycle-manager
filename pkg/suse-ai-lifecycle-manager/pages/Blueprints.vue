@@ -76,20 +76,14 @@
               <button class="btn role-primary btn-sm" @click="navigateInstall(family, versions)" type="button">
                 Install
               </button>
-              <button v-if="isAdmin" class="btn role-secondary btn-sm" @click="navigateEdit(family, versions)" type="button">
-                Edit
-              </button>
-              <button
-                v-if="isAdmin"
-                class="btn role-secondary btn-sm"
-                @click="confirmDeprecate(family, versions)"
-                type="button"
-              >
-                {{ isSelectedDeprecated(family, versions) ? 'Undeprecate' : 'Deprecate' }}
-              </button>
-              <button v-if="isAdmin" class="btn role-secondary btn-sm" @click="confirmDelete(family, versions)" type="button">
-                Delete
-              </button>
+              <div style="margin-left: auto">
+                <ActionMenuShell
+                  button-variant="tertiary"
+                  button-aria-label="More options"
+                  :custom-actions="tileActions(family, versions)"
+                  @action-invoked="onTileAction($event, family, versions)"
+                />
+              </div>
             </div>
           </div>
           <div v-for="n in 5" :key="`filler-${ n }`" class="app-tile app-tile-filler" />
@@ -162,6 +156,7 @@
 <script lang="ts">
 import { defineComponent, ref, computed, watch, onMounted, getCurrentInstance, reactive } from 'vue';
 import { Banner } from '@components/Banner';
+import ActionMenuShell from '@shell/components/ActionMenuShell';
 import {
   listBlueprints, deleteBlueprint, updateBlueprintDeprecated, groupBlueprintsByFamily, latestVersion,
 } from '../utils/blueprint-api';
@@ -171,7 +166,7 @@ import { PRODUCT } from '../config/suseai';
 
 export default defineComponent({
   name: 'SuseAIBlueprints',
-  components: { Banner },
+  components: { Banner, ActionMenuShell },
   setup() {
     const vm        = getCurrentInstance()!.proxy as any;
     const $router   = vm.$router;
@@ -295,6 +290,15 @@ export default defineComponent({
       });
     }
 
+    function navigateCopy(family: string, versions: Blueprint[]) {
+      const bp = selectedVersion(family, versions);
+      $router.push({
+        name:   `c-cluster-${ PRODUCT }-blueprint-create`,
+        params: { cluster },
+        query:  { copyFrom: family, copyVersion: bp.spec.version },
+      });
+    }
+
     function navigateInstall(family: string, versions: Blueprint[]) {
       const bp = selectedVersion(family, versions);
       $router.push({
@@ -411,6 +415,31 @@ export default defineComponent({
       }
     }
 
+    // ── Three-dot tile menu ────────────────────────────────────────────────────
+    function tileActions(family: string, versions: Blueprint[]): any[] {
+      const actions: any[] = [
+        { action: 'copy', label: 'Copy', enabled: true },
+      ];
+      if (isAdmin.value) {
+        actions.push(
+          { action: 'edit',      label: 'Edit',      enabled: true },
+          { action: 'deprecate', label: isSelectedDeprecated(family, versions) ? 'Undeprecate' : 'Deprecate', enabled: true },
+          { divider: true, label: '', enabled: true },
+          { action: 'delete',    label: 'Delete',    enabled: true },
+        );
+      }
+      return actions;
+    }
+
+    function onTileAction(payload: { action: string }, family: string, versions: Blueprint[]) {
+      switch (payload.action) {
+        case 'copy':      navigateCopy(family, versions);      break;
+        case 'edit':      navigateEdit(family, versions);      break;
+        case 'deprecate': confirmDeprecate(family, versions);  break;
+        case 'delete':    confirmDelete(family, versions);     break;
+      }
+    }
+
     onMounted(() => {
       refresh();
       checkAdminRole();
@@ -421,7 +450,8 @@ export default defineComponent({
       showDeprecated, isAdmin,
       deleteModal, deprecateModal,
       latestFor, isDeprecated, isSelectedDeprecated, visibleVersionsFor, versionLabel, componentCount, descriptionFor,
-      refresh, navigateCreate, navigateEdit, navigateInstall,
+      tileActions, onTileAction,
+      refresh, navigateCreate, navigateEdit, navigateCopy, navigateInstall,
       confirmDelete, executeDelete, confirmDeprecate, executeDeprecate,
     };
   },
@@ -498,6 +528,7 @@ export default defineComponent({
   }
   .tile-footer {
     display: flex;
+    align-items: center;
     gap: 8px;
     padding-top: 12px;
     border-top: 1px solid var(--border);
