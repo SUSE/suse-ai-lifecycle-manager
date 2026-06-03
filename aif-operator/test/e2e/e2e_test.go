@@ -34,7 +34,7 @@ import (
 )
 
 // namespace where the project is deployed in
-const namespace = "aif-operator-system"
+const namespace = "aif-operator"
 
 // serviceAccountName created for the project
 const serviceAccountName = "aif-operator-controller-manager"

@@ -50,7 +50,7 @@ This chart is distributed as an OCI Helm chart. Install the chart with the relea
 
 ```bash
 helm install aif-operator \
-  -n aif-operator-system \
+  -n aif-operator \
   --create-namespace \
   oci://ghcr.io/suse/chart/aif-operator
 ```
@@ -62,7 +62,7 @@ The command deploys the SUSE AI Operator using the default configuration. See th
 To uninstall the operator:
 
 ```bash
-helm uninstall aif-operator -n aif-operator-system
+helm uninstall aif-operator -n aif-operator
 ```
 
 This removes all Kubernetes resources created by the chart **except CRDs**, which must be removed manually if desired.
@@ -192,13 +192,13 @@ When `aiExtension.enabled=true`, the chart creates an `InstallAIExtension` CR th
 ### Check pod status
 
 ```bash
-kubectl get pods -l app.kubernetes.io/name=aif-operator -n aif-operator-system
+kubectl get pods -l app.kubernetes.io/name=aif-operator -n aif-operator
 ```
 
 ### Check logs
 
 ```bash
-kubectl logs deploy/aif-operator -n aif-operator-system -f
+kubectl logs deploy/aif-operator -n aif-operator -f
 ```
 
 ### Metrics endpoint not reachable
@@ -206,7 +206,7 @@ kubectl logs deploy/aif-operator -n aif-operator-system -f
 * Ensure `metrics.enable=true`
 * Verify the metrics Service exists:
 ``` bash
-kubectl get svc -n aif-operator-system
+kubectl get svc -n aif-operator
 ```
 * Confirm RBAC permissions allow access to `/metrics`
 
