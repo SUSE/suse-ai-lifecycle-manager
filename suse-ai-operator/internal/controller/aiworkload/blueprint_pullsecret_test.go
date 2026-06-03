@@ -284,3 +284,68 @@ func TestNvidiaInjector_HostOverride(t *testing.T) {
 		t.Errorf("did not expect default nvcr.io entry when override set, got %v", cfg.Auths)
 	}
 }
+
+func TestNvidiaInjector_NoCreds_NoOp(t *testing.T) {
+	const opNS = "suse-ai-operator"
+	const targetNS = "rag"
+
+	scheme := kruntime.NewScheme()
+	if err := aiplatformv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add aiplatform scheme: %v", err)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add core scheme: %v", err)
+	}
+	settings := &aiplatformv1alpha1.Settings{
+		ObjectMeta: metav1.ObjectMeta{Name: operatorSettingsName, Namespace: opNS},
+		Spec:       aiplatformv1alpha1.SettingsSpec{}, // no Nvidia creds
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(settings).Build()
+	r := &AIWorkloadReconciler{Client: c, OperatorNamespace: opNS}
+	inj := &nvidiaInjector{r: r}
+
+	vals := map[string]any{}
+	if err := inj.Apply(context.Background(), targetNS, clusterRepoInfo{}, vals); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if len(vals) != 0 {
+		t.Errorf("vals was mutated despite missing creds: %v", vals)
+	}
+	pull := &corev1.Secret{}
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: targetNS, Name: nvidiaImagePullSecretName}, pull); err == nil {
+		t.Errorf("ngc-secret should not exist when creds are missing")
+	}
+}
+
+func TestNvidiaInjector_MissingTokenSecret(t *testing.T) {
+	const opNS = "suse-ai-operator"
+	const targetNS = "rag"
+
+	scheme := kruntime.NewScheme()
+	if err := aiplatformv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add aiplatform scheme: %v", err)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add core scheme: %v", err)
+	}
+	settings := &aiplatformv1alpha1.Settings{
+		ObjectMeta: metav1.ObjectMeta{Name: operatorSettingsName, Namespace: opNS},
+		Spec: aiplatformv1alpha1.SettingsSpec{
+			Nvidia: aiplatformv1alpha1.NvidiaSettings{
+				UserSecretRef:  &aiplatformv1alpha1.SecretKeyRef{Name: "missing", Key: "username"},
+				TokenSecretRef: &aiplatformv1alpha1.SecretKeyRef{Name: "missing", Key: "token"},
+			},
+		},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(settings).Build()
+	r := &AIWorkloadReconciler{Client: c, OperatorNamespace: opNS}
+	inj := &nvidiaInjector{r: r}
+
+	if err := inj.Apply(context.Background(), targetNS, clusterRepoInfo{}, map[string]any{}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	pull := &corev1.Secret{}
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: targetNS, Name: nvidiaImagePullSecretName}, pull); err == nil {
+		t.Errorf("ngc-secret should not exist when referenced secret is missing")
+	}
+}
