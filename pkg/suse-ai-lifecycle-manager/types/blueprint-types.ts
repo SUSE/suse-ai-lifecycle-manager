@@ -1,7 +1,10 @@
+export type BlueprintComponentVendor = 'suse' | 'nvidia';
+
 export interface BlueprintComponent {
   chartRepo:    string;
   chartName:    string;
   chartVersion: string;
+  vendor?:      BlueprintComponentVendor;
   values?:      Record<string, any>;
 }
 

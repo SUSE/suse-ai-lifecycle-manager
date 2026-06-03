@@ -176,6 +176,7 @@ async function addApp(app: AppCollectionItem) {
       chartRepo,
       chartName:    app.slug_name,
       chartVersion: versions[0] || '1.0.0',
+      vendor:       app.library === 'nvidia' ? 'nvidia' : 'suse',
     },
   ]);
 }
