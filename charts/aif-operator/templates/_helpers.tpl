@@ -91,7 +91,7 @@ imagePullSecrets:
 {{- end }}
 {{- else if .Values.manager.imagePullSecrets }}
 imagePullSecrets:
-    {{ toYaml .Values.manager.imagePullSecrets }}
+  {{- toYaml .Values.manager.imagePullSecrets | nindent 2 }}
 {{- end -}}
 {{- end -}}
 {{- end -}}
