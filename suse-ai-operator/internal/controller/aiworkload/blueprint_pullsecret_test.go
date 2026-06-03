@@ -508,3 +508,24 @@ func buildNvidiaInjectorFixture(t *testing.T) (client.Client, *AIWorkloadReconci
 	r := &AIWorkloadReconciler{Client: c, OperatorNamespace: opNS}
 	return c, r
 }
+
+func TestInjectorFor_VendorNvidia(t *testing.T) {
+	r := &AIWorkloadReconciler{}
+	if _, ok := r.injectorFor(aiplatformv1alpha1.ComponentVendorNvidia).(*nvidiaInjector); !ok {
+		t.Errorf("vendor nvidia did not yield *nvidiaInjector")
+	}
+}
+
+func TestInjectorFor_VendorSUSE(t *testing.T) {
+	r := &AIWorkloadReconciler{}
+	if _, ok := r.injectorFor(aiplatformv1alpha1.ComponentVendorSUSE).(*suseInjector); !ok {
+		t.Errorf("vendor suse did not yield *suseInjector")
+	}
+}
+
+func TestInjectorFor_VendorEmptyDefaultsToSUSE(t *testing.T) {
+	r := &AIWorkloadReconciler{}
+	if _, ok := r.injectorFor("").(*suseInjector); !ok {
+		t.Errorf("empty vendor did not default to *suseInjector")
+	}
+}
