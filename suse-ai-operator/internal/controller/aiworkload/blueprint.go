@@ -300,8 +300,10 @@ func repoURLToHost(url string) string {
 }
 
 const (
+	// 53 = 63 (K8s DNS-1123 label max) − 10 bytes Helm reserves for generated
+	// suffixes. Fleet validates spec.helm.releaseName against this.
 	helmReleaseNameMax = 53 // Helm/Fleet reject release names longer than this.
-	helmHashLen        = 6  // base36 suffix length; ~2^31 space is ample for collision avoidance.
+	helmHashLen        = 6  // base36 suffix; 36^6 ≈ 2.2e9 distinct values, ample for collision avoidance.
 )
 
 // capReleaseName mirrors the dashboard's release-name capping: Helm/Fleet reject
@@ -320,6 +322,8 @@ func capReleaseName(name string) string {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(name))
 	suffix := strconv.FormatUint(uint64(h.Sum32()), 36)
+	// base36(uint32) is 1–7 chars; cap to helmHashLen. The length guard is
+	// required: slicing a shorter suffix (e.g. "5") to [:helmHashLen] would panic.
 	if len(suffix) > helmHashLen {
 		suffix = suffix[:helmHashLen]
 	}
