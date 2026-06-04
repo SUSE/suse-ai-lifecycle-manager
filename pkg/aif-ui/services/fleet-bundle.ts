@@ -18,6 +18,35 @@ export function buildBundleName(release: string, namespace: string): string {
   return `suse-ai-${ release }-${ namespace }`.replace(/[^a-z0-9-]/g, '-').slice(0, 63);
 }
 
+const HELM_RELEASE_NAME_MAX = 53; // Helm/Fleet reject release names longer than this.
+const HELM_HASH_LEN         = 6;  // base36 suffix length; ~2^31 space is ample for collision avoidance.
+
+// Fleet validates spec.helm.releaseName against Helm's 53-byte limit, but a
+// bundle name can be up to 63 (a valid K8s object name). Cap the release name,
+// appending a short deterministic hash when truncating so distinct bundle names
+// don't collide on the same prefix. The result is always a valid DNS-1123 label
+// (no leading/trailing '-'), even for pathological inputs.
+//
+// This need NOT match the operator's Go capReleaseName byte-for-byte: a single
+// install's releaseName is produced by exactly one side, and the operator looks
+// workloads up by bundle (object) name, never by releaseName.
+//
+// Callers pass ASCII names (buildBundleName strips non-[a-z0-9-]), so .length
+// (UTF-16 units) equals the byte count here; this is not safe for arbitrary
+// multibyte input.
+export function capReleaseName(name: string): string {
+  if (name.length <= HELM_RELEASE_NAME_MAX) return name;
+  const hash = djb2(name).toString(36).slice(0, HELM_HASH_LEN);
+  const head = name.slice(0, HELM_RELEASE_NAME_MAX - hash.length - 1).replace(/^-+|-+$/g, '');
+  return head ? `${ head }-${ hash }` : hash;
+}
+
+function djb2(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
 interface ClientSecretRef { name: string; namespace: string; }
 
 // Read the clientSecret ref from a Rancher ClusterRepo resource.
@@ -152,7 +181,7 @@ export function buildFleetBundleYAML(params: {
       ...(isOCI ? {} : { chart: params.chartName }),
       version:     params.chartVersion,
       repo:        isOCI ? `${ params.chartRepoUrl }/${ params.chartName }` : params.chartRepoUrl,
-      releaseName: params.bundleName,
+      releaseName: capReleaseName(params.bundleName),
       values,
       // Disable Fleet's ${ } value templating: we resolve all values ourselves,
       // and upstream charts legitimately use ${ } (e.g. OTel ${env:MY_POD_IP}),
@@ -225,7 +254,7 @@ export async function createFleetBundle(store: any, params: FleetBundleParams): 
     ...(isOCI ? {} : { chart: params.chartName }),
     version:     params.chartVersion,
     repo:        ociRepo,
-    releaseName: params.bundleName,
+    releaseName: capReleaseName(params.bundleName),
     values:      addPullSecretsToValues(params.values, pullSecretNames, params.library),
     // Disable Fleet's ${ } value templating: we resolve all values ourselves,
     // and upstream charts legitimately use ${ } (e.g. OTel ${env:MY_POD_IP}),
