@@ -446,20 +446,6 @@ export default defineComponent({
       }
     }
 
-    .filter-group-checkbox {
-      display: inline;
-      margin-left: 12px;
-
-      .checkbox,
-      .text-label {
-        vertical-align: middle;
-      }
-      .text-label {
-        color: var(--body-text);
-        margin-left: 6px; /* Add space between checkbox and label */
-      }
-    }
-
     .view-controls {
       display: flex;
       border: 1px solid var(--border);
@@ -720,28 +706,6 @@ export default defineComponent({
   -webkit-box-orient: vertical;
     overflow: hidden;
   }
-
-  .install-status {
-    margin-top: auto;
-    padding-top: 12px;
-    border-top: 1px solid var(--border);
-  }
-
-  .status-label {
-    display: block;
-    font-size: 11px;
-    color: var(--muted);
-    margin-bottom: 8px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .cluster-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
 }
 
 // List view (table)
@@ -859,29 +823,6 @@ export default defineComponent({
     font-size: 14px;
     line-height: 1.5;
   }
-}
-
-// Common elements
-.cluster-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.cluster-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 12px;
-  font-size: 12px;
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--body-text);
-  border-radius: 16px;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
 }
 
 .badge-state {
