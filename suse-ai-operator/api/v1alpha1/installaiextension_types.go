@@ -69,6 +69,10 @@ type HelmSpec struct {
 }
 
 type GitSpec struct {
+	// GitHub repository URL.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:Pattern=`^https?://github\.com/.+$`
 	Repo string `json:"repo"`
 
 	// Git branch to use

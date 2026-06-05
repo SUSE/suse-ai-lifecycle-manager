@@ -98,13 +98,16 @@ func indexURLsForSource(ext *v1beta1.InstallAIExtension, svcURL string) ([]strin
 	}
 }
 
-func GitRawBaseURL(repo string, branch string) string {
+func normalizeGitHubRepo(repo string) string {
 	repo = strings.TrimPrefix(repo, "https://")
 	repo = strings.TrimPrefix(repo, "http://")
 	repo = strings.TrimPrefix(repo, "github.com/")
 	repo = strings.TrimSuffix(repo, ".git")
+	return repo
+}
 
-	return fmt.Sprintf("https://raw.githubusercontent.com/%s/refs/heads/%s", repo, branch)
+func GitRawBaseURL(repo string, branch string) string {
+	return fmt.Sprintf("https://raw.githubusercontent.com/%s/refs/heads/%s", normalizeGitHubRepo(repo), branch)
 }
 
 func getOrFetchIndex(

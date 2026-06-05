@@ -27,7 +27,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	aiplatformv1alpha1 "github.com/SUSE/suse-ai-operator/api/v1alpha1"
+	aiplatformv1beta1 "github.com/SUSE/suse-ai-operator/api/v1beta1"
+	"github.com/SUSE/suse-ai-operator/internal/infra/rancher"
 )
 
 var _ = Describe("InstallAIExtension Controller", func() {
@@ -37,29 +38,38 @@ var _ = Describe("InstallAIExtension Controller", func() {
 		ctx := context.Background()
 
 		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+			Name: resourceName,
 		}
-		installaiextension := &aiplatformv1alpha1.InstallAIExtension{}
+		installaiextension := &aiplatformv1beta1.InstallAIExtension{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind InstallAIExtension")
 			err := k8sClient.Get(ctx, typeNamespacedName, installaiextension)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &aiplatformv1alpha1.InstallAIExtension{
+				resource := &aiplatformv1beta1.InstallAIExtension{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
+						Name: resourceName,
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: aiplatformv1beta1.InstallAIExtensionSpec{
+						Source: aiplatformv1beta1.SourceSpec{
+							Helm: &aiplatformv1beta1.HelmSpec{
+								Name:    "test-chart",
+								URL:     "oci://ghcr.io/test/chart",
+								Version: "0.1.0",
+							},
+						},
+						Extension: aiplatformv1beta1.ExtensionSpec{
+							Name:    "test-extension",
+							Version: "0.1.0",
+						},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
 		})
 
 		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &aiplatformv1alpha1.InstallAIExtension{}
+			resource := &aiplatformv1beta1.InstallAIExtension{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -69,16 +79,16 @@ var _ = Describe("InstallAIExtension Controller", func() {
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
 			controllerReconciler := &InstallAIExtensionReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
+				Client:           k8sClient,
+				Scheme:           k8sClient.Scheme(),
+				ReadinessTimeout: defaultReadinessTimeout,
+				rancherMgr:       rancher.NewManager(k8sClient, k8sClient.Scheme()),
 			}
 
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
 		})
 	})
 })

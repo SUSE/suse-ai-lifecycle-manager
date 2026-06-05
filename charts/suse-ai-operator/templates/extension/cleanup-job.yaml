@@ -20,15 +20,15 @@ spec:
       restartPolicy: Never
       {{- include "suse-ai-operator.imagePullSecrets" . | nindent 6 }}
       securityContext:
-        {{- toYaml .Values.extension.cleanup.podSecurityContext | nindent 8 }}
+        {{- toYaml .Values.extension.jobs.podSecurityContext | nindent 8 }}
       containers:
         - name: cleanup
-          image: "{{ .Values.extension.cleanup.image.registry }}/{{ .Values.extension.cleanup.image.repository }}:{{ .Values.extension.cleanup.image.tag }}"
-          imagePullPolicy: {{ .Values.extension.cleanup.image.pullPolicy }}
+          image: "{{ .Values.extension.jobs.image.registry }}/{{ .Values.extension.jobs.image.repository }}:{{ .Values.extension.jobs.image.tag }}"
+          imagePullPolicy: {{ .Values.extension.jobs.image.pullPolicy }}
           securityContext:
-            {{- toYaml .Values.extension.cleanup.securityContext | nindent 12 }}
+            {{- toYaml .Values.extension.jobs.securityContext | nindent 12 }}
           resources:
-            {{- toYaml .Values.extension.cleanup.resources | nindent 12 }}
+            {{- toYaml .Values.extension.jobs.resources | nindent 12 }}
           command:
             - /bin/sh
             - -c

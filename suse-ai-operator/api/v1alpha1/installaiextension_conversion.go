@@ -73,23 +73,16 @@ func (dst *InstallAIExtension) ConvertFrom(srcRaw conversion.Hub) error {
 	}
 
 	// Spec.Source -> both helm (back-compat) and source (new)
-	if src.Spec.Source.Helm != nil {
-		dst.Spec.Helm = &HelmSpec{
-			Name:    src.Spec.Source.Helm.Name,
-			URL:     src.Spec.Source.Helm.URL,
-			Version: src.Spec.Source.Helm.Version,
-			Values:  src.Spec.Source.Helm.Values,
-		}
-	}
-
 	dst.Spec.Source = &SourceSpec{}
 	if src.Spec.Source.Helm != nil {
-		dst.Spec.Source.Helm = &HelmSpec{
+		helmSpec := &HelmSpec{
 			Name:    src.Spec.Source.Helm.Name,
 			URL:     src.Spec.Source.Helm.URL,
 			Version: src.Spec.Source.Helm.Version,
 			Values:  src.Spec.Source.Helm.Values,
 		}
+		dst.Spec.Helm = helmSpec
+		dst.Spec.Source.Helm = helmSpec
 	}
 	if src.Spec.Source.Git != nil {
 		dst.Spec.Source.Git = &GitSpec{

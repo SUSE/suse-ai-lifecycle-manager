@@ -3,7 +3,6 @@ package rancher
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/SUSE/suse-ai-operator/api/v1beta1"
 	logging "github.com/SUSE/suse-ai-operator/internal/logging"
@@ -71,11 +70,7 @@ func buildPluginEndpoint(ext *v1beta1.InstallAIExtension, svcURL string) (string
 	case ext.Spec.Source.Helm != nil:
 		return fmt.Sprintf("%s/plugin/%s-%s", svcURL, ext.Spec.Extension.Name, ext.Spec.Extension.Version), nil
 	case ext.Spec.Source.Git != nil:
-		repo := ext.Spec.Source.Git.Repo
-		repo = strings.TrimPrefix(repo, "https://")
-		repo = strings.TrimPrefix(repo, "http://")
-		repo = strings.TrimPrefix(repo, "github.com/")
-		repo = strings.TrimSuffix(repo, ".git")
+		repo := normalizeGitHubRepo(ext.Spec.Source.Git.Repo)
 		return fmt.Sprintf(
 			"https://raw.githubusercontent.com/%s/%s/extensions/%s/%s",
 			repo, ext.Spec.Source.Git.Branch, ext.Spec.Extension.Name, ext.Spec.Extension.Version,

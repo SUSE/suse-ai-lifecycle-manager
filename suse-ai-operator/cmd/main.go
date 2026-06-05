@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -68,6 +69,7 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var enableWebhooks bool
+	var deploymentReadinessTimeout time.Duration
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -88,6 +90,8 @@ func main() {
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	flag.BoolVar(&enableWebhooks, "enable-webhooks", false,
 		"Enable webhook server for conversion and validation webhooks.")
+	flag.DurationVar(&deploymentReadinessTimeout, "deployment-readiness-timeout", 5*time.Minute,
+		"How long to wait for a deployment to become ready before marking the extension as failed.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -196,6 +200,7 @@ func main() {
 		Recorder:           mgr.GetEventRecorderFor("install-ai-extension-controller"),
 		Config:             mgr.GetConfig(),
 		ExtensionNamespace: config.GetExtensionNamespace(),
+		ReadinessTimeout:   deploymentReadinessTimeout,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "InstallAIExtension")
 		os.Exit(1)

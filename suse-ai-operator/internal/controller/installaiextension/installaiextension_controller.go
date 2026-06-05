@@ -39,7 +39,7 @@ import (
 )
 
 const (
-	readinessTimeout = 5 * time.Minute
+	defaultReadinessTimeout = 5 * time.Minute
 
 	annotationLastSourceType      = "ai-platform.suse.com/last-source-type"
 	annotationLastHelmRelease     = "ai-platform.suse.com/last-helm-release-name"
@@ -56,6 +56,8 @@ type InstallAIExtensionReconciler struct {
 	Recorder           record.EventRecorder
 	Config             *rest.Config
 	ExtensionNamespace string
+	ReadinessTimeout   time.Duration
+	rancherMgr         *rancher.Manager
 }
 
 // +kubebuilder:rbac:groups=ai-platform.suse.com,resources=installaiextensions,verbs=get;list;watch;create;update;patch;delete
@@ -79,11 +81,9 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	rancherMgr := rancher.NewManager(r.Client, r.Scheme)
-
 	// Handle deletion first (for both source types)
 	if !installExt.ObjectMeta.DeletionTimestamp.IsZero() {
-		if err := r.handleDeletion(ctx, &installExt, rancherMgr, namespace); err != nil {
+		if err := r.handleDeletion(ctx, &installExt, namespace); err != nil {
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
@@ -98,7 +98,7 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// Detect source type change and clean up old resources
-	if err := r.detectAndCleanupSourceChange(ctx, log, &installExt, rancherMgr, namespace); err != nil {
+	if err := r.detectAndCleanupSourceChange(ctx, log, &installExt, namespace); err != nil {
 		if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error(), ""); setErr != nil {
 			log.Error(setErr, "failed to update status")
 		}
@@ -155,7 +155,7 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 	default: // managed or empty
 		if installExt.Spec.Extension.Version == "" {
 			// Git source with no version: resolve latest
-			ver, err := rancherMgr.ResolveLatestVersion(ctx, &installExt, svcURL)
+			ver, err := r.rancherMgr.ResolveLatestVersion(ctx, &installExt, svcURL)
 			if err != nil {
 				if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error(), ""); setErr != nil {
 					log.Error(setErr, "failed to update status")
@@ -171,7 +171,7 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// Ensure ClusterRepo
-	if err := rancherMgr.Ensure(ctx, resolvedExt, svcURL, namespace); err != nil {
+	if err := r.rancherMgr.Ensure(ctx, resolvedExt, svcURL, namespace); err != nil {
 		if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error(), ""); setErr != nil {
 			log.Error(setErr, "failed to update status")
 		}
@@ -186,7 +186,7 @@ func (r *InstallAIExtensionReconciler) Reconcile(ctx context.Context, req ctrl.R
 			return ctrl.Result{}, err
 		}
 	} else {
-		if err := rancherMgr.EnsureUIPlugin(ctx, resolvedExt, svcURL, namespace); err != nil {
+		if err := r.rancherMgr.EnsureUIPlugin(ctx, resolvedExt, svcURL, namespace); err != nil {
 			if setErr := r.setStatus(ctx, &installExt, aiplatformv1beta1.PhaseFailed, err.Error(), ""); setErr != nil {
 				log.Error(setErr, "failed to update status")
 			}
@@ -267,22 +267,14 @@ func (r *InstallAIExtensionReconciler) handleNotReady(
 		}
 	}
 
-	if time.Since(waitingSince) > readinessTimeout {
-		msg := fmt.Sprintf("Deployment not ready after %s", readinessTimeout)
-		if err := r.setStatus(ctx, ext, aiplatformv1beta1.PhaseFailed, msg, ""); err != nil {
-			return ctrl.Result{}, err
+	if time.Since(waitingSince) > r.ReadinessTimeout {
+		if ext.Status.Phase != aiplatformv1beta1.PhaseFailed {
+			msg := fmt.Sprintf("Deployment not ready after %s", r.ReadinessTimeout)
+			if err := r.setStatus(ctx, ext, aiplatformv1beta1.PhaseFailed, msg, ""); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
-		// Clean up annotation
-		patch := client.MergeFrom(ext.DeepCopy())
-		delete(ext.Annotations, annotationWaitingSince)
-		if len(ext.Annotations) == 0 {
-			ext.Annotations = nil
-		}
-		if err := r.Patch(ctx, ext, patch); err != nil {
-			return ctrl.Result{}, err
-		}
-		// Still requeue — deployment might recover
-		return ctrl.Result{RequeueAfter: 1 * time.Minute}, nil
+		return ctrl.Result{}, nil
 	}
 
 	elapsed := time.Since(waitingSince).Truncate(time.Second)
@@ -306,7 +298,6 @@ func (r *InstallAIExtensionReconciler) detectAndCleanupSourceChange(
 	ctx context.Context,
 	log logr.Logger,
 	ext *aiplatformv1beta1.InstallAIExtension,
-	rancherMgr *rancher.Manager,
 	namespace string,
 ) error {
 	if ext.Annotations == nil {
@@ -369,7 +360,7 @@ func (r *InstallAIExtensionReconciler) detectAndCleanupSourceChange(
 		}
 		if oldClusterRepo != newClusterRepo {
 			log.Info("Deleting old ClusterRepo", "oldName", oldClusterRepo, "newName", newClusterRepo)
-			if err := rancherMgr.DeleteClusterRepoByName(ctx, oldClusterRepo); err != nil {
+			if err := r.rancherMgr.DeleteClusterRepoByName(ctx, oldClusterRepo); err != nil {
 				return fmt.Errorf("failed to delete old ClusterRepo %q: %w", oldClusterRepo, err)
 			}
 		}
@@ -407,7 +398,7 @@ func (r *InstallAIExtensionReconciler) detectAndCleanupSourceChange(
 		} else {
 			// managed → unmanaged: delete UIPlugin k8s object so helm can create a fresh release
 			log.Info("Deleting UIPlugin k8s object (switching to unmanaged)")
-			if err := rancherMgr.DeleteUIPlugin(ctx, ext, namespace); err != nil {
+			if err := r.rancherMgr.DeleteUIPlugin(ctx, ext, namespace); err != nil {
 				return fmt.Errorf("failed to delete UIPlugin for policy change: %w", err)
 			}
 		}
@@ -575,6 +566,10 @@ func (r *InstallAIExtensionReconciler) ensureUIPluginRelease(
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *InstallAIExtensionReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if r.ReadinessTimeout == 0 {
+		r.ReadinessTimeout = defaultReadinessTimeout
+	}
+	r.rancherMgr = rancher.NewManager(r.Client, r.Scheme)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&aiplatformv1beta1.InstallAIExtension{}).
 		Named("InstallAIExtension").

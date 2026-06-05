@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 
-	"github.com/SUSE/suse-ai-operator/internal/infra/rancher"
 	"github.com/SUSE/suse-ai-operator/internal/logging"
 	"helm.sh/helm/v3/pkg/cli"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -39,7 +38,6 @@ func (r *InstallAIExtensionReconciler) ensureFinalizer(
 func (r *InstallAIExtensionReconciler) handleDeletion(
 	ctx context.Context,
 	ext *aiplatformv1beta1.InstallAIExtension,
-	rancherMgr *rancher.Manager,
 	namespace string,
 ) error {
 
@@ -90,7 +88,7 @@ func (r *InstallAIExtensionReconciler) handleDeletion(
 	}
 
 	// Cleanup Rancher resources (always, for both source types)
-	if err := rancherMgr.Cleanup(ctx, ext, namespace); err != nil {
+	if err := r.rancherMgr.Cleanup(ctx, ext, namespace); err != nil {
 		log.Error(err, "Failed to cleanup Rancher resources")
 		return err
 	}

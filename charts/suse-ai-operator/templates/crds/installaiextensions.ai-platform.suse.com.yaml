@@ -114,6 +114,9 @@ spec:
                         minLength: 1
                         type: string
                       repo:
+                        description: GitHub repository URL.
+                        minLength: 1
+                        pattern: ^https?://github\.com/.+$
                         type: string
                     required:
                     - branch
@@ -228,6 +231,9 @@ spec:
                         minLength: 1
                         type: string
                       repo:
+                        description: GitHub repository URL.
+                        minLength: 1
+                        pattern: ^https?://github\.com/.+$
                         type: string
                     required:
                     - branch

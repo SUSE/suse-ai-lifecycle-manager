@@ -75,11 +75,11 @@ extension:
   crName: suseai
   chartVersion: 1.1.0
   version: 1.1.0
-  cleanup:
+  jobs:
     image:
       registry: registry.suse.com
       repository: suse/kubectl
-      tag: "latest"
+      tag: "1.35.0"
       pullPolicy: IfNotPresent
     resources:
       limits:
