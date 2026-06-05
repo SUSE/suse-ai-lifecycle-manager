@@ -17,8 +17,9 @@ export interface Blueprint {
   apiVersion: string;
   kind:       string;
   metadata:   {
-    name:    string;
-    labels?: Record<string, string>;
+    name:               string;
+    labels?:            Record<string, string>;
+    creationTimestamp?:  string;
   };
   spec: BlueprintSpec;
 }
