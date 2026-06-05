@@ -1,6 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "additionalProperties": false,
   "properties": {
     "replicaCount": {
       "type": "integer",
@@ -16,6 +17,18 @@
         },
         "imagePullSecrets": {
           "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" }
+                },
+                "required": ["name"]
+              }
+            ]
+          },
           "default": []
         }
       }
@@ -45,6 +58,18 @@
     },
     "imagePullSecrets": {
       "type": "array",
+      "items": {
+        "oneOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" }
+            },
+            "required": ["name"]
+          }
+        ]
+      },
       "default": []
     },
     "nameOverride": {
@@ -113,7 +138,10 @@
       "type": "object"
     },
     "tolerations": {
-      "type": "array"
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
     },
     "affinity": {
       "type": "object"

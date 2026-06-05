@@ -76,7 +76,7 @@ aif-ui-<version> → ghcr.io/suse/aif-ui:<version>
 In the examples below, `<version>` refers to a published extension release (e.g. `0.2.0`).
 
 Available catalog image versions are published in GitHub Container Registry:
-https://github.com/SUSE/aif-ui/pkgs/container/aif-ui
+https://github.com/SUSE/suse-ai-lifecycle-manager/pkgs/container/aif-ui
  
 ### Container Structure
 ```

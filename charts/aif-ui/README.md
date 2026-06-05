@@ -29,9 +29,11 @@ The chart creates a Deployment and Service that serve the built extension assets
 | `podLabels` | object | `{}` | Additional pod labels |
 | `podSecurityContext` | object | See `values.yaml` | Pod-level security context |
 | `containerSecurityContext` | object | See `values.yaml` | Container-level security context |
-| `resources` | object | `{}` | Container resource requests/limits |
+| `resources` | object | See `values.yaml` | Container resource requests/limits |
 | `probes.liveness.enabled` | bool | `true` | Enable liveness probe |
+| `probes.liveness.initialDelaySeconds` | int | `10` | Liveness probe initial delay |
 | `probes.readiness.enabled` | bool | `true` | Enable readiness probe |
+| `probes.readiness.initialDelaySeconds` | int | `5` | Readiness probe initial delay |
 | `nodeSelector` | object | `{}` | Node selector |
 | `tolerations` | list | `[]` | Tolerations |
 | `affinity` | object | `{}` | Affinity rules |

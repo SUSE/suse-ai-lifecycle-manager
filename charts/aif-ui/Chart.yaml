@@ -11,11 +11,11 @@ keywords:
   - rancher
   - extension
   - ai
-home: https://github.com/SUSE/aif-ui
+home: https://github.com/SUSE/suse-ai-lifecycle-manager
 icon: https://github.com/SUSE/suse-ai-lifecycle-manager/blob/ai-factory/pkg/aif-ui/assets/logo.svg
 sources:
-  - https://github.com/SUSE/aif-ui
-appVersion: 1.1.0
+  - https://github.com/SUSE/suse-ai-lifecycle-manager
+appVersion: 0.1.0
 maintainers:
   - url: https://www.suse.com/
     name: SUSE LLC

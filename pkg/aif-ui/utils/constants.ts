@@ -343,8 +343,8 @@ export const STORAGE_KEYS = {
 // These constants build the Rancher proxy URL used by operator-api.ts.
 // OPERATOR_NAMESPACE must match the Helm release namespace (default: suse-ai-operator).
 export const MANAGEMENT_CLUSTER  = 'local';
-export const OPERATOR_NAMESPACE  = 'suse-ai-operator';
-export const OPERATOR_SERVICE    = 'suse-ai-operator';
+export const OPERATOR_NAMESPACE  = 'aif-operator';
+export const OPERATOR_SERVICE    = 'aif-operator';
 export const OPERATOR_PORT       = 8080;
 
 // === Type Exports (for TypeScript) ===
