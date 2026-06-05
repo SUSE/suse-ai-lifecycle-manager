@@ -408,7 +408,11 @@ export default {
             </div>
           </div>
 
-          <div class="row">
+          <!-- Hidden for MVP -- see issue: hide non-MVP Settings fields -->
+          <div
+            v-if="false"
+            class="row"
+          >
             <div class="col span-8">
               <LabeledInput
                 v-model:value="categoriesString"
