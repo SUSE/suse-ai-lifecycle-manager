@@ -23,7 +23,7 @@ spec:
         {{- toYaml .Values.extension.jobs.podSecurityContext | nindent 8 }}
       containers:
         - name: cleanup
-          image: "{{ .Values.extension.jobs.image.registry }}/{{ .Values.extension.jobs.image.repository }}:{{ .Values.extension.jobs.image.tag }}"
+          image: "{{ with (coalesce .Values.global.imageRegistry .Values.extension.jobs.image.registry) }}{{ . }}/{{ end }}{{ .Values.extension.jobs.image.repository }}:{{ .Values.extension.jobs.image.tag }}"
           imagePullPolicy: {{ .Values.extension.jobs.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.extension.jobs.securityContext | nindent 12 }}

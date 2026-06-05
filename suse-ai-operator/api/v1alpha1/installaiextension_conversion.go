@@ -18,9 +18,10 @@ func (src *InstallAIExtension) ConvertTo(dstRaw conversion.Hub) error {
 	dst.ObjectMeta = src.ObjectMeta
 
 	dst.Spec.Extension = v1beta1.ExtensionSpec{
-		Name:     src.Spec.Extension.Name,
-		Version:  src.Spec.Extension.Version,
-		Metadata: src.Spec.Extension.Metadata,
+		Name:          src.Spec.Extension.Name,
+		Version:       src.Spec.Extension.Version,
+		VersionPolicy: src.Spec.Extension.VersionPolicy,
+		Metadata:      src.Spec.Extension.Metadata,
 	}
 
 	if src.Spec.Source != nil {
@@ -67,22 +68,27 @@ func (dst *InstallAIExtension) ConvertFrom(srcRaw conversion.Hub) error {
 
 	// Spec.Extension
 	dst.Spec.Extension = ExtensionSpec{
-		Name:     src.Spec.Extension.Name,
-		Version:  src.Spec.Extension.Version,
-		Metadata: src.Spec.Extension.Metadata,
+		Name:          src.Spec.Extension.Name,
+		Version:       src.Spec.Extension.Version,
+		VersionPolicy: src.Spec.Extension.VersionPolicy,
+		Metadata:      src.Spec.Extension.Metadata,
 	}
 
 	// Spec.Source -> both helm (back-compat) and source (new)
 	dst.Spec.Source = &SourceSpec{}
 	if src.Spec.Source.Helm != nil {
-		helmSpec := &HelmSpec{
+		dst.Spec.Source.Helm = &HelmSpec{
 			Name:    src.Spec.Source.Helm.Name,
 			URL:     src.Spec.Source.Helm.URL,
 			Version: src.Spec.Source.Helm.Version,
 			Values:  src.Spec.Source.Helm.Values,
 		}
-		dst.Spec.Helm = helmSpec
-		dst.Spec.Source.Helm = helmSpec
+		dst.Spec.Helm = &HelmSpec{
+			Name:    src.Spec.Source.Helm.Name,
+			URL:     src.Spec.Source.Helm.URL,
+			Version: src.Spec.Source.Helm.Version,
+			Values:  src.Spec.Source.Helm.Values,
+		}
 	}
 	if src.Spec.Source.Git != nil {
 		dst.Spec.Source.Git = &GitSpec{

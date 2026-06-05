@@ -1,6 +1,7 @@
 package helm
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,8 +19,13 @@ type ChartVersion struct {
 	Annotations map[string]string `yaml:"annotations"`
 }
 
-func FetchIndex(url string) (*IndexFile, error) {
-	resp, err := http.Get(url)
+func FetchIndex(ctx context.Context, url string) (*IndexFile, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

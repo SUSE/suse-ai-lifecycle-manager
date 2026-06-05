@@ -14,14 +14,18 @@ type IndexCacheEntry struct {
 	FetchedAt time.Time
 }
 
+const defaultIndexCacheTTL = 10 * time.Minute
+
 type IndexCache struct {
 	mu    sync.Mutex
 	items map[IndexCacheKey]*IndexCacheEntry
+	ttl   time.Duration
 }
 
 func NewIndexCache() *IndexCache {
 	return &IndexCache{
 		items: make(map[IndexCacheKey]*IndexCacheEntry),
+		ttl:   defaultIndexCacheTTL,
 	}
 }
 
@@ -30,7 +34,14 @@ func (c *IndexCache) Get(key IndexCacheKey) (*IndexCacheEntry, bool) {
 	defer c.mu.Unlock()
 
 	entry, ok := c.items[key]
-	return entry, ok
+	if !ok {
+		return nil, false
+	}
+	if time.Since(entry.FetchedAt) > c.ttl {
+		delete(c.items, key)
+		return nil, false
+	}
+	return entry, true
 }
 
 func (c *IndexCache) Set(key IndexCacheKey, entry *IndexCacheEntry) {

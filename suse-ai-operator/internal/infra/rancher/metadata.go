@@ -127,7 +127,7 @@ func getOrFetchIndex(
 	// Try each URL in order
 	var lastErr error
 	for _, url := range indexURLs {
-		index, err := helm.FetchIndex(url)
+		index, err := helm.FetchIndex(ctx, url)
 		if err != nil {
 			lastErr = err
 			continue

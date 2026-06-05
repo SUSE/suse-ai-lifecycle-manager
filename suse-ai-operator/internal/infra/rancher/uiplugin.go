@@ -70,10 +70,10 @@ func buildPluginEndpoint(ext *v1beta1.InstallAIExtension, svcURL string) (string
 	case ext.Spec.Source.Helm != nil:
 		return fmt.Sprintf("%s/plugin/%s-%s", svcURL, ext.Spec.Extension.Name, ext.Spec.Extension.Version), nil
 	case ext.Spec.Source.Git != nil:
-		repo := normalizeGitHubRepo(ext.Spec.Source.Git.Repo)
+		base := GitRawBaseURL(ext.Spec.Source.Git.Repo, ext.Spec.Source.Git.Branch)
 		return fmt.Sprintf(
-			"https://raw.githubusercontent.com/%s/%s/extensions/%s/%s",
-			repo, ext.Spec.Source.Git.Branch, ext.Spec.Extension.Name, ext.Spec.Extension.Version,
+			"%s/extensions/%s/%s",
+			base, ext.Spec.Extension.Name, ext.Spec.Extension.Version,
 		), nil
 	default:
 		return "", fmt.Errorf("source must specify either helm or git")

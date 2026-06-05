@@ -1,9 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: {{ include "suse-ai-operator.fullname" . }}
+  namespace: {{ include "suse-ai-operator.namespaceName" . }}
   labels:
     {{- include "suse-ai-operator.labels" . | nindent 4 }}
-  name: {{ include "suse-ai-operator.fullname" . }}
 spec:
   replicas: {{ .Values.manager.replicaCount }}
   selector:

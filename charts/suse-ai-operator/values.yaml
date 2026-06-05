@@ -73,8 +73,19 @@ metrics:
 extension:
   enable: true
   crName: suseai
+  # sourceType: helm or git (default: helm)
+  sourceType: helm
+  chartName: suse-ai-lifecycle-manager
+  chartURL: "oci://ghcr.io/suse/chart/suse-ai-lifecycle-manager"
   chartVersion: 1.1.0
+  extensionName: suse-ai-lifecycle-manager
   version: 1.1.0
+  # versionPolicy: managed or unmanaged (only used with git sources)
+  versionPolicy: managed
+  # git source configuration (used when sourceType: git)
+  git:
+    repo: ""
+    branch: ""
   jobs:
     image:
       registry: registry.suse.com

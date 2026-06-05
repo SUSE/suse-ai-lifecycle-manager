@@ -18,13 +18,22 @@ data:
       name: {{ .Values.extension.crName | default "suseai" }}
     spec:
       source:
+        {{- if eq (.Values.extension.sourceType | default "helm") "git" }}
+        git:
+          repo: {{ .Values.extension.git.repo | quote }}
+          branch: {{ .Values.extension.git.branch | quote }}
+        {{- else }}
         helm:
-          name: suse-ai-lifecycle-manager
-          url: "oci://ghcr.io/suse/chart/suse-ai-lifecycle-manager"
+          name: {{ .Values.extension.chartName | default "suse-ai-lifecycle-manager" }}
+          url: {{ .Values.extension.chartURL | default "oci://ghcr.io/suse/chart/suse-ai-lifecycle-manager" | quote }}
           version: {{ .Values.extension.chartVersion | quote }}
+        {{- end }}
       extension:
-        name: suse-ai-lifecycle-manager
+        name: {{ .Values.extension.extensionName | default "suse-ai-lifecycle-manager" }}
         version: {{ .Values.extension.version | quote }}
+        {{- if eq (.Values.extension.sourceType | default "helm") "git" }}
+        versionPolicy: {{ .Values.extension.versionPolicy | default "managed" }}
+        {{- end }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -54,7 +63,7 @@ spec:
             name: {{ include "suse-ai-operator.fullname" . }}-install-cr
       containers:
         - name: install
-          image: "{{ .Values.extension.jobs.image.registry }}/{{ .Values.extension.jobs.image.repository }}:{{ .Values.extension.jobs.image.tag }}"
+          image: "{{ with (coalesce .Values.global.imageRegistry .Values.extension.jobs.image.registry) }}{{ . }}/{{ end }}{{ .Values.extension.jobs.image.repository }}:{{ .Values.extension.jobs.image.tag }}"
           imagePullPolicy: {{ .Values.extension.jobs.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.extension.jobs.securityContext | nindent 12 }}

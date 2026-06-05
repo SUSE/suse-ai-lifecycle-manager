@@ -540,7 +540,10 @@ func (r *InstallAIExtensionReconciler) ensureUIPluginRelease(
 		return err
 	}
 
-	info, _ := helm.GetRelease(ctx, ext.Spec.Extension.Name)
+	info, err := helm.GetRelease(ctx, ext.Spec.Extension.Name)
+	if err != nil {
+		return fmt.Errorf("failed to check UIPlugin release %q: %w", ext.Spec.Extension.Name, err)
+	}
 	if info != nil {
 		log.Info("UIPlugin release exists, skipping (unmanaged policy)")
 		return nil

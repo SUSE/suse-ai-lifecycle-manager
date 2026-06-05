@@ -86,7 +86,13 @@ type ExtensionSpec struct {
 	Name string `json:"name"`
 
 	// +kubebuilder:validation:MinLength=1
-	Version  string            `json:"version"`
+	Version string `json:"version"`
+
+	// +kubebuilder:validation:Enum=managed;unmanaged
+	// +kubebuilder:default=managed
+	// +optional
+	VersionPolicy string `json:"versionPolicy,omitempty"`
+
 	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
