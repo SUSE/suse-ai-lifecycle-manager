@@ -13,6 +13,13 @@
             />
           </div>
 
+          <select v-model="sortBy" class="sort-select form-control-sm">
+            <option value="name-asc">Name (A → Z)</option>
+            <option value="name-desc">Name (Z → A)</option>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+          </select>
+
           <Checkbox v-model:value="showDeprecated" label="Show deprecated" />
 
           <button class="btn role-primary ml-auto" @click="navigateCreate" type="button">
@@ -29,7 +36,7 @@
       <Banner v-if="error" color="error">{{ error }}</Banner>
 
       <div class="main-content">
-        <div v-if="!loading && !filteredFamilies.length && !error" class="empty-state-content">
+        <div v-if="!loading && !sortedFamilies.length && !error" class="empty-state-content">
           <i class="icon icon-folder-open icon-4x text-muted" />
           <h3>No blueprints found</h3>
           <p class="text-muted">Click Create to define your first blueprint.</p>
@@ -37,7 +44,7 @@
 
         <div class="tiles-grid" role="grid">
           <div
-            v-for="[family, versions] in filteredFamilies"
+            v-for="[family, versions] in sortedFamilies"
             :key="family"
             class="app-tile"
           >
@@ -151,7 +158,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, watch, onMounted, getCurrentInstance, reactive } from 'vue';
+import { defineComponent, ref, computed, watch, onMounted, onUnmounted, getCurrentInstance, reactive } from 'vue';
 import { Banner } from '@components/Banner';
 import { Checkbox } from '@components/Form/Checkbox';
 import ActionMenuShell from '@shell/components/ActionMenuShell';
@@ -175,6 +182,7 @@ export default defineComponent({
     const loading         = ref(true);
     const error           = ref<string | null>(null);
     const search          = ref('');
+    const sortBy          = ref('name-asc');
     const blueprints      = ref<Blueprint[]>([]);
     const selectedVersions = ref<Record<string, string>>({});
     const showDeprecated  = ref(false);
@@ -208,6 +216,26 @@ export default defineComponent({
           bp.metadata.name.includes(q)
         );
       });
+    });
+
+    const sortedFamilies = computed(() => {
+      const entries = [...filteredFamilies.value];
+      const key = sortBy.value;
+      entries.sort((a, b) => {
+        const bpA = latestVersion(a[1]);
+        const bpB = latestVersion(b[1]);
+        switch (key) {
+          case 'name-desc':
+            return bpB.spec.displayName.localeCompare(bpA.spec.displayName);
+          case 'newest':
+            return (bpB.metadata.creationTimestamp || '').localeCompare(bpA.metadata.creationTimestamp || '');
+          case 'oldest':
+            return (bpA.metadata.creationTimestamp || '').localeCompare(bpB.metadata.creationTimestamp || '');
+          default:
+            return bpA.spec.displayName.localeCompare(bpB.spec.displayName);
+        }
+      });
+      return entries;
     });
 
     // When the user hides deprecated, bump any selected-version that is deprecated
@@ -274,6 +302,29 @@ export default defineComponent({
         loading.value = false;
       }
     }
+
+    async function silentRefresh() {
+      if (loading.value) return;
+      try {
+        const list = await listBlueprints();
+        blueprints.value = list.items || [];
+        const updates: Record<string, string> = {};
+        for (const [family, versions] of groupBlueprintsByFamily(blueprints.value).entries()) {
+          const current = selectedVersions.value[family];
+          const visible = visibleVersionsFor(versions);
+          const stillVisible = current && visible.some(v => v.spec.version === current);
+          if (!stillVisible) {
+            const pick = visible[0] || latestVersion(versions);
+            updates[family] = pick.spec.version;
+          }
+        }
+        if (Object.keys(updates).length) {
+          selectedVersions.value = { ...selectedVersions.value, ...updates };
+        }
+      } catch { /* ignore during background poll */ }
+    }
+
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
 
     // ── Navigation ─────────────────────────────────────────────────────────────
     function navigateCreate() {
@@ -446,10 +497,15 @@ export default defineComponent({
     onMounted(() => {
       refresh();
       checkAdminRole();
+      pollTimer = setInterval(silentRefresh, 10_000);
+    });
+
+    onUnmounted(() => {
+      if (pollTimer) clearInterval(pollTimer);
     });
 
     return {
-      loading, error, search, filteredFamilies, selectedVersions,
+      loading, error, search, sortBy, sortedFamilies, selectedVersions,
       showDeprecated, isAdmin,
       deleteModal, deprecateModal,
       latestFor, isDeprecated, isSelectedDeprecated, visibleVersionsFor, versionLabel, componentCount, descriptionFor,
@@ -478,6 +534,16 @@ export default defineComponent({
       background: var(--input-bg);
       color: var(--body-text);
       font-size: 14px;
+    }
+    .sort-select {
+      height: 30px;
+      padding: 0 6px 0 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--border-radius);
+      background: var(--input-bg);
+      color: var(--body-text);
+      font-size: 13px;
+      width: auto;
     }
     .ml-auto { margin-left: auto; }
   }
