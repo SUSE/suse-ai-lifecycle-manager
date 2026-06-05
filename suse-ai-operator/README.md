@@ -135,6 +135,14 @@ kubectl apply -f extension.yaml
 > Helm sources always behave as managed with an explicit version — `versionPolicy` is not applicable.
 
 
+### Troubleshooting
+
+**Recovering from a readiness timeout:**
+If a Helm-sourced extension enters `Failed` phase due to the deployment readiness timeout (default: 5 minutes), the controller stops reconciling. After fixing the underlying issue (e.g., image pull errors, resource limits), trigger a new reconciliation by touching the CR:
+```sh
+kubectl annotate iae suseai reconcile-trigger=$(date +%s) --overwrite
+```
+
 ### Uninstall
 
 To uninstall the operator:

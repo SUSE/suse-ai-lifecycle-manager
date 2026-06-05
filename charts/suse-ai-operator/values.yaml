@@ -70,6 +70,9 @@ metrics:
   enable: true
   port: 8443
 
+# Namespace where UIPlugin and related extension resources are created
+extensionsNamespace: cattle-ui-plugin-system
+
 extension:
   enable: true
   crName: suseai

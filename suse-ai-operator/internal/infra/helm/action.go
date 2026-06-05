@@ -2,6 +2,7 @@ package helm
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -172,7 +173,13 @@ func (c *helmClient) GetRelease(ctx context.Context, name string) (*ReleaseInfo,
 	hist.Max = 1
 
 	rels, err := hist.Run(name)
-	if err != nil || len(rels) == 0 {
+	if err != nil {
+		if strings.Contains(err.Error(), "release: not found") {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if len(rels) == 0 {
 		return nil, nil
 	}
 
@@ -201,13 +208,19 @@ func (c *helmClient) EnsureRelease(ctx context.Context, spec ReleaseSpec) error 
 		return err
 	}
 
-	info, _ := c.GetRelease(ctx, spec.Name)
+	info, err := c.GetRelease(ctx, spec.Name)
+	if err != nil {
+		return fmt.Errorf("failed to check release %q: %w", spec.Name, err)
+	}
 	if info == nil {
 		log.Info("Helm release not found, installing")
 		return c.install(ctx, cfg, spec)
 	}
 
-	current, _ := currentManifest(cfg, spec.Name)
+	current, err := currentManifest(cfg, spec.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get current manifest for %q: %w", spec.Name, err)
+	}
 	rendered, err := c.renderUpgrade(ctx, cfg, spec)
 	if err != nil {
 		return err

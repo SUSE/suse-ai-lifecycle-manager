@@ -2,9 +2,10 @@
 apiVersion: v1
 kind: Service
 metadata:
+  name: {{ include "suse-ai-operator.serviceName" (dict "context" . "suffix" "metrics") }}
+  namespace: {{ include "suse-ai-operator.namespaceName" . }}
   labels:
     {{- include "suse-ai-operator.labels" . | nindent 4 }}
-  name: {{ include "suse-ai-operator.serviceName" (dict "context" . "suffix" "metrics") }}
 spec:
   ports:
     - name: https

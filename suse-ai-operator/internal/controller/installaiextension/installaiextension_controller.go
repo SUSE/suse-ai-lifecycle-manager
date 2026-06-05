@@ -512,13 +512,13 @@ func (r *InstallAIExtensionReconciler) reconcileHelmSource(
 
 	svc, err := kubernetes.ServiceForHelmRelease(ctx, r.Client, namespace, releaseName)
 	if err != nil {
-		log.Info("Error to fetch services")
+		log.Error(err, "Failed to list services", "release", releaseName, "namespace", namespace)
 		return "", err
 	}
 
 	svcName, svcNamespace, svcPort, err := installaiextension.ServiceEndpoint(svc)
 	if err != nil {
-		log.Info("Error to fetch svc info")
+		log.Error(err, "Failed to resolve service endpoint", "release", releaseName)
 		return "", err
 	}
 
