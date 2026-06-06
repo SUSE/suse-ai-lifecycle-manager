@@ -19,6 +19,7 @@ import (
 
 	aiplatformv1alpha1 "github.com/SUSE/suse-ai-operator/api/v1alpha1"
 	igit "github.com/SUSE/suse-ai-operator/internal/git"
+	"github.com/SUSE/suse-ai-operator/internal/registryurl"
 )
 
 var clusterRepoGVK = schema.GroupVersionKind{Group: "catalog.cattle.io", Version: "v1", Kind: "ClusterRepo"}
@@ -205,7 +206,7 @@ func (r *AIWorkloadReconciler) ensureCombinedPullSecret(ctx context.Context, tar
 		src := &corev1.Secret{}
 		if err := r.Get(ctx, types.NamespacedName{Namespace: repoInfo.ClientSecretNS, Name: repoInfo.ClientSecret}, src); err == nil {
 			if u, p := string(src.Data["username"]), string(src.Data["password"]); u != "" && p != "" {
-				auths[repoURLToHost(repoInfo.URL)] = dockerAuthEntry(u, p)
+				auths[registryurl.Host(repoInfo.URL)] = dockerAuthEntry(u, p)
 			}
 		}
 	}
@@ -215,7 +216,7 @@ func (r *AIWorkloadReconciler) ensureCombinedPullSecret(ctx context.Context, tar
 	if err := r.Get(ctx, types.NamespacedName{Namespace: r.OperatorNamespace, Name: operatorSettingsName}, &s); err == nil {
 		appHost := defaultAppCollectionHost
 		if s.Spec.RegistryEndpoints != nil && s.Spec.RegistryEndpoints.ApplicationCollection != "" {
-			appHost = s.Spec.RegistryEndpoints.ApplicationCollection
+			appHost = registryurl.Host(s.Spec.RegistryEndpoints.ApplicationCollection)
 		}
 		if s.Spec.ApplicationCollection.UserSecretRef != nil && s.Spec.ApplicationCollection.TokenSecretRef != nil {
 			u, err1 := r.readSettingsSecretKey(ctx, s.Spec.ApplicationCollection.UserSecretRef)
@@ -227,7 +228,7 @@ func (r *AIWorkloadReconciler) ensureCombinedPullSecret(ctx context.Context, tar
 
 		suseHost := defaultSUSERegistryHost
 		if s.Spec.RegistryEndpoints != nil && s.Spec.RegistryEndpoints.SUSERegistry != "" {
-			suseHost = s.Spec.RegistryEndpoints.SUSERegistry
+			suseHost = registryurl.Host(s.Spec.RegistryEndpoints.SUSERegistry)
 		}
 		if s.Spec.SUSERegistry.UserSecretRef != nil && s.Spec.SUSERegistry.TokenSecretRef != nil {
 			u, err1 := r.readSettingsSecretKey(ctx, s.Spec.SUSERegistry.UserSecretRef)
@@ -237,15 +238,13 @@ func (r *AIWorkloadReconciler) ensureCombinedPullSecret(ctx context.Context, tar
 			}
 		}
 
-		nvidiaHost := defaultNvidiaHost
-		if s.Spec.RegistryEndpoints != nil && s.Spec.RegistryEndpoints.Nvidia != "" {
-			nvidiaHost = s.Spec.RegistryEndpoints.Nvidia
-		}
+		// NVIDIA images come from nvcr.io (connected); registryEndpoints.nvidia is the chart-repo
+		// OCI URL, not an image host, and air-gap redirection is a node-level concern.
 		if s.Spec.Nvidia.UserSecretRef != nil && s.Spec.Nvidia.TokenSecretRef != nil {
 			u, err1 := r.readSettingsSecretKey(ctx, s.Spec.Nvidia.UserSecretRef)
 			p, err2 := r.readSettingsSecretKey(ctx, s.Spec.Nvidia.TokenSecretRef)
 			if err1 == nil && err2 == nil && u != "" && p != "" {
-				auths[nvidiaHost] = dockerAuthEntry(u, p)
+				auths[defaultNvidiaHost] = dockerAuthEntry(u, p)
 			}
 		}
 	}
@@ -283,15 +282,6 @@ func (r *AIWorkloadReconciler) readSettingsSecretKey(ctx context.Context, ref *a
 		return "", fmt.Errorf("key %q not found in secret %q", ref.Key, ref.Name)
 	}
 	return string(val), nil
-}
-
-// repoURLToHost derives the registry hostname from an OCI repo URL.
-func repoURLToHost(url string) string {
-	host := strings.TrimPrefix(url, "oci://")
-	if idx := strings.IndexByte(host, '/'); idx >= 0 {
-		host = host[:idx]
-	}
-	return host
 }
 
 // dockerAuthEntry builds the auth object for a single registry in a dockerconfigjson auths map.

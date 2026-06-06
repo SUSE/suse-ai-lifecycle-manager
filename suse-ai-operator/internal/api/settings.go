@@ -25,6 +25,7 @@ import (
 
 	aiplatformv1alpha1 "github.com/SUSE/suse-ai-operator/api/v1alpha1"
 	git "github.com/SUSE/suse-ai-operator/internal/git"
+	"github.com/SUSE/suse-ai-operator/internal/registryurl"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -140,7 +141,7 @@ func (h *SettingsHandler) getRegistryCredentials(w http.ResponseWriter, r *http.
 
 	appHost := defaultAppCollectionHost
 	if s.Spec.RegistryEndpoints != nil && s.Spec.RegistryEndpoints.ApplicationCollection != "" {
-		appHost = s.Spec.RegistryEndpoints.ApplicationCollection
+		appHost = registryurl.Host(s.Spec.RegistryEndpoints.ApplicationCollection)
 	}
 	if s.Spec.ApplicationCollection.UserSecretRef != nil && s.Spec.ApplicationCollection.TokenSecretRef != nil {
 		user, err1 := h.readSecretKey(r.Context(), s.Spec.ApplicationCollection.UserSecretRef)
@@ -154,7 +155,7 @@ func (h *SettingsHandler) getRegistryCredentials(w http.ResponseWriter, r *http.
 
 	suseHost := defaultSUSERegistryHost
 	if s.Spec.RegistryEndpoints != nil && s.Spec.RegistryEndpoints.SUSERegistry != "" {
-		suseHost = s.Spec.RegistryEndpoints.SUSERegistry
+		suseHost = registryurl.Host(s.Spec.RegistryEndpoints.SUSERegistry)
 	}
 	if s.Spec.SUSERegistry.UserSecretRef != nil && s.Spec.SUSERegistry.TokenSecretRef != nil {
 		user, err1 := h.readSecretKey(r.Context(), s.Spec.SUSERegistry.UserSecretRef)
@@ -166,16 +167,15 @@ func (h *SettingsHandler) getRegistryCredentials(w http.ResponseWriter, r *http.
 		}
 	}
 
-	nvidiaHost := defaultNvidiaHost
-	if s.Spec.RegistryEndpoints != nil && s.Spec.RegistryEndpoints.Nvidia != "" {
-		nvidiaHost = s.Spec.RegistryEndpoints.Nvidia
-	}
+	// NVIDIA images are pulled from nvcr.io in connected installs. The registryEndpoints.nvidia
+	// field is the chart-repo OCI URL (not an image host); air-gap image redirection is handled
+	// by a node-level registry proxy, so the pull-secret host is always nvcr.io here.
 	if s.Spec.Nvidia.UserSecretRef != nil && s.Spec.Nvidia.TokenSecretRef != nil {
 		user, err1 := h.readSecretKey(r.Context(), s.Spec.Nvidia.UserSecretRef)
 		pass, err2 := h.readSecretKey(r.Context(), s.Spec.Nvidia.TokenSecretRef)
 		if err1 == nil && err2 == nil {
 			creds.Nvidia = &RegistryCred{
-				Username: user, Password: pass, RegistryHost: nvidiaHost,
+				Username: user, Password: pass, RegistryHost: defaultNvidiaHost,
 			}
 		}
 	}

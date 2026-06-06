@@ -83,10 +83,73 @@ func TestEnsureCombinedPullSecret_IncludesNvidia(t *testing.T) {
 	}
 }
 
-func TestEnsureCombinedPullSecret_NvidiaHostOverride(t *testing.T) {
+func TestEnsureCombinedPullSecret_AppCollectionHostFromOCIURL(t *testing.T) {
 	const opNS = "suse-ai-operator"
 	const targetNS = "my-app"
-	const customHost = "registry.example.com"
+
+	scheme := kruntime.NewScheme()
+	if err := aiplatformv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add aiplatform scheme: %v", err)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add core scheme: %v", err)
+	}
+
+	userSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "ac-user", Namespace: opNS},
+		Data:       map[string][]byte{"username": []byte("u")},
+	}
+	tokenSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "ac-token", Namespace: opNS},
+		Data:       map[string][]byte{"token": []byte("p")},
+	}
+	settings := &aiplatformv1alpha1.Settings{
+		ObjectMeta: metav1.ObjectMeta{Name: operatorSettingsName, Namespace: opNS},
+		Spec: aiplatformv1alpha1.SettingsSpec{
+			RegistryEndpoints: &aiplatformv1alpha1.RegistryEndpointsSettings{
+				ApplicationCollection: "oci://registry.example.com/charts",
+			},
+			ApplicationCollection: aiplatformv1alpha1.ApplicationCollectionSettings{
+				UserSecretRef:  &aiplatformv1alpha1.SecretKeyRef{Name: "ac-user", Key: "username"},
+				TokenSecretRef: &aiplatformv1alpha1.SecretKeyRef{Name: "ac-token", Key: "token"},
+			},
+		},
+	}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).
+		WithObjects(userSecret, tokenSecret, settings).Build()
+	r := &AIWorkloadReconciler{Client: c, OperatorNamespace: opNS}
+
+	name, err := r.ensureCombinedPullSecret(context.Background(), targetNS, clusterRepoInfo{})
+	if err != nil {
+		t.Fatalf("ensureCombinedPullSecret: %v", err)
+	}
+	got := &corev1.Secret{}
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: targetNS, Name: name}, got); err != nil {
+		t.Fatalf("get created secret: %v", err)
+	}
+	var cfg struct {
+		Auths map[string]struct {
+			Auth string `json:"auth"`
+		} `json:"auths"`
+	}
+	if err := json.Unmarshal(got.Data[corev1.DockerConfigJsonKey], &cfg); err != nil {
+		t.Fatalf("parse dockerconfigjson: %v", err)
+	}
+	// The override is a full OCI chart-repo URL; the auths entry must be keyed by
+	// the registry host, not the whole URL.
+	if _, ok := cfg.Auths["registry.example.com"]; !ok {
+		t.Fatalf("expected registry.example.com auth entry (base of OCI URL), got: %v", cfg.Auths)
+	}
+}
+
+// TestEnsureCombinedPullSecret_NvidiaAlwaysNvcrIO pins the invariant that the NVIDIA
+// image-pull-secret host is always nvcr.io, even when registryEndpoints.nvidia points at
+// a mirrored OCI chart repo. That field is a chart-repo URL, not an image host — air-gap
+// image redirection is a node-level concern, so the auths entry must never use the mirror host.
+func TestEnsureCombinedPullSecret_NvidiaAlwaysNvcrIO(t *testing.T) {
+	const opNS = "suse-ai-operator"
+	const targetNS = "my-app"
 
 	scheme := kruntime.NewScheme()
 	if err := aiplatformv1alpha1.AddToScheme(scheme); err != nil {
@@ -107,7 +170,9 @@ func TestEnsureCombinedPullSecret_NvidiaHostOverride(t *testing.T) {
 	settings := &aiplatformv1alpha1.Settings{
 		ObjectMeta: metav1.ObjectMeta{Name: operatorSettingsName, Namespace: opNS},
 		Spec: aiplatformv1alpha1.SettingsSpec{
-			RegistryEndpoints: &aiplatformv1alpha1.RegistryEndpointsSettings{Nvidia: customHost},
+			RegistryEndpoints: &aiplatformv1alpha1.RegistryEndpointsSettings{
+				Nvidia: "oci://mirror.example.com/nvidia",
+			},
 			Nvidia: aiplatformv1alpha1.NvidiaSettings{
 				UserSecretRef:  &aiplatformv1alpha1.SecretKeyRef{Name: "ngc-user", Key: "username"},
 				TokenSecretRef: &aiplatformv1alpha1.SecretKeyRef{Name: "ngc-token", Key: "token"},
@@ -117,14 +182,12 @@ func TestEnsureCombinedPullSecret_NvidiaHostOverride(t *testing.T) {
 
 	c := fake.NewClientBuilder().WithScheme(scheme).
 		WithObjects(userSecret, tokenSecret, settings).Build()
-
 	r := &AIWorkloadReconciler{Client: c, OperatorNamespace: opNS}
 
 	name, err := r.ensureCombinedPullSecret(context.Background(), targetNS, clusterRepoInfo{})
 	if err != nil {
 		t.Fatalf("ensureCombinedPullSecret: %v", err)
 	}
-
 	got := &corev1.Secret{}
 	if err := c.Get(context.Background(), types.NamespacedName{Namespace: targetNS, Name: name}, got); err != nil {
 		t.Fatalf("get created secret: %v", err)
@@ -137,10 +200,11 @@ func TestEnsureCombinedPullSecret_NvidiaHostOverride(t *testing.T) {
 	if err := json.Unmarshal(got.Data[corev1.DockerConfigJsonKey], &cfg); err != nil {
 		t.Fatalf("parse dockerconfigjson: %v", err)
 	}
-	if _, ok := cfg.Auths[customHost]; !ok {
-		t.Fatalf("expected %q auth entry, got: %v", customHost, cfg.Auths)
+	if _, ok := cfg.Auths["nvcr.io"]; !ok {
+		t.Fatalf("expected nvcr.io auth entry, got: %v", cfg.Auths)
 	}
-	if _, ok := cfg.Auths["nvcr.io"]; ok {
-		t.Errorf("did not expect default nvcr.io entry when override set, got: %v", cfg.Auths)
+	if _, ok := cfg.Auths["mirror.example.com"]; ok {
+		t.Errorf("did not expect the mirror host as an image-pull auth entry, got: %v", cfg.Auths)
 	}
 }
+
