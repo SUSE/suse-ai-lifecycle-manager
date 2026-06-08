@@ -530,3 +530,85 @@ func TestInjectorFor_VendorEmptyDefaultsToSUSE(t *testing.T) {
 		t.Errorf("empty vendor did not default to *suseInjector")
 	}
 }
+
+func TestInjectNvidiaPullSecretRefs_OperatorImagePullSecrets(t *testing.T) {
+	cases := []struct {
+		name string
+		in   map[string]any
+		want []any // expected operator.image.pullSecrets
+	}{
+		{
+			name: "empty values — creates operator.image with pull secret",
+			in:   map[string]any{},
+			want: []any{nvidiaImagePullSecretName},
+		},
+		{
+			name: "operator present but no image — adds image.pullSecrets",
+			in:   map[string]any{"operator": map[string]any{"replicas": 2}},
+			want: []any{nvidiaImagePullSecretName},
+		},
+		{
+			name: "operator.image present but no pullSecrets — adds list",
+			in:   map[string]any{"operator": map[string]any{"image": map[string]any{"tag": "main"}}},
+			want: []any{nvidiaImagePullSecretName},
+		},
+		{
+			name: "operator.image.pullSecrets already has other entry — prepends ours",
+			in: map[string]any{"operator": map[string]any{
+				"image": map[string]any{"pullSecrets": []any{"my-regcred"}},
+			}},
+			want: []any{nvidiaImagePullSecretName, "my-regcred"},
+		},
+		{
+			name: "operator.image.pullSecrets already contains ours — left alone",
+			in: map[string]any{"operator": map[string]any{
+				"image": map[string]any{"pullSecrets": []any{nvidiaImagePullSecretName}},
+			}},
+			want: []any{nvidiaImagePullSecretName},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			injectNvidiaPullSecretRefs(tc.in)
+			op, _ := tc.in["operator"].(map[string]any)
+			img, _ := op["image"].(map[string]any)
+			got, _ := img["pullSecrets"].([]any)
+			if !equalAnyStringSlice(got, tc.want) {
+				t.Errorf("operator.image.pullSecrets: got %+v want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestInjectNvidiaPullSecretRefs_OperatorImagePullSecretsLeavesUnexpected(t *testing.T) {
+	// If operator is present but not a map, leave it alone.
+	vals := map[string]any{"operator": "not-a-map"}
+	injectNvidiaPullSecretRefs(vals)
+	if got := vals["operator"]; got != "not-a-map" {
+		t.Errorf("expected operator string to be untouched, got %+v", got)
+	}
+	// If operator.image is present but not a map, leave it alone.
+	vals = map[string]any{"operator": map[string]any{"image": "not-a-map"}}
+	injectNvidiaPullSecretRefs(vals)
+	op, _ := vals["operator"].(map[string]any)
+	if got := op["image"]; got != "not-a-map" {
+		t.Errorf("expected operator.image string to be untouched, got %+v", got)
+	}
+}
+
+// equalAnyStringSlice compares two []any treating each element as a string.
+// Used by the operator.image.pullSecrets tests. Add at the bottom of the
+// test file if not already present.
+func equalAnyStringSlice(a, b []any) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		as, _ := a[i].(string)
+		bs, _ := b[i].(string)
+		if as != bs {
+			return false
+		}
+	}
+	return true
+}

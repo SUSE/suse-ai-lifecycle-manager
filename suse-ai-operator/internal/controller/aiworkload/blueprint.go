@@ -688,7 +688,9 @@ func truncateName(s string, max int) string {
 //   - path present with other entries → prepend ngc-secret
 //   - path present with an unexpected shape → leave untouched (author intent)
 func injectNvidiaPullSecretRefs(vals map[string]any) {
-	// Top-level k8s pod-spec shape: list of objects with "name".
+	// Top-level k8s pod-spec shape: list of objects with {"name": ...}.
+	// Covers Helm charts that respect the standard pod-spec convention at
+	// the chart root.
 	switch existing := vals["imagePullSecrets"].(type) {
 	case nil:
 		vals["imagePullSecrets"] = []any{map[string]any{"name": nvidiaImagePullSecretName}}
@@ -698,24 +700,71 @@ func injectNvidiaPullSecretRefs(vals map[string]any) {
 		}
 	}
 
-	// k8s-nim-operator shape: image.pullSecrets is a flat string list. Only
-	// create the parent map if values["image"] is absent or already a map; if
-	// it's something unexpected, leave it alone.
-	imageRaw, present := vals["image"]
+	// NIM workload chart shape: image.pullSecrets is a flat string list
+	// nested under the chart's "image" map. Conservative: only create the
+	// parent map if values["image"] is absent or already a map; if it's
+	// something unexpected (string, list, etc.), leave it alone to honor
+	// the chart author's intent.
+	injectFlatPullSecretList(vals, "image", "pullSecrets")
+
+	// k8s-nim-operator chart shape: operator.image.pullSecrets is a flat
+	// string list nested two levels deep (operator -> image -> pullSecrets).
+	// Same conservative shape policy as image.pullSecrets above.
+	injectNestedFlatPullSecretList(vals, "operator", "image", "pullSecrets")
+}
+
+// injectFlatPullSecretList adds nvidiaImagePullSecretName to a flat string
+// list at vals[topKey][listKey], creating the parent map if absent. If the
+// parent at vals[topKey] exists but isn't a map, the function returns without
+// changes (preserves author intent for unexpected shapes).
+func injectFlatPullSecretList(vals map[string]any, topKey, listKey string) {
+	topRaw, present := vals[topKey]
 	if !present {
-		vals["image"] = map[string]any{"pullSecrets": []any{nvidiaImagePullSecretName}}
+		vals[topKey] = map[string]any{listKey: []any{nvidiaImagePullSecretName}}
 		return
 	}
-	image, ok := imageRaw.(map[string]any)
+	top, ok := topRaw.(map[string]any)
 	if !ok {
 		return
 	}
-	switch existing := image["pullSecrets"].(type) {
+	switch existing := top[listKey].(type) {
 	case nil:
-		image["pullSecrets"] = []any{nvidiaImagePullSecretName}
+		top[listKey] = []any{nvidiaImagePullSecretName}
 	case []any:
 		if !containsString(existing, nvidiaImagePullSecretName) {
-			image["pullSecrets"] = append([]any{nvidiaImagePullSecretName}, existing...)
+			top[listKey] = append([]any{nvidiaImagePullSecretName}, existing...)
+		}
+	}
+}
+
+// injectNestedFlatPullSecretList walks vals[topKey][midKey][listKey],
+// creating intermediate maps as needed. If any intermediate value exists but
+// isn't a map, the function returns without changes (preserves author intent).
+func injectNestedFlatPullSecretList(vals map[string]any, topKey, midKey, listKey string) {
+	topRaw, present := vals[topKey]
+	if !present {
+		vals[topKey] = map[string]any{midKey: map[string]any{listKey: []any{nvidiaImagePullSecretName}}}
+		return
+	}
+	top, ok := topRaw.(map[string]any)
+	if !ok {
+		return
+	}
+	midRaw, midPresent := top[midKey]
+	if !midPresent {
+		top[midKey] = map[string]any{listKey: []any{nvidiaImagePullSecretName}}
+		return
+	}
+	mid, ok := midRaw.(map[string]any)
+	if !ok {
+		return
+	}
+	switch existing := mid[listKey].(type) {
+	case nil:
+		mid[listKey] = []any{nvidiaImagePullSecretName}
+	case []any:
+		if !containsString(existing, nvidiaImagePullSecretName) {
+			mid[listKey] = append([]any{nvidiaImagePullSecretName}, existing...)
 		}
 	}
 }
