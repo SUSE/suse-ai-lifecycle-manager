@@ -2,6 +2,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ include "suse-ai-operator.fullname" . }}
+  labels:
+    {{- include "suse-ai-operator.labels" . | nindent 4 }}
 rules:
   - apiGroups:
       - ""
@@ -11,6 +13,14 @@ rules:
       - get
       - list
       - watch
+  - apiGroups:
+    - apps
+    resources:
+    - deployments
+    verbs:
+    - get
+    - list
+    - watch
   - apiGroups:
       - ai-platform.suse.com
     resources:
@@ -72,6 +82,8 @@ kind: Role
 metadata:
   name: {{ include "suse-ai-operator.fullname" . }}
   namespace: {{ include "suse-ai-operator.extensionsNamespace" . }}
+  labels:
+    {{- include "suse-ai-operator.labels" . | nindent 4 }}
 rules:
   - apiGroups:
       - ""

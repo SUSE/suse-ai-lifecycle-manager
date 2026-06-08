@@ -2,8 +2,9 @@
 
 Helm chart to deploy the SUSE AI Operator on Kubernetes.
 
-The SUSE AI Operator manages the lifecycle of the AI extension in a Rancher-managed cluster using the `InstallAIExtension` custom resource.
-It integrates with Rancher catalogs and UI plugins to enable declarative installation and management of the AI extension.
+The SUSE AI Operator manages the lifecycle of AI extensions in a Rancher-managed cluster using the `InstallAIExtension` custom resource.
+It supports both Helm charts and Git repositories as extension sources, and integrates with Rancher catalogs (ClusterRepo) and UI plugins (UIPlugin) to enable declarative installation and management. For git sources, the operator supports managed and unmanaged version policies to control whether the operator or the user manages extension upgrades.
+
 
 **Homepage:** <https://github.com/SUSE/suse-ai-lifecycle-manager/suse-ai-operator>
 
@@ -18,6 +19,7 @@ It integrates with Rancher catalogs and UI plugins to enable declarative install
 - Kubernetes 1.24+
 - Helm 3.x
 - Rancher installed (for UIPlugin and ClusterRepo integration)
+- cert-manager installed (required when `webhook.enable=true` and `webhook.certManager.enable=true`)
 
 The following CRDs must exist before adding the operator:
   - `uiplugins.catalog.cattle.io`
@@ -31,18 +33,18 @@ kubectl get crd clusterrepos.catalog.cattle.io
 
 ## CRD Management
 
-This chart ships CRDs in the standard Helm crds/ directory.
+This chart ships CRDs as Helm templates (in `templates/crds/`) rather than the standard `crds/` directory. This is required because the CRD includes conditional conversion webhook configuration that depends on chart values.
 
 **How It Works**
-- CRDs are installed automatically by Helm on first install
-- CRDs are not upgraded automatically on `helm upgrade` (Helm default behavior)
-- CRDs must be updated manually if the schema changes
-- CRDs are not deleted automatically on `helm uninstall` (Helm default behavior)
+- CRDs are installed and **upgraded** automatically by Helm (unlike standard `crds/` behavior)
+- CRDs are **not deleted** on `helm uninstall` (protected by `"helm.sh/resource-policy": keep` annotation)
+- The CRD includes conversion webhook configuration when `webhook.enable=true`
+- cert-manager injects the CA bundle when `webhook.certManager.enable=true`
 
-**Manual CRD Installation**
-If CRDs are not installed automatically (for example, in restricted environments or using --skip-crds in helm install), you can apply them manually:
+**Manual CRD Deletion**
+After uninstalling the chart, remove the CRD manually if desired:
 
-`kubectl apply -f crds/installaiextension.yaml`
+`kubectl delete crd installaiextensions.ai-platform.suse.com`
 
 ## Installing the Chart
 
@@ -52,6 +54,17 @@ This chart is distributed as an OCI Helm chart. Install the chart with the relea
 helm install suse-ai-operator \
   -n suse-ai-operator-system \
   --create-namespace \
+  oci://ghcr.io/suse/chart/suse-ai-operator
+```
+
+By default, the chart also creates an `InstallAIExtension` CR to install the SUSE AI Lifecycle Manager extension. This is controlled by `extension.enable` (default: `true`). The CR is created as a `post-install` hook, ensuring the operator is deployed before the extension is applied.
+
+To install the operator without the bundled extension:
+```bash
+helm install suse-ai-operator \
+  -n suse-ai-operator-system \
+  --create-namespace \
+  --set extension.enable=false \
   oci://ghcr.io/suse/chart/suse-ai-operator
 ```
 
@@ -65,9 +78,11 @@ To uninstall the operator:
 helm uninstall suse-ai-operator -n suse-ai-operator-system
 ```
 
-This removes all Kubernetes resources created by the chart **except CRDs**, which must be removed manually if desired.
-For example:
- `kubectl delete crd installaiextensions.ai-platform.suse.com`
+When `extension.enable=true`, a `pre-delete` cleanup Job automatically deletes the `InstallAIExtension` CR before the operator is removed. This ensures the operator's finalizer can properly clean up Helm releases, ClusterRepos, and UIPlugins while the operator is still running.
+
+This removes all Kubernetes resources created by the chart **except CRDs**, which must be removed manually if desired:
+
+`kubectl delete crd installaiextensions.ai-platform.suse.com`
 
 ## Parameters
 
@@ -163,6 +178,28 @@ For example:
 | -------------------- | ------------------------------------------------ | ------- |
 | `rbacHelpers.enable` | Create helper ClusterRoles (admin/editor/viewer) | `false` |
 
+### Extension parameters
+
+| Name                     | Description                                  | Default  |
+|--------------------------|----------------------------------------------|----------|
+| `extension.enable`       | Create an InstallAIExtension CR with the chart | `true` |
+| `extension.crName`       | Name of the InstallAIExtension               | `suseai` |
+| `extension.chartVersion` | Helm chart version for the extension         | `1.1.0`  |
+| `extension.version`      | Extension version (`spec.extension.version`) | `1.1.0`  |
+
+> When enabled, the CR is created as a `post-install`/`post-upgrade` hook to ensure the operator is ready. On `helm uninstall`, a `pre-delete` cleanup Job deletes the CR first so the operator can run its finalizer before being removed.
+
+### Webhook parameters
+
+| Name                          | Description                                    | Default |
+| ----------------------------- | ---------------------------------------------- | ------- |
+| `webhook.enable`              | Enable conversion webhook (v1alpha1 <-> v1beta1) | `true`  |
+| `webhook.port`                | Webhook server port                            | `9443`  |
+| `webhook.certManager.enable`  | Use cert-manager for webhook TLS certificates  | `true`  |
+| `webhook.certManager.issuerRef` | Optional: use a specific Issuer/ClusterIssuer | `{}`    |
+
+> When enabled, a Service, Certificate, and Issuer are created. The CRD is configured with a conversion webhook pointing to the operator's `/convert` endpoint.
+
 ## Troubleshooting
 
 ### Check pod status
@@ -193,3 +230,26 @@ kubectl get svc -n suse-ai-operator-system
 kubectl get crd installaiextensions.ai-platform.suse.com
 ```
 * Re-apply CRDs manually if required
+
+### Conversion webhook errors
+
+* Ensure cert-manager is installed and the Certificate is ready:
+```bash
+kubectl get certificate -n suse-ai-operator-system
+```
+
+* Check the webhook service exists:
+```bash
+kubectl get svc -l app.kubernetes.io/name=suse-ai-operator -n suse-ai-operator-system
+```
+
+* If not using cert-manager, disable the webhook: --set webhook.enable=false
+
+### Extension stuck in Installing phase
+
+* The operator waits up to 5 minutes for the Helm deployment to become ready
+* Check the deployment status:
+```bash
+kubectl get deployments -n suse-ai-operator-system
+```
+* After 5 minutes the extension status changes to Failed with a timeout message

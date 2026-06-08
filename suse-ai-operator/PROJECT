@@ -11,11 +11,18 @@ repo: suse.com/suse-ai-operator
 resources:
 - api:
     crdVersion: v1
-    namespaced: false
   controller: true
   domain: suse.com
   group: ai-platform
   kind: InstallAIExtension
   path: suse.com/suse-ai-operator/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+  controller: true
+  domain: suse.com
+  group: ai-platform
+  kind: InstallAIExtension
+  path: suse.com/suse-ai-operator/api/v1beta1
+  version: v1beta1
 version: "3"

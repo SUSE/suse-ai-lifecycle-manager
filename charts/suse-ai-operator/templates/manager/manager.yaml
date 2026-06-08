@@ -1,9 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: {{ include "suse-ai-operator.fullname" . }}
+  namespace: {{ include "suse-ai-operator.namespaceName" . }}
   labels:
     {{- include "suse-ai-operator.labels" . | nindent 4 }}
-  name: {{ include "suse-ai-operator.fullname" . }}
 spec:
   replicas: {{ .Values.manager.replicaCount }}
   selector:
@@ -32,6 +33,29 @@ spec:
           {{- range .Values.manager.args }}
             - {{ . }}
           {{- end }}
+          {{- if .Values.webhook.enable }}
+            - --enable-webhooks
+            - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
+          {{- end }}
+
+          {{- with .Values.manager.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+          {{- if or .Values.webhook.enable .Values.metrics.enable }}
+          ports:
+          {{- if .Values.webhook.enable }}
+            - containerPort: {{ .Values.webhook.port }}
+              name: webhook-server
+              protocol: TCP
+          {{- end }}
+          {{- if .Values.metrics.enable }}
+            - containerPort: {{ .Values.metrics.port }}
+              name: metrics
+              protocol: TCP
+          {{- end }}
+          {{- end }}
           
           {{- if .Values.manager.probes.liveness.enabled }}
           livenessProbe:
@@ -43,34 +67,50 @@ spec:
           {{- end }}
           resources:
             {{- if .Values.manager.resources }}
-            {{- toYaml .Values.manager.resources | nindent 20 }}
+            {{- toYaml .Values.manager.resources | nindent 12 }}
             {{- else }}
             {}
             {{- end }}
           securityContext:
             {{- if .Values.manager.securityContext }}
-            {{- toYaml .Values.manager.securityContext | nindent 20 }}
+            {{- toYaml .Values.manager.securityContext | nindent 12 }}
             {{- else }}
             {}
             {{- end }}
           volumeMounts:
             - mountPath: /home/nonroot/.cache
               name: helm-cache
+            {{- if .Values.webhook.enable }}
+            - mountPath: /tmp/k8s-webhook-server/serving-certs
+              name: webhook-cert
+              readOnly: true
+            {{- end }}
       serviceAccountName: {{ include "suse-ai-operator.fullname" . }}
       terminationGracePeriodSeconds: 30
       volumes:
         - emptyDir: {}
           name: helm-cache
+        {{- if .Values.webhook.enable }}
+        - name: webhook-cert
+          secret:
+            secretName: {{ include "suse-ai-operator.fullname" . }}-webhook-server-cert
+            defaultMode: 420
+        {{- end }}
       securityContext:
         {{- if .Values.manager.podSecurityContext }}
-        {{- toYaml .Values.manager.podSecurityContext | nindent 14 }}
+        {{- toYaml .Values.manager.podSecurityContext | nindent 8 }}
         {{- else }}
         {}
         {{- end }}
+      {{- with .Values.manager.nodeSelector }}
       nodeSelector:
-        {{- toYaml .Values.manager.nodeSelector | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.manager.tolerations }}
       tolerations:
-        {{- toYaml .Values.manager.tolerations | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.manager.affinity }}
       affinity:
-        {{- toYaml .Values.manager.affinity | nindent 8 }}
-      
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

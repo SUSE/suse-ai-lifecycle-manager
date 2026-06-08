@@ -1,0 +1,12 @@
+# new
+apiVersion: ai-platform.suse.com/v1beta1
+kind: InstallAIExtension
+metadata:
+  name: suseai
+spec:
+  source:
+    git:
+      repo: https://github.com/SUSE/suse-ai-lifecycle-manager
+      branch: gh-pages
+  extension:
+    name: suse-ai-lifecycle-manager

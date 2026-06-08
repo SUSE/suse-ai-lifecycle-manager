@@ -3,11 +3,11 @@ package controller
 import (
 	"context"
 
-	"github.com/SUSE/suse-ai-operator/internal/infra/rancher"
 	"github.com/SUSE/suse-ai-operator/internal/logging"
+	"helm.sh/helm/v3/pkg/cli"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	aiplatformv1alpha1 "github.com/SUSE/suse-ai-operator/api/v1alpha1"
+	aiplatformv1beta1 "github.com/SUSE/suse-ai-operator/api/v1beta1"
 	helmClient "github.com/SUSE/suse-ai-operator/internal/infra/helm"
 )
 
@@ -15,7 +15,7 @@ const finalizerName = "ai-platform.suse.com/finalizer"
 
 func (r *InstallAIExtensionReconciler) ensureFinalizer(
 	ctx context.Context,
-	ext *aiplatformv1alpha1.InstallAIExtension,
+	ext *aiplatformv1beta1.InstallAIExtension,
 ) (bool, error) {
 
 	log := logging.FromContext(ctx, "finalizer")
@@ -25,9 +25,10 @@ func (r *InstallAIExtensionReconciler) ensureFinalizer(
 	}
 
 	log.Info("Adding finalizer")
+	patch := client.MergeFrom(ext.DeepCopy())
 	ext.Finalizers = append(ext.Finalizers, finalizerName)
 
-	if err := r.Update(ctx, ext); err != nil {
+	if err := r.Patch(ctx, ext, patch); err != nil {
 		return false, err
 	}
 
@@ -36,10 +37,7 @@ func (r *InstallAIExtensionReconciler) ensureFinalizer(
 
 func (r *InstallAIExtensionReconciler) handleDeletion(
 	ctx context.Context,
-	ext *aiplatformv1alpha1.InstallAIExtension,
-	helm helmClient.HelmClient,
-	rancherMgr *rancher.Manager,
-	releaseName string,
+	ext *aiplatformv1beta1.InstallAIExtension,
 	namespace string,
 ) error {
 
@@ -51,12 +49,46 @@ func (r *InstallAIExtensionReconciler) handleDeletion(
 
 	log.Info("Handling resource deletion")
 
-	if err := helm.DeleteRelease(ctx, releaseName); err != nil {
-		log.Error(err, "Failed to delete Helm release")
+	settings := cli.New()
+	settings.SetNamespace(namespace)
+
+	helm, err := helmClient.New(settings)
+	if err != nil {
+		log.Error(err, "Failed to create Helm client")
 		return err
 	}
 
-	if err := rancherMgr.Cleanup(ctx, ext, namespace); err != nil {
+	// Delete deployment helm release (helm source only)
+	deployRelease := ""
+	if ext.Spec.Source.Helm != nil {
+		deployRelease = deploymentReleaseName(ext)
+	} else if ext.Annotations != nil && ext.Annotations[annotationLastSourceType] == aiplatformv1beta1.SourceTypeHelm {
+		deployRelease = ext.Annotations[annotationLastHelmRelease]
+	}
+	if deployRelease != "" {
+		if err := helm.DeleteRelease(ctx, deployRelease); err != nil {
+			log.Error(err, "Failed to delete deployment release", "release", deployRelease)
+			return err
+		}
+	}
+
+	lastPolicy := ""
+	if ext.Annotations != nil {
+		lastPolicy = ext.Annotations[annotationLastVersionPolicy]
+	}
+	if lastPolicy == aiplatformv1beta1.VersionPolicyUnmanaged {
+		uiRelease := ext.Spec.Extension.Name
+		if ext.Annotations != nil && ext.Annotations[annotationLastUIPluginRelease] != "" {
+			uiRelease = ext.Annotations[annotationLastUIPluginRelease]
+		}
+		if err := helm.DeleteRelease(ctx, uiRelease); err != nil {
+			log.Error(err, "Failed to delete UIPlugin release", "release", uiRelease)
+			return err
+		}
+	}
+
+	// Cleanup Rancher resources (always, for both source types)
+	if err := r.rancherMgr.Cleanup(ctx, ext, namespace); err != nil {
 		log.Error(err, "Failed to cleanup Rancher resources")
 		return err
 	}
@@ -66,15 +98,16 @@ func (r *InstallAIExtensionReconciler) handleDeletion(
 
 func (r *InstallAIExtensionReconciler) removeFinalizer(
 	ctx context.Context,
-	ext *aiplatformv1alpha1.InstallAIExtension,
+	ext *aiplatformv1beta1.InstallAIExtension,
 ) error {
 
 	log := logging.FromContext(ctx, "finalizer")
 
 	log.Info("Removing finalizer")
+	patch := client.MergeFrom(ext.DeepCopy())
 	ext.Finalizers = RemoveString(ext.Finalizers, finalizerName)
 
-	if err := r.Update(ctx, ext); err != nil {
+	if err := r.Patch(ctx, ext, patch); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			return nil
 		}

@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -37,7 +38,11 @@ import (
 
 	aiplatformv1alpha1 "github.com/SUSE/suse-ai-operator/api/v1alpha1"
 	"github.com/SUSE/suse-ai-operator/internal/config"
+
 	aiextensionctrl "github.com/SUSE/suse-ai-operator/internal/controller/installaiextension"
+
+	aiplatformv1beta1 "github.com/SUSE/suse-ai-operator/api/v1beta1"
+
 	// +kubebuilder:scaffold:imports
 )
 
@@ -50,6 +55,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(aiplatformv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(aiplatformv1beta1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -62,6 +68,8 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var enableWebhooks bool
+	var deploymentReadinessTimeout time.Duration
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -80,6 +88,10 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.BoolVar(&enableWebhooks, "enable-webhooks", false,
+		"Enable webhook server for conversion and validation webhooks.")
+	flag.DurationVar(&deploymentReadinessTimeout, "deployment-readiness-timeout", 5*time.Minute,
+		"How long to wait for a deployment to become ready before marking the extension as failed.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -104,21 +116,24 @@ func main() {
 	}
 
 	// Initial webhook TLS options
-	webhookTLSOpts := tlsOpts
-	webhookServerOptions := webhook.Options{
-		TLSOpts: webhookTLSOpts,
+	var webhookServer webhook.Server
+	if enableWebhooks {
+		webhookTLSOpts := tlsOpts
+		webhookServerOptions := webhook.Options{
+			TLSOpts: webhookTLSOpts,
+		}
+
+		if len(webhookCertPath) > 0 {
+			setupLog.Info("Initializing webhook certificate watcher using provided certificates",
+				"webhook-cert-path", webhookCertPath, "webhook-cert-name", webhookCertName, "webhook-cert-key", webhookCertKey)
+
+			webhookServerOptions.CertDir = webhookCertPath
+			webhookServerOptions.CertName = webhookCertName
+			webhookServerOptions.KeyName = webhookCertKey
+		}
+
+		webhookServer = webhook.NewServer(webhookServerOptions)
 	}
-
-	if len(webhookCertPath) > 0 {
-		setupLog.Info("Initializing webhook certificate watcher using provided certificates",
-			"webhook-cert-path", webhookCertPath, "webhook-cert-name", webhookCertName, "webhook-cert-key", webhookCertKey)
-
-		webhookServerOptions.CertDir = webhookCertPath
-		webhookServerOptions.CertName = webhookCertName
-		webhookServerOptions.KeyName = webhookCertKey
-	}
-
-	webhookServer := webhook.NewServer(webhookServerOptions)
 
 	// Metrics endpoint is enabled in 'config/default/kustomization.yaml'. The Metrics options configure the server.
 	// More info:
@@ -185,10 +200,24 @@ func main() {
 		Recorder:           mgr.GetEventRecorderFor("install-ai-extension-controller"),
 		Config:             mgr.GetConfig(),
 		ExtensionNamespace: config.GetExtensionNamespace(),
+		ReadinessTimeout:   deploymentReadinessTimeout,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "InstallAIExtension")
 		os.Exit(1)
 	}
+
+	if enableWebhooks {
+		if err := ctrl.NewWebhookManagedBy(mgr).
+			For(&aiplatformv1beta1.InstallAIExtension{}).
+			WithValidator(&aiplatformv1beta1.InstallAIExtensionCustomValidator{
+				Client: mgr.GetClient(),
+			}).
+			Complete(); err != nil {
+			setupLog.Error(err, "unable to create validating webhook", "webhook", "InstallAIExtension")
+			os.Exit(1)
+		}
+	}
+
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

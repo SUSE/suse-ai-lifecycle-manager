@@ -1,0 +1,21 @@
+{{- if and .Values.webhook.enable .Values.webhook.certManager.enable }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "suse-ai-operator.fullname" . }}-serving-cert
+  namespace: {{ include "suse-ai-operator.namespaceName" . }}
+  labels:
+    {{- include "suse-ai-operator.labels" . | nindent 4 }}
+spec:
+  dnsNames:
+    - {{ include "suse-ai-operator.serviceName" (dict "context" . "suffix" "webhook-service") }}.{{ include "suse-ai-operator.namespaceName" . }}.svc
+    - {{ include "suse-ai-operator.serviceName" (dict "context" . "suffix" "webhook-service") }}.{{ include "suse-ai-operator.namespaceName" . }}.svc.cluster.local
+  issuerRef:
+    {{- if .Values.webhook.certManager.issuerRef }}
+    {{- toYaml .Values.webhook.certManager.issuerRef | nindent 4 }}
+    {{- else }}
+    kind: Issuer
+    name: {{ include "suse-ai-operator.fullname" . }}-selfsigned-issuer
+    {{- end }}
+  secretName: {{ include "suse-ai-operator.fullname" . }}-webhook-server-cert
+{{- end }}

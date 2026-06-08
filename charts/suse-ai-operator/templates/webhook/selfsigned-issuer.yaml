@@ -1,0 +1,11 @@
+{{- if and .Values.webhook.enable .Values.webhook.certManager.enable (not .Values.webhook.certManager.issuerRef) }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "suse-ai-operator.fullname" . }}-selfsigned-issuer
+  namespace: {{ include "suse-ai-operator.namespaceName" . }}
+  labels:
+    {{- include "suse-ai-operator.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+{{- end }}

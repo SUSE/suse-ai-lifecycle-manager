@@ -1,0 +1,101 @@
+{{- if .Values.extension.enable }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "suse-ai-operator.fullname" . }}-install-cr
+  namespace: {{ include "suse-ai-operator.namespaceName" . }}
+  labels:
+    {{- include "suse-ai-operator.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+data:
+  installaiextension.yaml: |
+    apiVersion: ai-platform.suse.com/v1beta1
+    kind: InstallAIExtension
+    metadata:
+      name: {{ .Values.extension.crName | default "suseai" }}
+    spec:
+      source:
+        {{- if eq (.Values.extension.sourceType | default "helm") "git" }}
+        git:
+          repo: {{ .Values.extension.git.repo | quote }}
+          branch: {{ .Values.extension.git.branch | quote }}
+        {{- else }}
+        helm:
+          name: {{ .Values.extension.chartName | default "suse-ai-lifecycle-manager" }}
+          url: {{ .Values.extension.chartURL | default "oci://ghcr.io/suse/chart/suse-ai-lifecycle-manager" | quote }}
+          version: {{ .Values.extension.chartVersion | quote }}
+        {{- end }}
+      extension:
+        name: {{ .Values.extension.extensionName | default "suse-ai-lifecycle-manager" }}
+        version: {{ .Values.extension.version | quote }}
+        {{- if eq (.Values.extension.sourceType | default "helm") "git" }}
+        versionPolicy: {{ .Values.extension.versionPolicy | default "managed" }}
+        {{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "suse-ai-operator.fullname" . }}-install
+  namespace: {{ include "suse-ai-operator.namespaceName" . }}
+  labels:
+    {{- include "suse-ai-operator.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 4
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 60
+  template:
+    spec:
+      serviceAccountName: {{ include "suse-ai-operator.fullname" . }}-install
+      restartPolicy: OnFailure
+      {{- include "suse-ai-operator.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        {{- toYaml .Values.extension.jobs.podSecurityContext | nindent 8 }}
+      volumes:
+        - name: cr-manifest
+          configMap:
+            name: {{ include "suse-ai-operator.fullname" . }}-install-cr
+      containers:
+        - name: install
+          image: "{{ with (coalesce .Values.global.imageRegistry .Values.extension.jobs.image.registry) }}{{ . }}/{{ end }}{{ .Values.extension.jobs.image.repository }}:{{ .Values.extension.jobs.image.tag }}"
+          imagePullPolicy: {{ .Values.extension.jobs.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.extension.jobs.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.extension.jobs.resources | nindent 12 }}
+          volumeMounts:
+            - name: cr-manifest
+              mountPath: /manifests
+              readOnly: true
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              {{- if .Values.webhook.enable }}
+              MAX_ATTEMPTS=60
+              ATTEMPT=0
+              echo "Waiting for webhook to become ready..."
+              until kubectl apply --dry-run=server -f /manifests/installaiextension.yaml >/dev/null 2>&1; do
+                ATTEMPT=$((ATTEMPT + 1))
+                if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
+                  echo "ERROR: Webhook not ready after $MAX_ATTEMPTS attempts (5 minutes)."
+                  echo "Check that the operator pod is running and cert-manager has issued the webhook certificate:"
+                  echo "  kubectl get pods -n {{ include "suse-ai-operator.namespaceName" . }}"
+                  echo "  kubectl get certificate -n {{ include "suse-ai-operator.namespaceName" . }}"
+                  exit 1
+                fi
+                echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: webhook not ready, retrying in 5s..."
+                sleep 5
+              done
+              echo "Webhook ready"
+              {{- end }}
+              kubectl apply -f /manifests/installaiextension.yaml
+              echo "InstallAIExtension CR applied successfully"
+{{- end }}

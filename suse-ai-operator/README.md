@@ -4,8 +4,11 @@ The SUSE AI Extension Operator installs and manages Rancher UI extension for SUS
 ## Purpose
 This operator exists to:
 - Install SUSE AI Rancher UI extensions safely and declaratively.
+- Support both Helm charts and Git repositories as extension sources.
+- Support managed and unmanaged version policies for git sources.
 - Prevent conflicts with operator-unmanaged Helm resources.
 - Manage Helm releases, ClusterRepos, and UIPlugins.
+- Detect source type changes and clean up stale resources automatically.
 
 ## Getting Started
 
@@ -16,6 +19,7 @@ This operator exists to:
 - Access to a Kubernetes v1.11.3+ cluster
 - Helm 3.x
 - Rancher installed (for UIPlugin and ClusterRepo integration)
+- cert-manager installed (for conversion webhook TLS certificates)
 
 The following CRDs must exist before adding the operator:
   - `uiplugins.catalog.cattle.io`
@@ -25,6 +29,9 @@ The following CRDs must exist before adding the operator:
 
 The operator is distributed as a Helm chart and installs:
 - Controller Deployment
+- Conversion Webhook (v1alpha1 <-> v1beta1)
+- Default InstallAIExtension CR (configurable, enabled by default)
+- Pre-delete cleanup Job (ensures clean uninstall)
 - RBAC
 - CRDs
 - Metrics Service
@@ -40,41 +47,120 @@ helm install suse-ai-operator \
 
 This will deploy the SUSE AI Operator into the `suse-ai-operator-system` namespace.
 
-2. **Create the InstallAIExtension CR.** Once the operator is installed, apply the InstallAIExtension Custom Resource (CR) to install the required extension. Below is an example of the `extension.yaml`:
+The operator deploys a conversion webhook for API version compatibility (v1alpha1 <-> v1beta1). This requires cert-manager to be installed in the cluster for automatic TLS certificate management. To disable the webhook (single-version mode), set `--set webhook.enable=false`.
+
+By default, the chart also creates an `InstallAIExtension` CR to install the SUSE AI Lifecycle Manager extension. To install the operator without the bundled extension, set --set `extension.enable=false`.
+
+2. **(Optional) Create the InstallAIExtension CR.** By default, the chart already creates an InstallAIExtension CR that installs the SUSE AI Lifecycle Manager extension. Skip this step if the default configuration is sufficient.
+
+If you need a custom configuration, or installed with `--set extension.enable=false`, create your own CR:
+**Using a Helm source:**
 ```yaml
-apiVersion: ai-platform.suse.com/v1alpha1
+apiVersion: ai-platform.suse.com/v1beta1
 kind: InstallAIExtension
 metadata:
   name: suseai
 spec:
-  helm:
-    name: suse-ai-lifecycle-manager
-    url: "oci://ghcr.io/suse/chart/suse-ai-lifecycle-manager"
-    version: "1.0.0"
+  source:
+    helm:
+      name: suse-ai-lifecycle-manager
+      url: "oci://ghcr.io/suse/chart/suse-ai-lifecycle-manager"
+      version: "1.1.0"
   extension:
     name: suse-ai-lifecycle-manager
-    version: "1.0.0"
+    version: "1.1.0"
 ```
+
+**Or Using a Git source (managed, pinned version):**
+```yaml
+apiVersion: ai-platform.suse.com/v1beta1
+kind: InstallAIExtension
+metadata:
+  name: suseai
+spec:
+  source:
+    git:
+      repo: https://github.com/SUSE/suse-ai-lifecycle-manager
+      branch: gh-pages
+  extension:
+    name: suse-ai-lifecycle-manager
+    version: "1.1.0"
+```
+
+**Or Using a Git source (managed, latest version):**
+```yaml
+apiVersion: ai-platform.suse.com/v1beta1
+kind: InstallAIExtension
+metadata:
+  name: suseai
+spec:
+  source:
+    git:
+      repo: https://github.com/SUSE/suse-ai-lifecycle-manager
+      branch: gh-pages
+  extension:
+    name: suse-ai-lifecycle-manager
+```
+
+**Or Using a Git source (unmanaged — user controls upgrades via Rancher UI):**
+```yaml
+apiVersion: ai-platform.suse.com/v1beta1
+kind: InstallAIExtension
+metadata:
+  name: suseai
+spec:
+  source:
+    git:
+      repo: https://github.com/SUSE/suse-ai-lifecycle-manager
+      branch: gh-pages
+  extension:
+    name: suse-ai-lifecycle-manager
+    version: "1.1.0"
+    versionPolicy: unmanaged
+```
+
 Apply this file
 ```sh
 kubectl apply -f extension.yaml
 ```
 
-### Uninstall
+> **NOTE:** The v1alpha1 API version with `spec.helm` is still supported but deprecated. Use `spec.source.helm` or `spec.source.git` in v1beta1 instead.
 
-1. **Remove the InstallAIExtension CR.** To remove the InstallAIExtension CR, use:
+> **NOTE:** Each `spec.extension.name` must be unique across all InstallAIExtension resources. The operator will reject duplicates with a `Failed` status.
+
+> **NOTE:** The `versionPolicy` field controls how the operator manages the UIPlugin for git sources:
+> - `managed` (default): The operator fully controls the UIPlugin. If `version` is set, it pins to that version. If `version` is omitted, it automatically resolves and tracks the latest version. Users cannot modify or uninstall the extension from the Rancher UI.
+> - `unmanaged`: The operator installs the UIPlugin once, then hands off. Users can upgrade, downgrade, or uninstall the extension from Rancher's Extensions page.
+>
+> Helm sources always behave as managed with an explicit version — `versionPolicy` is not applicable.
+
+
+### Troubleshooting
+
+**Recovering from a readiness timeout:**
+If a Helm-sourced extension enters `Failed` phase due to the deployment readiness timeout (default: 5 minutes), the controller stops reconciling. After fixing the underlying issue (e.g., image pull errors, resource limits), trigger a new reconciliation by touching the CR:
 ```sh
-kubectl delete -f extension.yaml
+kubectl annotate iae suseai reconcile-trigger=$(date +%s) --overwrite
 ```
 
-2. **Uninstall the SUSE AI Operator.** To uninstall the operator, run the following command:
+### Uninstall
+
+To uninstall the operator:
 ```sh
 helm uninstall suse-ai-operator -n suse-ai-operator-system
 ```
 
-3. **Delete the CRDs.** After uninstalling the operator, you remove the associated Custom Resource Definitions (CRDs). To delete the InstallAIExtension CRD, use:
+When the bundled extension is enabled (`extension.enable=true`), a pre-delete cleanup Job automatically deletes the `InstallAIExtension` CR and waits for the operator to finish cleaning up Helm releases, ClusterRepos, and UIPlugins before the operator is removed.
+
+If you installed the extension manually (with `extension.enable=false`), delete the CR first:
 ```sh
-kubectl delete crd installaiextension.ai-platform.suse.com
+kubectl delete iae suseai
+helm uninstall suse-ai-operator -n suse-ai-operator-system
+```
+
+After uninstalling, remove the CRD if desired:
+```sh
+kubectl delete crd installaiextensions.ai-platform.suse.com
 ```
 
 ## Development
@@ -104,13 +190,15 @@ helm install suse-ai-operator ./charts/suse-ai-operator/ -n suse-ai-operator-sys
 privileges or be logged in as admin.
 
 **Create CRs**
-You can apply the samples (examples) from the config/sample:
+You can apply the sample (example) from the samples/:
+
+>**NOTE**: Don't apply all the samples, choose one.
 
 ```sh
 kubectl apply -k samples/
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
+>**NOTE**: Ensure that the sample has default values to test it out. 
 
 ### To Uninstall
 **Delete the instances (CRs) from the cluster:**
@@ -128,7 +216,7 @@ helm uninstall suse-ai-operator -n suse-ai-operator-system
 **Delete the APIs(CRDs) from the cluster:**
 
 ```sh
-kubectl delete crd installaiextension.ai-platform.suse.com
+kubectl delete crd installaiextensions.ai-platform.suse.com
 ```
 
 ## Testing
@@ -138,12 +226,13 @@ kubectl delete crd installaiextension.ai-platform.suse.com
 2. **Install the operator:**
 
 ```bash
-helm install suse-ai-operator ./charts/suse-ai-operator -n suse-ai-operator-system
+helm install suse-ai-operator ./charts/suse-ai-operator -n suse-ai-operator-system \
+    --create-namespace
 ```
 
 3. **Apply an extension:**
 ```bash
-kubectl apply -f config/samples/installaiextension.yaml
+kubectl apply -f samples/installaiextension.yaml
 ```
 
 4. **Observe reconciliation:**
@@ -153,7 +242,7 @@ kubectl logs -l app.kubernetes.io/name=suse-ai-operator -f -n suse-ai-operator-s
 
 5. **Verify resources:**
 ```bash
-kubectl get installaiextensions
+kubectl get iae
 kubectl get uiplugins -A
 kubectl get clusterrepos
 helm list -A

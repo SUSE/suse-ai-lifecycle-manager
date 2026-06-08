@@ -1,0 +1,300 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+    {{- if and .Values.webhook.enable .Values.webhook.certManager.enable }}
+    cert-manager.io/inject-ca-from: {{ include "suse-ai-operator.namespaceName" . }}/{{ include "suse-ai-operator.fullname" . }}-serving-cert
+    {{- end }}
+    "helm.sh/resource-policy": keep
+  name: installaiextensions.ai-platform.suse.com
+spec:
+  group: ai-platform.suse.com
+  names:
+    kind: InstallAIExtension
+    listKind: InstallAIExtensionList
+    plural: installaiextensions
+    shortNames:
+    - iae
+    singular: installaiextension
+  scope: Cluster
+  {{- if .Values.webhook.enable }}
+  conversion:
+    strategy: Webhook
+    webhook:
+      conversionReviewVersions:
+        - v1
+      clientConfig:
+        service:
+          namespace: {{ include "suse-ai-operator.namespaceName" . }}
+          name: {{ include "suse-ai-operator.serviceName" (dict "context" . "suffix" "webhook-service") }}
+          path: /convert
+  {{- else }}
+  conversion:
+    strategy: None
+  {{- end }}
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: InstallAIExtension is the Schema for the installaiextensions
+          API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of InstallAIExtension
+            properties:
+              extension:
+                properties:
+                  metadata:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  name:
+                    minLength: 1
+                    type: string
+                  version:
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                - version
+                type: object
+              helm:
+                description: 'Deprecated: Use Source.Helm instead. Will be removed
+                  in v1beta1.'
+                properties:
+                  name:
+                    type: string
+                  url:
+                    description: |-
+                      URL of the Helm repository or OCI registry.
+                      Examples:
+                        oci://ghcr.io/my-org/charts
+                        https://charts.example.com
+                    minLength: 1
+                    pattern: ^(oci://|https?://).+
+                    type: string
+                  values:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    type: object
+                  version:
+                    type: string
+                required:
+                - name
+                - url
+                - version
+                type: object
+              source:
+                description: Source defines where the extension comes from (preferred
+                  over Helm).
+                properties:
+                  git:
+                    description: Git repository source
+                    properties:
+                      branch:
+                        description: Git branch to use
+                        minLength: 1
+                        type: string
+                      repo:
+                        description: GitHub repository URL.
+                        minLength: 1
+                        pattern: ^https?://github\.com/.+$
+                        type: string
+                    required:
+                    - branch
+                    - repo
+                    type: object
+                  helm:
+                    description: Helm chart source
+                    properties:
+                      name:
+                        type: string
+                      url:
+                        description: |-
+                          URL of the Helm repository or OCI registry.
+                          Examples:
+                            oci://ghcr.io/my-org/charts
+                            https://charts.example.com
+                        minLength: 1
+                        pattern: ^(oci://|https?://).+
+                        type: string
+                      values:
+                        additionalProperties:
+                          x-kubernetes-preserve-unknown-fields: true
+                        type: object
+                      version:
+                        type: string
+                    required:
+                    - name
+                    - url
+                    - version
+                    type: object
+                type: object
+                x-kubernetes-validations:
+                - message: source must specify either helm or git, not both
+                  rule: '!(has(self.helm) && has(self.git))'
+            required:
+            - extension
+            type: object
+          status:
+            description: status defines the observed state of InstallAIExtension
+            properties:
+              message:
+                type: string
+              phase:
+                type: string
+              resolvedVersion:
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: false
+    subresources:
+      status: {}
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: InstallAIExtension is the Schema for the installaiextensions
+          API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of InstallAIExtension
+            properties:
+              extension:
+                properties:
+                  metadata:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  name:
+                    minLength: 1
+                    type: string
+                  version:
+                    type: string
+                  versionPolicy:
+                    default: managed
+                    description: |-
+                      Version management policy (git sources only).
+                      "managed" uses the explicit version if set, or resolves latest if empty.
+                      "unmanaged" installs once via helm release, then user manages from Rancher UI.
+                    enum:
+                    - managed
+                    - unmanaged
+                    type: string
+                required:
+                - name
+                type: object
+              source:
+                properties:
+                  git:
+                    description: Git repository source
+                    properties:
+                      branch:
+                        description: Git branch to use
+                        minLength: 1
+                        type: string
+                      repo:
+                        description: GitHub repository URL.
+                        minLength: 1
+                        pattern: ^https?://github\.com/.+$
+                        type: string
+                    required:
+                    - branch
+                    - repo
+                    type: object
+                  helm:
+                    description: Helm chart source
+                    properties:
+                      name:
+                        type: string
+                      url:
+                        description: |-
+                          URL of the Helm repository or OCI registry.
+                          Examples:
+                            oci://ghcr.io/my-org/charts
+                            https://charts.example.com
+                        minLength: 1
+                        pattern: ^(oci://|https?://).+
+                        type: string
+                      values:
+                        additionalProperties:
+                          x-kubernetes-preserve-unknown-fields: true
+                        type: object
+                      version:
+                        type: string
+                    required:
+                    - name
+                    - url
+                    - version
+                    type: object
+                type: object
+                x-kubernetes-validations:
+                - message: source must specify either helm or git
+                  rule: 'has(self.helm) || has(self.git)'
+                - message: source must specify either helm or git, not both
+                  rule: '!(has(self.helm) && has(self.git))'
+            required:
+            - extension
+            - source
+            type: object
+            x-kubernetes-validations:
+            - message: versionPolicy "unmanaged" is only supported with git sources
+              rule: '!has(self.source.helm) || self.extension.versionPolicy != ''unmanaged'''
+            - message: spec.extension.version is required for helm sources
+              rule: '!has(self.source.helm) || self.extension.version != '''''
+            - message: spec.source.helm.version is required
+              rule: '!has(self.source.helm) || self.source.helm.version != '''''
+          status:
+            description: status defines the observed state of InstallAIExtension
+            properties:
+              message:
+                type: string
+              phase:
+                type: string
+              resolvedVersion:
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

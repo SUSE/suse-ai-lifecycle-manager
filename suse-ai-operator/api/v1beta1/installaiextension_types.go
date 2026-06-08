@@ -14,35 +14,41 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package v1beta1
 
 import (
 	apixv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	VersionPolicyManaged   = "managed"
+	VersionPolicyUnmanaged = "unmanaged"
+	SourceTypeHelm         = "helm"
+	SourceTypeGit          = "git"
+)
+
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // InstallAIExtensionSpec defines the desired state of InstallAIExtension
+// +kubebuilder:validation:XValidation:rule="!has(self.source.helm) || self.extension.versionPolicy != 'unmanaged'",message="versionPolicy \"unmanaged\" is only supported with git sources"
+// +kubebuilder:validation:XValidation:rule=”!has(self.source.helm) || self.extension.version != ''”,message=”spec.extension.version is required for helm sources”
+// +kubebuilder:validation:XValidation:rule=”!has(self.source.helm) || self.source.helm.version != ''”,message=”spec.source.helm.version is required”
 type InstallAIExtensionSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	// The following markers will use OpenAPI v3 schema to validate the value
 	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
 
-	// Deprecated: Use Source.Helm instead. Will be removed in v1beta1.
-	// +optional
-	Helm *HelmSpec `json:"helm,omitempty"`
-
-	// Source defines where the extension comes from (preferred over Helm).
-	// +optional
-	Source *SourceSpec `json:"source,omitempty"`
+	// +kubebuilder:validation:Required
+	Source SourceSpec `json:"source"`
 
 	// +kubebuilder:validation:Required
 	Extension ExtensionSpec `json:"extension"`
 }
 
+// +kubebuilder:validation:XValidation:rule="has(self.helm) || has(self.git)",message="source must specify either helm or git"
 // +kubebuilder:validation:XValidation:rule="!(has(self.helm) && has(self.git))",message="source must specify either helm or git, not both"
 type SourceSpec struct {
 	// Helm chart source
@@ -85,9 +91,12 @@ type ExtensionSpec struct {
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
-	// +kubebuilder:validation:MinLength=1
-	Version string `json:"version"`
+	// +optional
+	Version string `json:"version,omitempty"`
 
+	// Version management policy (git sources only).
+	// "managed" uses the explicit version if set, or resolves latest if empty.
+	// "unmanaged" installs once via helm release, then user manages from Rancher UI.
 	// +kubebuilder:validation:Enum=managed;unmanaged
 	// +kubebuilder:default=managed
 	// +optional
@@ -106,6 +115,7 @@ type InstallAIExtensionStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster,shortName=iae
+// +kubebuilder:storageversion
 
 // InstallAIExtension is the Schema for the installaiextensions API
 type InstallAIExtension struct {
@@ -113,7 +123,7 @@ type InstallAIExtension struct {
 
 	// metadata is a standard object metadata
 	// +optional
-	metav1.ObjectMeta `json:"metadata,omitempty,omitzero"`
+	metav1.ObjectMeta `json:"metadata,omitzero"`
 
 	// spec defines the desired state of InstallAIExtension
 	// +required
@@ -121,7 +131,7 @@ type InstallAIExtension struct {
 
 	// status defines the observed state of InstallAIExtension
 	// +optional
-	Status InstallAIExtensionStatus `json:"status,omitempty,omitzero"`
+	Status InstallAIExtensionStatus `json:"status,omitzero"`
 }
 
 // +kubebuilder:object:root=true
@@ -129,7 +139,7 @@ type InstallAIExtension struct {
 // InstallAIExtensionList contains a list of InstallAIExtension
 type InstallAIExtensionList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata,omitzero"`
 	Items           []InstallAIExtension `json:"items"`
 }
 

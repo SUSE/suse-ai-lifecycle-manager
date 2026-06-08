@@ -1,6 +1,7 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
+  name: {{ include "suse-ai-operator.fullname" . }}
+  namespace: {{ include "suse-ai-operator.namespaceName" . }}
   labels:
     {{- include "suse-ai-operator.labels" . | nindent 4 }}
-  name: {{ include "suse-ai-operator.fullname" . }}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/SUSE/suse-ai-operator/api/v1alpha1"
+	"github.com/SUSE/suse-ai-operator/api/v1beta1"
 	logging "github.com/SUSE/suse-ai-operator/internal/logging"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -13,7 +13,7 @@ import (
 
 func (m *Manager) ensureUIPlugin(
 	ctx context.Context,
-	ext *v1alpha1.InstallAIExtension,
+	ext *v1beta1.InstallAIExtension,
 	svcURL string,
 	namespace string,
 ) error {
@@ -27,13 +27,9 @@ func (m *Manager) ensureUIPlugin(
 	ui.SetAPIVersion("catalog.cattle.io/v1")
 	ui.SetKind("UIPlugin")
 	ui.SetName(ext.Spec.Extension.Name)
-
 	ui.SetNamespace(namespace)
 
-	log.Info(
-		"Ensuring UIPlugin",
-		"namespace", namespace,
-	)
+	log.Info("Ensuring UIPlugin", "namespace", namespace)
 
 	_, err := ctrl.CreateOrUpdate(ctx, m.client, ui, func() error {
 		if err := unstructured.SetNestedField(ui.Object, ext.Spec.Extension.Name, "spec", "plugin", "name"); err != nil {
@@ -42,30 +38,19 @@ func (m *Manager) ensureUIPlugin(
 		if err := unstructured.SetNestedField(ui.Object, ext.Spec.Extension.Version, "spec", "plugin", "version"); err != nil {
 			return err
 		}
-		pluginEndpoint := fmt.Sprintf("%s/plugin/%s-%s", svcURL, ext.Spec.Extension.Name, ext.Spec.Extension.Version)
+
+		pluginEndpoint, err := buildPluginEndpoint(ext, svcURL)
+		if err != nil {
+			return err
+		}
+
 		if err := unstructured.SetNestedField(ui.Object, pluginEndpoint, "spec", "plugin", "endpoint"); err != nil {
 			return err
 		}
 
-		logging.Trace(log).Info(
-			"Configuring UIPlugin spec",
-			"endpoint", pluginEndpoint,
-		)
+		logging.Trace(log).Info("Configuring UIPlugin spec", "endpoint", pluginEndpoint)
 
-		metadata := ext.Spec.Extension.Metadata
-		if metadata == nil {
-			metadata = map[string]string{}
-		}
-
-		metadata, err := buildExtensionMetadata(
-			ctx,
-			m.indexCache,
-			svcURL,
-			ext.Spec.Extension.Name,
-			ext.Spec.Extension.Version,
-			metadata,
-		)
-
+		metadata, err := buildExtensionMetadata(ctx, m.indexCache, svcURL, ext)
 		if err != nil {
 			return err
 		}
@@ -80,9 +65,24 @@ func (m *Manager) ensureUIPlugin(
 	return nil
 }
 
+func buildPluginEndpoint(ext *v1beta1.InstallAIExtension, svcURL string) (string, error) {
+	switch {
+	case ext.Spec.Source.Helm != nil:
+		return fmt.Sprintf("%s/plugin/%s-%s", svcURL, ext.Spec.Extension.Name, ext.Spec.Extension.Version), nil
+	case ext.Spec.Source.Git != nil:
+		base := GitRawBaseURL(ext.Spec.Source.Git.Repo, ext.Spec.Source.Git.Branch)
+		return fmt.Sprintf(
+			"%s/extensions/%s/%s",
+			base, ext.Spec.Extension.Name, ext.Spec.Extension.Version,
+		), nil
+	default:
+		return "", fmt.Errorf("source must specify either helm or git")
+	}
+}
+
 func (m *Manager) deleteUIPlugin(
 	ctx context.Context,
-	ext *v1alpha1.InstallAIExtension,
+	ext *v1beta1.InstallAIExtension,
 	namespace string,
 ) error {
 	log := logging.FromContext(ctx, "rancher.uiplugin").
