@@ -161,7 +161,7 @@ func (r *AIWorkloadReconciler) ensureBlueprintHelmOp(
 		ho.SetGroupVersionKind(helmOpGVK)
 		ho.SetName(bundleName)
 		ho.SetNamespace(pair.ns)
-		_ = unstructured.SetNestedField(ho.Object, w.Spec.TargetNamespace, "spec", "namespace")
+		_ = unstructured.SetNestedField(ho.Object, w.Spec.TargetNamespace, "spec", "defaultNamespace")
 		_ = unstructured.SetNestedField(ho.Object, helmSpec, "spec", "helm")
 		_ = unstructured.SetNestedSlice(ho.Object, pair.targets, "spec", "targets")
 		if repoInfo.ClientSecret != "" {
@@ -524,9 +524,9 @@ func (r *AIWorkloadReconciler) ensureBlueprintGitFile(
 	}
 
 	helmOpSpec := map[string]any{
-		"namespace": w.Spec.TargetNamespace,
-		"helm":      helmSpec,
-		"targets":   targets,
+		"defaultNamespace": w.Spec.TargetNamespace,
+		"helm":             helmSpec,
+		"targets":          targets,
 	}
 	if repoInfo.ClientSecret != "" {
 		helmOpSpec["helmSecretName"] = repoInfo.ClientSecret
