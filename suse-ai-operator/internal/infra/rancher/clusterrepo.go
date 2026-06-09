@@ -3,6 +3,7 @@ package rancher
 import (
 	"context"
 	"fmt"
+	urlpkg "net/url"
 	"strings"
 
 	v1alpha1 "github.com/SUSE/suse-ai-operator/api/v1alpha1"
@@ -83,14 +84,14 @@ func (m *Manager) DeleteClusterRepo(ctx context.Context, name string) error {
 	return nil
 }
 
-func normalizeGitHubRepo(repo string) string {
-	repo = strings.TrimPrefix(repo, "https://")
-	repo = strings.TrimPrefix(repo, "http://")
-	repo = strings.TrimPrefix(repo, "github.com/")
-	repo = strings.TrimSuffix(repo, ".git")
-	return repo
-}
-
-func GitRawBaseURL(repo string, branch string) string {
-	return fmt.Sprintf("https://raw.githubusercontent.com/%s/refs/heads/%s", normalizeGitHubRepo(repo), branch)
+func GitRawBaseURL(repo string, branch string) (string, error) {
+	u, err := urlpkg.Parse(repo)
+	if err != nil {
+		return "", fmt.Errorf("invalid git repo URL: %w", err)
+	}
+	if u.Host != "github.com" {
+		return "", fmt.Errorf("unsupported git host %q: only github.com is supported", u.Host)
+	}
+	repoPath := strings.TrimSuffix(u.Path, ".git")
+	return fmt.Sprintf("https://raw.githubusercontent.com%s/refs/heads/%s", repoPath, branch), nil
 }

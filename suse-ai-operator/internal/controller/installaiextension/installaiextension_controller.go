@@ -107,7 +107,8 @@ func (r *InstallAIExtensionReconciler) reconcile(ctx context.Context, ext *v1alp
 	ext.Status.Phase = v1alpha1.InstallAIExtensionPhaseInstalling
 
 	if err := r.cleanupStaleResources(ctx, ext, namespace); err != nil {
-		return ctrl.Result{RequeueAfter: readinessRequeue}, nil
+		logger.Error(err, "stale resource cleanup failed, retrying")
+		return ctrl.Result{}, err
 	}
 
 	if err := r.rancherMgr.CheckCRDs(ctx, []string{
@@ -224,6 +225,9 @@ func (r *InstallAIExtensionReconciler) reconcileHelmSource(
 		waitingSince := r.getWaitingSince(ext)
 		if waitingSince.IsZero() {
 			r.setWaitingSince(ext)
+			if err := r.Update(ctx, ext); err != nil {
+				return ctrl.Result{}, err
+			}
 		} else if time.Since(waitingSince) > r.ReadinessTimeout {
 			msg := fmt.Sprintf("Deployment not ready after %s: %s", r.ReadinessTimeout, deployStatus.Message)
 			setCondition(&ext.Status.Conditions, conditionTypeDeploymentReady, metav1.ConditionFalse,
@@ -236,7 +240,12 @@ func (r *InstallAIExtensionReconciler) reconcileHelmSource(
 		return ctrl.Result{RequeueAfter: readinessRequeue}, nil
 	}
 
-	r.clearWaitingSince(ext)
+	if r.getWaitingSince(ext) != (time.Time{}) {
+		r.clearWaitingSince(ext)
+		if err := r.Update(ctx, ext); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
 
 	setCondition(&ext.Status.Conditions, conditionTypeDeploymentReady, metav1.ConditionTrue,
 		"Available", deployStatus.Message, ext.Generation)
@@ -305,7 +314,13 @@ func (r *InstallAIExtensionReconciler) reconcileGitSource(
 	setCondition(&ext.Status.Conditions, conditionTypeClusterRepo, metav1.ConditionTrue,
 		"Created", "ClusterRepo created for git source", ext.Generation)
 
-	rawBaseURL := rancher.GitRawBaseURL(gitSource.Repo, gitSource.Branch)
+	rawBaseURL, err := rancher.GitRawBaseURL(gitSource.Repo, gitSource.Branch)
+	if err != nil {
+		setCondition(&ext.Status.Conditions, conditionTypeReady, metav1.ConditionFalse,
+			"InvalidSpec", fmt.Sprintf("invalid git repo URL: %v", err), ext.Generation)
+		ext.Status.Phase = v1alpha1.InstallAIExtensionPhaseFailed
+		return ctrl.Result{}, nil
+	}
 
 	if err := r.ensureUIPluginGit(ctx, ext, rawBaseURL, namespace); err != nil {
 		setCondition(&ext.Status.Conditions, conditionTypeUIPlugin, metav1.ConditionFalse,

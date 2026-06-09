@@ -47,8 +47,9 @@ spec:
                 kubectl get installaiextension "$CR_NAME" -o yaml 2>/dev/null || true
                 echo ""
                 echo "The operator is still running and may complete cleanup. Retry 'helm uninstall' later."
-                echo "To force removal after verifying no resources are leaked:"
+                echo "To force removal (requires cluster-admin), after verifying no resources are leaked:"
                 echo "  kubectl patch installaiextension $CR_NAME --type=merge -p '{\"metadata\":{\"finalizers\":[]}}'"
+                echo "(This command must be run with cluster-admin credentials, not the cleanup job's service account.)"
                 exit 1
               fi
               echo "Cleanup complete"
