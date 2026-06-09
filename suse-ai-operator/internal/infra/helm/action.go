@@ -178,7 +178,13 @@ func (c *helmClient) GetRelease(ctx context.Context, name string) (*ReleaseInfo,
 	hist.Max = 1
 
 	rels, err := hist.Run(name)
-	if err != nil || len(rels) == 0 {
+	if err != nil {
+		if strings.Contains(err.Error(), "release: not found") {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if len(rels) == 0 {
 		return nil, nil
 	}
 
