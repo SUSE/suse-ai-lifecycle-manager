@@ -2,10 +2,10 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "suse-ai-operator.fullname" . }}-cleanup
+  name: {{ include "aif-operator.fullname" . }}-cleanup
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "suse-ai-operator.labels" . | nindent 4 }}
+    {{- include "aif-operator.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-weight": "-15"
@@ -14,9 +14,9 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "suse-ai-operator.fullname" . }}-cleanup
+  name: {{ include "aif-operator.fullname" . }}-cleanup
   labels:
-    {{- include "suse-ai-operator.labels" . | nindent 4 }}
+    {{- include "aif-operator.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-weight": "-15"
@@ -34,9 +34,9 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "suse-ai-operator.fullname" . }}-cleanup
+  name: {{ include "aif-operator.fullname" . }}-cleanup
   labels:
-    {{- include "suse-ai-operator.labels" . | nindent 4 }}
+    {{- include "aif-operator.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-weight": "-15"
@@ -44,9 +44,9 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "suse-ai-operator.fullname" . }}-cleanup
+  name: {{ include "aif-operator.fullname" . }}-cleanup
 subjects:
   - kind: ServiceAccount
-    name: {{ include "suse-ai-operator.fullname" . }}-cleanup
+    name: {{ include "aif-operator.fullname" . }}-cleanup
     namespace: {{ .Release.Namespace }}
 {{- end }}

@@ -4,7 +4,7 @@ kind: InstallAIExtension
 metadata:
   name: {{ .Values.aiExtension.extension.name }}
   labels:
-    {{- include "suse-ai-operator.labels" . | nindent 4 }}
+    {{- include "aif-operator.labels" . | nindent 4 }}
 spec:
   source:
     kind: {{ .Values.aiExtension.source.kind }}

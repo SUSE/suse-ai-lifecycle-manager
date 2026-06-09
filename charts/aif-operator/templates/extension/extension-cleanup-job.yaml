@@ -2,10 +2,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "suse-ai-operator.fullname" . }}-cleanup
+  name: {{ include "aif-operator.fullname" . }}-cleanup
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "suse-ai-operator.labels" . | nindent 4 }}
+    {{- include "aif-operator.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-weight": "-10"
@@ -16,9 +16,9 @@ spec:
   ttlSecondsAfterFinished: 60
   template:
     spec:
-      serviceAccountName: {{ include "suse-ai-operator.fullname" . }}-cleanup
+      serviceAccountName: {{ include "aif-operator.fullname" . }}-cleanup
       restartPolicy: Never
-      {{- include "suse-ai-operator.imagePullSecrets" . | nindent 6 }}
+      {{- include "aif-operator.imagePullSecrets" . | nindent 6 }}
       securityContext:
         {{- toYaml .Values.aiExtension.cleanup.podSecurityContext | nindent 8 }}
       containers:

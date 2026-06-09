@@ -19,7 +19,7 @@
           "type": "object",
           "properties": {
             "registry": { "type": "string", "default": "ghcr.io" },
-            "repository": { "type": "string", "default": "suse/suse-ai-operator" },
+            "repository": { "type": "string", "default": "suse/aif-operator" },
             "tag": { "type": "string", "default": "" },
             "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"], "default": "IfNotPresent" }
           }
