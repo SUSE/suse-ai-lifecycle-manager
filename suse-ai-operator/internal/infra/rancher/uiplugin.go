@@ -11,8 +11,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const uiPluginNamespace = "cattle-ui-plugin-system"
-
 func (m *Manager) EnsureUIPlugin(
 	ctx context.Context,
 	ext *v1alpha1.InstallAIExtension,

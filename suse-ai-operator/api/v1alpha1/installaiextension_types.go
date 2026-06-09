@@ -39,9 +39,6 @@ const (
 	InstallAIExtensionPhaseFailed     InstallAIExtensionPhase = "Failed"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // HelmSource configures the Helm chart-based extension deployment model.
 // The controller installs the Helm chart, which creates a Deployment + Service
 // serving the extension assets. The Helm release name is derived from the last

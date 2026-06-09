@@ -206,8 +206,6 @@ func main() {
 	if err := (&aiextensionctrl.InstallAIExtensionReconciler{
 		Client:             mgr.GetClient(),
 		Scheme:             mgr.GetScheme(),
-		Recorder:           mgr.GetEventRecorderFor("install-ai-extension-controller"),
-		Config:             mgr.GetConfig(),
 		ExtensionNamespace: config.GetExtensionNamespace(),
 		ReadinessTimeout:   deploymentReadinessTimeout,
 	}).SetupWithManager(mgr); err != nil {

@@ -14,8 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -43,8 +41,6 @@ const (
 type InstallAIExtensionReconciler struct {
 	client.Client
 	Scheme             *runtime.Scheme
-	Recorder           record.EventRecorder
-	Config             *rest.Config
 	ExtensionNamespace string
 	ReadinessTimeout   time.Duration
 	rancherMgr         *rancher.Manager
@@ -213,6 +209,11 @@ func (r *InstallAIExtensionReconciler) reconcileHelmSource(
 		"Installed", fmt.Sprintf("Helm release %s installed", releaseName), ext.Generation)
 	ext.Status.HelmReleaseName = releaseName
 
+	releaseInfo, err := helm.GetRelease(ctx, releaseName)
+	if err == nil && releaseInfo != nil {
+		ext.Status.HelmReleaseRevision = int32(releaseInfo.Revision)
+	}
+
 	deployStatus, err := kubernetes.IsDeploymentReady(ctx, r.Client, namespace, releaseName, logger)
 	if err != nil {
 		return ctrl.Result{RequeueAfter: readinessRequeue}, nil
@@ -300,6 +301,14 @@ func (r *InstallAIExtensionReconciler) reconcileGitSource(
 		return ctrl.Result{}, nil
 	}
 
+	rawBaseURL, err := rancher.GitRawBaseURL(gitSource.Repo, gitSource.Branch)
+	if err != nil {
+		setCondition(&ext.Status.Conditions, conditionTypeReady, metav1.ConditionFalse,
+			"InvalidSpec", fmt.Sprintf("invalid git repo URL: %v", err), ext.Generation)
+		ext.Status.Phase = v1alpha1.InstallAIExtensionPhaseFailed
+		return ctrl.Result{}, nil
+	}
+
 	if err := r.rancherMgr.EnsureClusterRepo(ctx, ext, ""); err != nil {
 		setCondition(&ext.Status.Conditions, conditionTypeClusterRepo, metav1.ConditionFalse,
 			"Failed", fmt.Sprintf("ClusterRepo failed: %v", err), ext.Generation)
@@ -309,14 +318,6 @@ func (r *InstallAIExtensionReconciler) reconcileGitSource(
 
 	setCondition(&ext.Status.Conditions, conditionTypeClusterRepo, metav1.ConditionTrue,
 		"Created", "ClusterRepo created for git source", ext.Generation)
-
-	rawBaseURL, err := rancher.GitRawBaseURL(gitSource.Repo, gitSource.Branch)
-	if err != nil {
-		setCondition(&ext.Status.Conditions, conditionTypeReady, metav1.ConditionFalse,
-			"InvalidSpec", fmt.Sprintf("invalid git repo URL: %v", err), ext.Generation)
-		ext.Status.Phase = v1alpha1.InstallAIExtensionPhaseFailed
-		return ctrl.Result{}, nil
-	}
 
 	if err := r.ensureUIPluginGit(ctx, ext, rawBaseURL, namespace); err != nil {
 		setCondition(&ext.Status.Conditions, conditionTypeUIPlugin, metav1.ConditionFalse,
