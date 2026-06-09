@@ -225,6 +225,7 @@ func (r *InstallAIExtensionReconciler) reconcileHelmSource(
 			if err := r.Update(ctx, ext); err != nil {
 				return ctrl.Result{}, err
 			}
+			return ctrl.Result{Requeue: true}, nil
 		} else if time.Since(waitingSince) > r.ReadinessTimeout {
 			msg := fmt.Sprintf("Deployment not ready after %s: %s", r.ReadinessTimeout, deployStatus.Message)
 			setCondition(&ext.Status.Conditions, conditionTypeDeploymentReady, metav1.ConditionFalse,
@@ -242,6 +243,7 @@ func (r *InstallAIExtensionReconciler) reconcileHelmSource(
 		if err := r.Update(ctx, ext); err != nil {
 			return ctrl.Result{}, err
 		}
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	setCondition(&ext.Status.Conditions, conditionTypeDeploymentReady, metav1.ConditionTrue,
