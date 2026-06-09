@@ -450,7 +450,7 @@ func deriveReleaseName(chartURL string) string {
 		return strings.TrimSuffix(path.Base(chartURL), "-server") + "-server"
 	}
 	base := path.Base(u.Path)
-	return base + "-server"
+	return strings.TrimSuffix(base, "-server") + "-server"
 }
 
 func setCondition(conditions *[]metav1.Condition, condType string, status metav1.ConditionStatus, reason, message string, generation int64) {
