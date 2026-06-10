@@ -49,9 +49,16 @@ rules:
       - apps
     resources:
       - daemonsets
-      - deployments
       - replicasets
       - statefulsets
+    verbs:
+      - delete
+      - get
+      - list
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
     verbs:
       - delete
       - get
@@ -203,7 +210,6 @@ rules:
       - get
       - list
       - patch
-      - update
       - watch
 
 ---

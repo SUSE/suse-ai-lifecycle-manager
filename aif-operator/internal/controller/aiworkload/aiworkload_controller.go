@@ -53,6 +53,7 @@ type AIWorkloadReconciler struct {
 // +kubebuilder:rbac:groups="",resources=pods;services;configmaps;serviceaccounts;persistentvolumeclaims,verbs=get;list;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments;statefulsets;replicasets;daemonsets,verbs=get;list;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;delete
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=create;get;patch
 
 func (r *AIWorkloadReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
