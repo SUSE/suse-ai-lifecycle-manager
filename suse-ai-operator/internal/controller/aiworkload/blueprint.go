@@ -5,7 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"regexp"
+	"strconv"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -104,7 +106,7 @@ func (r *AIWorkloadReconciler) ensureBlueprintHelmOp(
 	isOCI := strings.HasPrefix(repoInfo.URL, "oci://")
 	helmSpec := map[string]any{
 		"version":     c.ChartVersion,
-		"releaseName": bundleName,
+		"releaseName": capReleaseName(bundleName),
 		// Disable Fleet's ${ } value templating: we resolve all values ourselves,
 		// and upstream charts legitimately use ${ } (e.g. OTel ${env:MY_POD_IP}),
 		// which Fleet would otherwise mis-parse as a template function.
@@ -288,6 +290,41 @@ func (r *AIWorkloadReconciler) readSettingsSecretKey(ctx context.Context, ref *a
 	return string(val), nil
 }
 
+const (
+	// 53 = 63 (K8s DNS-1123 label max) − 10 bytes Helm reserves for generated
+	// suffixes. Fleet validates spec.helm.releaseName against this.
+	helmReleaseNameMax = 53 // Helm/Fleet reject release names longer than this.
+	helmHashLen        = 6  // base36 suffix; 36^6 ≈ 2.2e9 distinct values, ample for collision avoidance.
+)
+
+// capReleaseName mirrors the dashboard's release-name capping: Helm/Fleet reject
+// release names longer than 53 bytes, while the bundle (object) name may be up to
+// 63. Append a short hash when truncating to avoid collisions on a shared prefix.
+// The result is always a valid DNS-1123 label (no leading/trailing '-'), even
+// for pathological inputs.
+//
+// This need NOT match the dashboard's TS capReleaseName byte-for-byte: a single
+// install's releaseName is produced by exactly one side, and the operator looks
+// workloads up by bundle (object) name, never by releaseName.
+func capReleaseName(name string) string {
+	if len(name) <= helmReleaseNameMax {
+		return name
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(name))
+	suffix := strconv.FormatUint(uint64(h.Sum32()), 36)
+	// base36(uint32) is 1–7 chars; cap to helmHashLen. The length guard is
+	// required: slicing a shorter suffix (e.g. "5") to [:helmHashLen] would panic.
+	if len(suffix) > helmHashLen {
+		suffix = suffix[:helmHashLen]
+	}
+	head := strings.Trim(name[:helmReleaseNameMax-len(suffix)-1], "-")
+	if head == "" {
+		return suffix
+	}
+	return head + "-" + suffix
+}
+
 // dockerAuthEntry builds the auth object for a single registry in a dockerconfigjson auths map.
 func dockerAuthEntry(username, password string) map[string]any {
 	return map[string]any{
@@ -341,7 +378,7 @@ func (r *AIWorkloadReconciler) ensureBlueprintGitFile(
 	isOCI := strings.HasPrefix(repoInfo.URL, "oci://")
 	helmSpec := map[string]any{
 		"version":     c.ChartVersion,
-		"releaseName": bundleName,
+		"releaseName": capReleaseName(bundleName),
 		// Disable Fleet's ${ } value templating: we resolve all values ourselves,
 		// and upstream charts legitimately use ${ } (e.g. OTel ${env:MY_POD_IP}),
 		// which Fleet would otherwise mis-parse as a template function.
