@@ -23,7 +23,7 @@ spec:
         {{- toYaml .Values.aiExtension.cleanup.podSecurityContext | nindent 8 }}
       containers:
         - name: cleanup
-          image: "{{ .Values.aiExtension.cleanup.image.registry }}/{{ .Values.aiExtension.cleanup.image.repository }}:{{ .Values.aiExtension.cleanup.image.tag }}"
+          image: "{{ with (coalesce .Values.global.imageRegistry .Values.aiExtension.cleanup.image.registry) }}{{ . }}/{{ end }}{{ .Values.aiExtension.cleanup.image.repository }}:{{ .Values.aiExtension.cleanup.image.tag }}"
           imagePullPolicy: {{ .Values.aiExtension.cleanup.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.aiExtension.cleanup.securityContext | nindent 12 }}
