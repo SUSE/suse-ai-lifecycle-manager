@@ -27,7 +27,7 @@ jobs:
         id: tags
         shell: bash
         run: |
-          ref=${{ github.ref }}
+          ref="${{ github.ref }}"
           case "$ref" in
             refs/tags/aif-operator-*)
               VERSION="${ref#refs/tags/aif-operator-}"

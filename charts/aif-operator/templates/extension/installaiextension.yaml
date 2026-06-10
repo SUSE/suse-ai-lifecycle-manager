@@ -12,8 +12,8 @@ spec:
     helm:
       chartURL: {{ .Values.aiExtension.source.helm.chartURL | quote }}
       version: {{ .Values.aiExtension.source.helm.version | quote }}
+    {{- end }}
   extension:
     name: {{ .Values.aiExtension.extension.name | quote }}
     version: {{ .Values.aiExtension.extension.version | quote }}
-{{- end }}
 {{- end }}

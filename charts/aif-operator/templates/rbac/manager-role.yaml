@@ -144,12 +144,8 @@ rules:
     resources:
       - blueprints
     verbs:
-      - create
-      - delete
       - get
       - list
-      - patch
-      - update
       - watch
   - apiGroups:
       - ai-platform.suse.com

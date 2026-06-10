@@ -62,7 +62,6 @@ Only includes name and instance for consistent selection.
 {{- define "aif-operator.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "aif-operator.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-control-plane: controller-manager
 {{- end }}
 
 {{/*
@@ -70,28 +69,32 @@ Namespace where AI extensions (UI plugins, workloads, secrets) are deployed.
 This is intentionally separate from the operator's release namespace.
 */}}
 {{- define "aif-operator.extensionsNamespace" -}}
-{{- .Values.extensionsNamespace | default "cattle-ui-plugin-system" -}}
+cattle-ui-plugin-system
 {{- end -}}
 
 {{/*
 Return the proper Docker Image Registry Secret Names
 */}}
 {{- define "aif-operator.imagePullSecrets" -}}
+{{- $secrets := list -}}
 {{- if .Values.global }}
-{{- if .Values.global.imagePullSecrets }}
-imagePullSecrets:
 {{- range .Values.global.imagePullSecrets }}
-  {{- $imagePullSecrets := list }}
   {{- if kindIs "string" . }}
-    {{- $imagePullSecrets = append $imagePullSecrets (dict "name" .) }}
+    {{- $secrets = append $secrets (dict "name" .) -}}
   {{- else }}
-    {{- $imagePullSecrets = append $imagePullSecrets . }}
+    {{- $secrets = append $secrets . -}}
   {{- end }}
-  {{- toYaml $imagePullSecrets | nindent 2 }}
 {{- end }}
-{{- else if .Values.manager.imagePullSecrets }}
+{{- end }}
+{{- range .Values.manager.imagePullSecrets }}
+  {{- if kindIs "string" . }}
+    {{- $secrets = append $secrets (dict "name" .) -}}
+  {{- else }}
+    {{- $secrets = append $secrets . -}}
+  {{- end }}
+{{- end }}
+{{- if $secrets }}
 imagePullSecrets:
-  {{- toYaml .Values.manager.imagePullSecrets | nindent 2 }}
-{{- end -}}
-{{- end -}}
+  {{- toYaml $secrets | nindent 2 }}
+{{- end }}
 {{- end -}}
