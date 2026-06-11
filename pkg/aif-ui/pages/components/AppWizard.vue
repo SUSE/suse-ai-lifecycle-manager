@@ -24,6 +24,7 @@ import {
   inferClusterRepoForChart,
   listClusterRepos,
   listNamespaces,
+  SYSTEM_NAMESPACE_PREFIXES,
 } from '../../services/rancher-apps';
 import { persistLoad, persistSave, persistClear } from '../../services/ui-persist';
 import { validateReleaseName, instanceNameError } from '../../validators/appInstallation';
@@ -63,6 +64,7 @@ const router = vm.$router;
 const route = vm.$route;
 
 const loading = ref(true);
+const loadingNamespaces = ref(false);
 const submitting = ref(false);
 const error = ref<string | null>(null);
 const versions = ref<string[]>([]);
@@ -130,9 +132,8 @@ async function fetchAllNamespaces() {
 
     console.log('[SUSE-AI] Found all unique namespaces:', allNamespaces);
 
-    const systemPrefixes = ['c-', 'p-', 'kube-', 'cattle-', 'rancher', 'longhorn-', 'fleet-', 'cluster-fleet-', 'system-', 'istio-', 'neuvector', 'ingress-', 'cert-manager'];
-    const userNamespaces = Array.from(allNamespaces).filter(name => 
-        !systemPrefixes.some(prefix => name.startsWith(prefix))
+    const userNamespaces = Array.from(allNamespaces).filter(name =>
+      !SYSTEM_NAMESPACE_PREFIXES.some(prefix => name.startsWith(prefix))
     );
 
     const desiredDefault = `${props.slug}-system`;
@@ -251,11 +252,13 @@ const basicInfoForm = computed({
 
 onMounted(async () => {
   try {
+    loadingNamespaces.value = true;
     await initializeWizard();
     await fetchAllNamespaces();
   } catch (e) {
     error.value = `Failed to initialize: ${e.message || 'Unknown error'}`;
   } finally {
+    loadingNamespaces.value = false;
     loading.value = false;
   }
 });
@@ -1511,6 +1514,7 @@ function previousStep() {
             :version-options="versionOptions"
             :loading-versions="loadingVersions"
             :namespace-options="namespaceOptions"
+            :loading-namespaces="loadingNamespaces"
             :release-disabled="isManageMode"
             :namespace-disabled="isManageMode"
           />

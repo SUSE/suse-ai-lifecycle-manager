@@ -448,6 +448,12 @@ export async function listCatalogApps($store: RancherStore, clusterId: string): 
   return res?.data?.items || res?.data || res?.items || [];
 }
 
+export const SYSTEM_NAMESPACE_PREFIXES = [
+  'c-', 'p-', 'kube-', 'cattle-', 'rancher', 'longhorn-',
+  'fleet-', 'cluster-fleet-', 'system-', 'istio-',
+  'neuvector', 'ingress-', 'cert-manager',
+];
+
 export async function listNamespaces($store: RancherStore, clusterId: string): Promise<string[]> {
   const url = clusterId === 'local'
     ? '/api/v1/namespaces?limit=5000'

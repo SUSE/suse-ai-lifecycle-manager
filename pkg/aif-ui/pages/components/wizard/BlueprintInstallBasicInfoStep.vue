@@ -17,17 +17,22 @@
     </div>
 
     <div class="form-group">
-      <label class="lbl required">Target Namespace</label>
-      <select v-model="localNs" class="form-control" @change="emit('update:namespace', localNs)">
-        <option v-for="ns in namespaceOptions" :key="ns" :value="ns">{{ ns }}</option>
-      </select>
+      <NamespaceAutocomplete
+        :value="localNs"
+        label="Target Namespace"
+        :options="namespaceOptions"
+        :required="true"
+        :loading="loadingNamespaces"
+        @update:value="onNamespaceChange"
+      />
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { ref, onMounted, getCurrentInstance } from 'vue';
-import { getClusters, listNamespaces } from '../../../services/rancher-apps';
+import NamespaceAutocomplete from './NamespaceAutocomplete.vue';
+import { getClusters, listNamespaces, SYSTEM_NAMESPACE_PREFIXES } from '../../../services/rancher-apps';
 
 interface Props {
   displayName:    string;
@@ -46,13 +51,13 @@ const emit  = defineEmits<Emits>();
 const vm    = getCurrentInstance()!.proxy as any;
 const store = vm.$store;
 
-const localName = ref(props.workloadName);
-const localNs   = ref(props.namespace);
-const namespaceOptions = ref<string[]>([]);
-
-const SYSTEM_PREFIXES = ['c-', 'p-', 'kube-', 'cattle-', 'rancher', 'longhorn-', 'fleet-', 'cluster-fleet-', 'system-', 'istio-'];
+const localName         = ref(props.workloadName);
+const localNs           = ref(props.namespace);
+const namespaceOptions  = ref<Array<{ label: string; value: string }>>([]);
+const loadingNamespaces = ref(false);
 
 onMounted(async () => {
+  loadingNamespaces.value = true;
   try {
     const clusters = await getClusters(store);
     const allNs = new Set<string>();
@@ -62,20 +67,28 @@ onMounted(async () => {
         nsList.forEach(ns => allNs.add(ns));
       } catch {}
     }
+    const suggested = `${props.workloadName}-system`;
     const filtered = [...allNs]
-      .filter(ns => !SYSTEM_PREFIXES.some(p => ns.startsWith(p)))
+      .filter(ns => !SYSTEM_NAMESPACE_PREFIXES.some(p => ns.startsWith(p)))
       .sort();
-    const suggested = `${ props.workloadName }-system`;
     if (!filtered.includes(suggested)) filtered.unshift(suggested);
-    namespaceOptions.value = filtered;
+    namespaceOptions.value = filtered.map(ns => ({ label: ns, value: ns }));
   } catch {
-    namespaceOptions.value = [`${ props.workloadName }-system`];
+    const suggested = `${props.workloadName}-system`;
+    namespaceOptions.value = [{ label: suggested, value: suggested }];
+  } finally {
+    loadingNamespaces.value = false;
   }
   if (!localNs.value && namespaceOptions.value.length) {
-    localNs.value = namespaceOptions.value[0];
+    localNs.value = namespaceOptions.value[0].value;
     emit('update:namespace', localNs.value);
   }
 });
+
+function onNamespaceChange(v: string) {
+  localNs.value = v;
+  emit('update:namespace', v);
+}
 </script>
 
 <style lang="scss" scoped>
