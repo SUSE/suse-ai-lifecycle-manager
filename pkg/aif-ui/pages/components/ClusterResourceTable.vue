@@ -724,6 +724,18 @@ export default defineComponent({
   background: rgba(0, 0, 0, 0.1);
 }
 
+.chip-remove:disabled,
+.chip-remove[disabled] {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.chip-remove:disabled:hover,
+.chip-remove[disabled]:hover {
+  opacity: 0.4;
+  background: transparent;
+}
+
 .selected-warning {
   margin-top: 8px;
   font-size: 12px;
