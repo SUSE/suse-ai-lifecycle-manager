@@ -21,7 +21,8 @@ export function init($plugin: IPlugin, store: RancherStore) {
 
   // Configure product following standard patterns
   product({
-    icon: 'suseai',
+    icon:        'suseai',
+    iconHeader:  require('./assets/SUSE-AI-Factory-Logo_pos-green-horizontal.svg'),
     inStore: SUSEAI_PRODUCT.inStore,
     isMultiClusterApp: true,
     showClusterSwitcher: false,
