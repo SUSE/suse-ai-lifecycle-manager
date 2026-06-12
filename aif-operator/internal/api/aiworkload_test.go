@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	aiplatformv1alpha1 "github.com/SUSE/aif-operator/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -33,6 +34,9 @@ func newAIWorkloadHandler(t *testing.T) http.Handler {
 	t.Helper()
 	s := kruntime.NewScheme()
 	if err := aiplatformv1alpha1.AddToScheme(s); err != nil {
+		t.Fatal(err)
+	}
+	if err := corev1.AddToScheme(s); err != nil {
 		t.Fatal(err)
 	}
 	c := fake.NewClientBuilder().

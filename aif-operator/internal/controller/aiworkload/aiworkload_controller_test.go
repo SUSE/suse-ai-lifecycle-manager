@@ -244,9 +244,12 @@ var _ = Describe("Blueprint AIWorkload", func() {
 	}
 
 	Context("Blueprint CR missing", func() {
-		It("sets phase=Failed when blueprint CR not found", func() {
+		It("sets phase=Pending when blueprint CR not found during grace period", func() {
 			wl := &aiplatformv1alpha1.AIWorkload{
-				ObjectMeta: metav1.ObjectMeta{Name: "bp-missing", Namespace: "default"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bp-missing",
+					Namespace: "default",
+				},
 				Spec: aiplatformv1alpha1.AIWorkloadSpec{
 					DisplayName:     "Test",
 					DeployStrategy:  aiplatformv1alpha1.AIWorkloadDeployFleetBundle,
@@ -271,7 +274,7 @@ var _ = Describe("Blueprint AIWorkload", func() {
 
 			var got aiplatformv1alpha1.AIWorkload
 			Expect(k8sClient.Get(ctx, req("bp-missing", "default").NamespacedName, &got)).To(Succeed())
-			Expect(got.Status.Phase).To(Equal(aiplatformv1alpha1.AIWorkloadPhaseFailed))
+			Expect(got.Status.Phase).To(Equal(aiplatformv1alpha1.AIWorkloadPhasePending))
 		})
 	})
 

@@ -52,7 +52,19 @@ var _ = Describe("InstallAIExtension Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: aiplatformv1alpha1.InstallAIExtensionSpec{
+						Extension: aiplatformv1alpha1.ExtensionConfig{
+							Name:    "test-ext",
+							Version: "1.0.0",
+						},
+						Source: aiplatformv1alpha1.ExtensionSource{
+							Kind: "Helm",
+							Helm: &aiplatformv1alpha1.HelmSource{
+								ChartURL: "oci://test-repo/test-chart",
+								Version:  "1.0.0",
+							},
+						},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
