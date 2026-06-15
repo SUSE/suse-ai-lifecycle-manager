@@ -150,6 +150,7 @@ export const NOTIFICATION_DURATION = {
   SHORT: 3000,
   MEDIUM: 5000,
   LONG: 8000,
+  EXTENDED: 10000,
   PERMANENT: 0
 } as const;
 
@@ -161,11 +162,14 @@ export const PROGRESS_VALUES = {
 } as const;
 
 export const TIMEOUT_VALUES = {
-  SHORT: 5000,      // 5 seconds
-  MEDIUM: 30000,    // 30 seconds
-  LONG: 120000,     // 2 minutes
-  EXTENDED: 300000, // 5 minutes
-  INSTALL: 600000   // 10 minutes for installations
+  SHORT: 5000,        // 5 seconds
+  READ: 8000,         // 8 seconds - hot-path reads (lists, discovery, catalog lookups)
+  CLUSTER: 10000,     // 10 seconds - reads proxied through Rancher to a downstream cluster
+  MUTATION: 20000,    // 20 seconds - write operations (install, upgrade, delete, secret upsert)
+  MEDIUM: 30000,      // 30 seconds
+  LONG: 120000,       // 2 minutes
+  EXTENDED: 300000,   // 5 minutes
+  INSTALL: 600000     // 10 minutes for installations
 } as const;
 
 export const RETRY_CONFIG = {
