@@ -65,24 +65,50 @@ func TestBundleClient_EmitsBundleCarryingSecret(t *testing.T) {
 		t.Errorf("target clusterName: got %v want c-abc123", name)
 	}
 
-	// resources[0].content is the serialized Secret
+	// resources holds [0] the target Namespace, [1] the Secret. The Namespace
+	// is shipped because Fleet applies bundle resources verbatim with no
+	// namespace creation; without it a Secret targeted at a not-yet-existing
+	// namespace fails with "namespaces \"X\" not found".
 	resources, found, err := unstructured.NestedSlice(bundle.Object, "spec", "resources")
-	if err != nil || !found || len(resources) != 1 {
-		t.Fatalf("spec.resources missing or wrong count: found=%v err=%v len=%d", found, err, len(resources))
+	if err != nil || !found || len(resources) != 2 {
+		t.Fatalf("spec.resources missing or wrong count: found=%v err=%v len=%d (want 2: namespace + secret)", found, err, len(resources))
 	}
+
+	// resources[0] is the Namespace manifest, annotated with
+	// helm.sh/resource-policy=keep so peer bundles sharing this namespace
+	// don't delete it when one is removed.
 	r0, _ := resources[0].(map[string]any)
-	content, _ := r0["content"].(string)
-	if content == "" {
-		t.Errorf("resources[0].content is empty")
+	nsContent, _ := r0["content"].(string)
+	if !strings.Contains(nsContent, "kind: Namespace") || !strings.Contains(nsContent, "name: target-ns") {
+		t.Errorf("resources[0] should be a Namespace for target-ns, got:\n%s", nsContent)
 	}
-	// Sanity check: serialized secret should mention the secret name and dockerconfigjson type
+	if !strings.Contains(nsContent, "helm.sh/resource-policy: keep") {
+		t.Errorf("namespace manifest missing helm.sh/resource-policy=keep annotation, got:\n%s", nsContent)
+	}
+	if name, _ := r0["name"].(string); name == "" {
+		t.Errorf("resources[0].name is empty")
+	}
+
+	// spec.helm.takeOwnership must be true so peer pull-secret bundles can
+	// share the namespace without Helm's adoption check rejecting the second.
+	takeOwnership, found, err := unstructured.NestedBool(bundle.Object, "spec", "helm", "takeOwnership")
+	if err != nil || !found || !takeOwnership {
+		t.Errorf("spec.helm.takeOwnership: found=%v err=%v value=%v (want true)", found, err, takeOwnership)
+	}
+
+	// resources[1] is the serialized Secret
+	r1, _ := resources[1].(map[string]any)
+	content, _ := r1["content"].(string)
+	if content == "" {
+		t.Errorf("resources[1].content is empty")
+	}
 	if !strings.Contains(content, "ngc-secret") || !strings.Contains(content, "kubernetes.io/dockerconfigjson") {
 		t.Errorf("serialized resource content missing expected fields:\n%s", content)
 	}
 	// resource name should namespace-disambiguate so multiple secrets in different
 	// target namespaces don't collide as bundle resource names
-	if name, _ := r0["name"].(string); name == "" {
-		t.Errorf("resources[0].name is empty")
+	if name, _ := r1["name"].(string); name == "" {
+		t.Errorf("resources[1].name is empty")
 	}
 }
 
@@ -162,11 +188,12 @@ func TestBundleClient_TwoDifferentSecrets_BothRetained(t *testing.T) {
 			t.Errorf("missing bundle %q; have %+v", n, seen)
 		}
 	}
-	// Each bundle's spec.resources should hold exactly one resource (the corresponding secret).
+	// Each bundle's spec.resources should hold exactly two resources: the
+	// target Namespace manifest followed by the corresponding Secret.
 	for _, b := range bundles.Items {
 		resources, _, _ := unstructured.NestedSlice(b.Object, "spec", "resources")
-		if len(resources) != 1 {
-			t.Errorf("bundle %s: expected 1 resource, got %d", b.GetName(), len(resources))
+		if len(resources) != 2 {
+			t.Errorf("bundle %s: expected 2 resources (namespace + secret), got %d", b.GetName(), len(resources))
 		}
 	}
 }

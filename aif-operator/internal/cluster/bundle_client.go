@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -63,7 +64,33 @@ func (b *bundleClient) ApplySecret(ctx context.Context, sec *corev1.Secret) erro
 		return fmt.Errorf("marshal secret %s/%s: %w", out.Namespace, out.Name, err)
 	}
 
+	// Fleet wraps each Bundle as its own Helm release on the target cluster,
+	// so a Secret targeted at a not-yet-existing namespace fails with
+	// "namespaces \"X\" not found". Ship a Namespace manifest alongside the
+	// Secret so the target namespace is guaranteed to exist before the Secret
+	// applies.
+	//
+	// Because multiple bundles for the same (owner, cluster) each ship the
+	// same Namespace, the second bundle's Helm release would otherwise refuse
+	// to adopt a namespace already annotated as owned by the first release.
+	// The Bundle below sets spec.helm.takeOwnership=true so Helm overrides
+	// the adoption check, and the Namespace gets helm.sh/resource-policy=keep
+	// so deleting one bundle doesn't drop the namespace out from under any
+	// peer bundle still referencing it.
+	ns := &corev1.Namespace{
+		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        out.Namespace,
+			Annotations: map[string]string{"helm.sh/resource-policy": "keep"},
+		},
+	}
+	nsYAML, err := yaml.Marshal(ns)
+	if err != nil {
+		return fmt.Errorf("marshal namespace %s: %w", out.Namespace, err)
+	}
+
 	bundleName := fmt.Sprintf("ai-pullsecrets-%s-%s-%s", b.opts.OwnerName, b.opts.ClusterID, sec.Name)
+	nsResourceName := fmt.Sprintf("%s-namespace.yaml", out.Namespace)
 	resourceName := fmt.Sprintf("%s-%s.yaml", out.Namespace, out.Name)
 
 	bundle := &unstructured.Unstructured{}
@@ -78,6 +105,10 @@ func (b *bundleClient) ApplySecret(ctx context.Context, sec *corev1.Secret) erro
 	spec := map[string]any{
 		"resources": []any{
 			map[string]any{
+				"name":    nsResourceName,
+				"content": string(nsYAML),
+			},
+			map[string]any{
 				"name":    resourceName,
 				"content": string(secYAML),
 			},
@@ -86,6 +117,12 @@ func (b *bundleClient) ApplySecret(ctx context.Context, sec *corev1.Secret) erro
 			map[string]any{
 				"clusterName": b.opts.ClusterID,
 			},
+		},
+		// takeOwnership: peer pull-secret bundles for the same (owner, cluster)
+		// all carry the same Namespace manifest; without this, the second Helm
+		// release refuses to adopt the namespace the first release annotated.
+		"helm": map[string]any{
+			"takeOwnership": true,
 		},
 	}
 	if err := unstructured.SetNestedField(bundle.Object, spec, "spec"); err != nil {
