@@ -29,6 +29,7 @@ const aiWorkloadFinalizer = "ai-platform.suse.com/cleanup"
 
 var (
 	bundleDeploymentGVK = schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "BundleDeployment"}
+	bundleGVK           = schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Bundle"}
 	helmOpGVK           = schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "HelmOp"}
 	fleetNamespaces     = []string{"fleet-local", "fleet-default"}
 )
@@ -46,6 +47,7 @@ type AIWorkloadReconciler struct {
 // +kubebuilder:rbac:groups=ai-platform.suse.com,resources=aiworkloads/finalizers,verbs=update
 // +kubebuilder:rbac:groups=ai-platform.suse.com,resources=settings,verbs=get;list;watch
 // +kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments,verbs=get;list;watch
+// +kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles,verbs=get;list;delete
 // +kubebuilder:rbac:groups=ai-platform.suse.com,resources=blueprints,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=catalog.cattle.io,resources=clusterrepos,verbs=get;list;watch
 // +kubebuilder:rbac:groups=fleet.cattle.io,resources=helmops,verbs=get;list;watch;create;patch;delete
@@ -185,6 +187,24 @@ func (r *AIWorkloadReconciler) deleteHelmOp(ctx context.Context, name string) er
 	return nil
 }
 
+// deleteBundle deletes the Fleet Bundle the HelmOp generated (it shares the HelmOp's
+// name). Fleet links this Bundle to its HelmOp only by a label — there is no
+// ownerReference — so deleting the HelmOp does not garbage-collect it, and Fleet's
+// own cleanup is racy. We delete the Bundle directly so teardown is deterministic;
+// the Bundle's finalizer then prunes the BundleDeployment and deployed resources.
+func (r *AIWorkloadReconciler) deleteBundle(ctx context.Context, name string) error {
+	for _, ns := range fleetNamespaces {
+		b := &unstructured.Unstructured{}
+		b.SetGroupVersionKind(bundleGVK)
+		b.SetName(name)
+		b.SetNamespace(ns)
+		if err := r.Delete(ctx, b); err != nil && !errors.IsNotFound(err) {
+			return fmt.Errorf("delete Bundle %s/%s: %w", ns, name, err)
+		}
+	}
+	return nil
+}
+
 func (r *AIWorkloadReconciler) mirrorFleetStatus(ctx context.Context, w *aiplatformv1alpha1.AIWorkload) error {
 	bdList := &unstructured.UnstructuredList{}
 	bdList.SetGroupVersionKind(schema.GroupVersionKind{
@@ -236,11 +256,20 @@ func (r *AIWorkloadReconciler) handleDeletion(ctx context.Context, w *aiplatform
 		}
 	case aiplatformv1alpha1.AIWorkloadDeployFleetBundle:
 		for _, name := range w.Spec.FleetBundleNames {
+			// Delete the HelmOp first so Fleet does not re-create the Bundle,
+			// then delete the Bundle directly (Fleet's cascade is unreliable).
 			if err := r.deleteHelmOp(ctx, name); err != nil {
 				l.Error(err, "HelmOp delete failed — proceeding with finalizer removal", "name", name)
 			}
+			if err := r.deleteBundle(ctx, name); err != nil {
+				l.Error(err, "Fleet Bundle delete failed — proceeding with finalizer removal", "name", name)
+			}
 		}
 	case aiplatformv1alpha1.AIWorkloadDeployGitOps:
+		// Delete only the git file — it is the source of truth. Fleet's GitRepo
+		// controller then removes the generated HelmOp and Bundle. Do NOT delete
+		// the Bundle directly here (as the FleetBundle case does): the git state
+		// still references it, so Fleet would race to re-create it.
 		for _, name := range w.Spec.FleetBundleNames {
 			if err := r.deleteGitFileByName(ctx, w, name); err != nil {
 				l.Error(err, "git file deletion failed — proceeding with finalizer removal", "name", name)
