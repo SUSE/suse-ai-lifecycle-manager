@@ -199,7 +199,7 @@
 
 <script lang="ts">
 import { defineComponent, ref, computed, onMounted, watch, PropType, getCurrentInstance } from 'vue';
-import { TIMEOUT_VALUES } from '../../utils/constants';
+import { getAllClusters } from '../../services/rancher-apps';
 import { Checkbox } from '@components/Form/Checkbox';
 import ProgressBarMulti from '@shell/components/ProgressBarMulti';
 import StatusBadge from '@shell/components/StatusBadge';
@@ -316,24 +316,22 @@ export default defineComponent({
         console.error('[SUSE-AI] ClusterResourceTable: Failed to load cluster resources:', e);
         error.value = e.message || 'Failed to load cluster information';
 
-        // Try to load basic cluster list as fallback
+        // Try to load basic cluster list as fallback — use getAllClusters so readiness
+        // is applied and unhealthy clusters stay non-selectable even in the error path.
         try {
           const vm = getCurrentInstance()!.proxy as any;
           const store = vm.$store;
-          const basicClusters = await Promise.race([
-            store.dispatch('management/findAll', { type: 'cluster' }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), TIMEOUT_VALUES.CLUSTER))
-          ]);
-          clusters.value = (basicClusters || []).map((c: any) => ({
-            clusterId: c.id,
-            name: c.name || c.id,
-            nodeCount: 0,
-            resources: { cpu: { used: 0, total: 0 }, memory: { used: 0, total: 0 } },
-            status: 'error' as const,
-            statusMessage: 'Resource information unavailable',
+          const basicClusters = await getAllClusters(store);
+          clusters.value = (basicClusters || []).map((c) => ({
+            clusterId:     c.id,
+            name:          c.name,
+            nodeCount:     0,
+            resources:     { cpu: { used: 0, total: 0 }, memory: { used: 0, total: 0 } },
+            status:        (c.ready ? 'error' : 'unavailable') as ClusterResourceSummary['status'],
+            statusMessage: c.ready ? 'Resource information unavailable' : 'Cluster is not ready',
             storageClasses: [],
-            lastUpdated: new Date(),
-            nodes: []
+            lastUpdated:   new Date(),
+            nodes:         []
           }));
         } catch (fallbackError) {
           console.error('[SUSE-AI] ClusterResourceTable: Fallback also failed:', fallbackError);

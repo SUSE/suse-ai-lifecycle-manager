@@ -34,10 +34,18 @@ export default defineComponent({
         name:  c.name || c.id,
         ready: c.ready !== false
       }));
-      (this as any).error = (this as any).options.length ? null : 'No clusters found';
+
+      const readyOptions = ((this as any).options as { id: string; name: string; ready: boolean }[]).filter(o => o.ready);
+
+      if ((this as any).options.length === 0) {
+        (this as any).error = 'No clusters found';
+      } else if (readyOptions.length === 0) {
+        (this as any).error = 'All clusters are currently unavailable';
+      } else {
+        (this as any).error = null;
+      }
 
       // Auto-select if only one ready cluster exists
-      const readyOptions = ((this as any).options as { id: string; name: string; ready: boolean }[]).filter(o => o.ready);
       if (readyOptions.length === 1 && !this.selected) {
         this.$emit('update:modelValue', readyOptions[0].id);
         this.$emit('input', readyOptions[0].id);
