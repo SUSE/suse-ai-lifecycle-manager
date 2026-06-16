@@ -1,7 +1,7 @@
 import { log as logger } from '../utils/logger';
 import { createErrorHandler } from '../utils/error-handler';
 import { TIMEOUT_VALUES } from '../utils/constants';
-import { getAllClusters } from './rancher-apps';
+import { getClusters as getReadyClusters } from './rancher-apps';
 import type {
   RancherStore,
   ClusterInfo,
@@ -19,7 +19,7 @@ export class ClusterService {
    * Get list of all clusters
    */
   static async getClusters($store: RancherStore): Promise<ClusterInfo[]> {
-    return getAllClusters($store);
+    return getReadyClusters($store);
   }
 
   /**
