@@ -157,7 +157,7 @@ export class ChartValuesService {
         url,
         responseType: 'arraybuffer',
         headers:      { Accept: 'application/gzip, application/x-gzip, application/octet-stream' },
-        timeout:      20000
+        timeout:      TIMEOUT_VALUES.MUTATION
       });
 
       const buffer = response?.data ?? response;

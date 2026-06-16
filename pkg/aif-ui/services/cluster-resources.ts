@@ -307,7 +307,7 @@ export async function getAllClusterResourceMetrics(store: RancherStore): Promise
     const clusters = await getAllClusters(store);
     console.log(`[SUSE-AI] getAllClusterResourceMetrics: Found ${clusters.length} clusters`);
 
-    const results = await Promise.all(
+    const settled = await Promise.allSettled(
       clusters.map((cluster: ClusterInfo) => {
         // Skip API calls to unhealthy clusters — return a placeholder immediately so they
         // still appear in the UI but cannot be selected.
@@ -328,7 +328,11 @@ export async function getAllClusterResourceMetrics(store: RancherStore): Promise
       })
     );
 
-    console.log(`[SUSE-AI] getAllClusterResourceMetrics: Completed for ${results.length} clusters`);
+    const results = settled
+      .filter((r): r is PromiseFulfilledResult<ClusterResourceSummary> => r.status === 'fulfilled')
+      .map(r => r.value);
+
+    console.log(`[SUSE-AI] getAllClusterResourceMetrics: Completed for ${results.length}/${clusters.length} clusters`);
     return results;
   } catch (error) {
     console.error('[SUSE-AI] getAllClusterResourceMetrics: Failed:', error);
