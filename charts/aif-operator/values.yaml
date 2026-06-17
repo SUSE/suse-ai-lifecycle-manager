@@ -11,7 +11,7 @@ manager:
   image:
     registry: ghcr.io
     repository: suse/aif-operator
-    tag: ""
+    tag: "0.1.0-dev.2"
     pullPolicy: IfNotPresent
 
   imagePullSecrets: []
@@ -62,6 +62,33 @@ manager:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+
+  # settings for UI extension. For example:
+  #
+  # settings:
+  #   applicationCollection:
+  #     tokenSecretRef:
+  #       key: token
+  #       name: application-collection
+  #     userSecretRef:
+  #       key: user
+  #       name: application-collection
+  #   nvidia:
+  #     tokenSecretRef:
+  #       key: token
+  #       name: nvidia-registry
+  #     userSecretRef:
+  #       key: user
+  #       name: nvidia-registry
+  #   suseRegistry:
+  #     tokenSecretRef:
+  #       key: token
+  #       name: suse-registry
+  #     userSecretRef:
+  #       key: user
+  #       name: suse-registry
+  #
+  settings: {}
 
 rbacHelpers:
   enable: false

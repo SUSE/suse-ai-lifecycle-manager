@@ -7,3 +7,7 @@ metadata:
     {{- include "aif-operator.labels" . | nindent 4 }}
   annotations:
     helm.sh/resource-policy: keep
+{{- with .Values.manager.settings }}
+spec:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
