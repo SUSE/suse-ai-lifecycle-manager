@@ -6,8 +6,10 @@ import { LabeledInput } from '@components/Form/LabeledInput';
 import LabeledSelect    from '@shell/components/form/LabeledSelect';
 import { Checkbox }     from '@components/Form/Checkbox';
 import SecretSelector   from '@shell/components/form/SecretSelector';
+import { isAdminUser }  from '@shell/store/type-map';
 import { getSettings, putSettings } from '../utils/operator-api';
 import { OPERATOR_NAMESPACE, TIMEOUT_VALUES } from '../utils/constants';
+import { PRODUCT, PAGE_TYPES, BLANK_CLUSTER } from '../config/suseai';
 import { ensureClusterRepo } from '../services/rancher-apps';
 import { APP_COLLECTION_REPO_URL, SUSE_REGISTRY_REPO_URL, NVIDIA_REPO_URL, NVIDIA_BLUEPRINT_REPO_URL } from '../services/app-collection';
 
@@ -36,7 +38,26 @@ export default {
     SecretSelector,
   },
 
+  created() {
+    // Settings manages operator-wide config and is admin-only. Redirect
+    // non-admins who deep-link the URL straight to Overview (the nav item is
+    // already hidden for them in product.ts).
+    if (!isAdminUser(this.$store.getters)) {
+      this.$router.replace({
+        name:   `c-cluster-${ PRODUCT }-${ PAGE_TYPES.OVERVIEW }`,
+        params: { product: PRODUCT, cluster: BLANK_CLUSTER },
+      });
+    }
+  },
+
   async fetch() {
+    // Skip the settings read for non-admins; it would fail with forbidden and
+    // created() is already redirecting them away.
+    if (!isAdminUser(this.$store.getters)) {
+      this.loaded = true;
+
+      return;
+    }
     try {
       const data = await getSettings();
 

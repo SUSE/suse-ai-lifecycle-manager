@@ -1,0 +1,45 @@
+{{- if .Values.api.proxyReadAccess.enabled }}
+# Allows all authenticated Rancher users to reach the operator API through the
+# Kubernetes service proxy. The service-proxy authorizer maps the HTTP method to
+# an RBAC verb (GET -> get, POST -> create, PUT -> update, PATCH -> patch,
+# DELETE -> delete), so granting "get" + "create" lets non-admins view
+# Blueprints/Apps/Workloads and install blueprints (HTTP GET/POST), while
+# update/delete operations (deprecate/delete blueprint, manage workloads) stay
+# restricted to admins. The proxy cannot distinguish which POST is being made,
+# so admin-only blueprint authoring is gated in the UI (and the operator
+# backend); RBAC here only enforces the coarse read+install vs modify line.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "aif-operator.fullname" . }}-api-proxy-reader
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aif-operator.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - services/proxy
+    resourceNames:
+      - {{ include "aif-operator.fullname" . }}
+      - http:{{ include "aif-operator.fullname" . }}:{{ .Values.api.port }}
+    verbs:
+      - get
+      - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "aif-operator.fullname" . }}-api-proxy-reader
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "aif-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "aif-operator.fullname" . }}-api-proxy-reader
+subjects:
+  - kind: Group
+    name: system:authenticated
+    apiGroup: rbac.authorization.k8s.io
+{{- end }}

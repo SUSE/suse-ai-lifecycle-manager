@@ -72,6 +72,13 @@ metrics:
 
 api:
   port: 8080
+  # Grant all authenticated Rancher users read + install (HTTP GET/POST) access
+  # to the operator API via the Kubernetes service proxy, so non-admins can view
+  # Blueprints/Apps/Workloads and install blueprints. Modifying operations
+  # (PUT/PATCH/DELETE: deprecate/delete blueprint, manage workloads) still
+  # require cluster-admin. Set to false to manage this RBAC yourself.
+  proxyReadAccess:
+    enabled: true
 
 # UI extension auto-install — creates an InstallAIExtension CR when the operator is deployed.
 # Set aiExtension.enabled=false to skip extension installation.

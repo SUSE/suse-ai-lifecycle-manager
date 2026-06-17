@@ -4,6 +4,7 @@
  * Centralizes product-specific constants and configurations
  */
 
+import { MANAGEMENT } from '@shell/config/types';
 import { PRODUCT_NAME, PRODUCT_SLUG, EXTENSION_VERSION } from '../utils/constants';
 
 // === Product Constants ===
@@ -132,6 +133,11 @@ export interface VirtualTypeConfig {
   name: string;
   label: string;
   route: NavItem['route'];
+  // Optional shell nav guards, evaluated at render time. Used to hide
+  // admin-only items (e.g. ifHaveType=management.cattle.io.setting + ifHaveVerb=PUT
+  // shows the item only to users who can edit settings, i.e. admins).
+  ifHaveType?: string;
+  ifHaveVerb?: string;
 }
 
 export const VIRTUAL_TYPES: VirtualTypeConfig[] = [
@@ -174,10 +180,15 @@ export const VIRTUAL_TYPES: VirtualTypeConfig[] = [
   {
     name:  PAGE_TYPES.SETTINGS,
     label: 'Settings',
+    // Settings manages operator-wide config and is admin-only. Show the nav
+    // item only to users who can PUT management settings (i.e. admins); the
+    // shell evaluates this at render time so non-admins never see it.
+    ifHaveType: MANAGEMENT.SETTING,
+    ifHaveVerb: 'PUT',
     route: {
       name:   `c-cluster-${ PRODUCT }-${ PAGE_TYPES.SETTINGS }`,
-      params: { product: PRODUCT, cluster: MANAGEMENT_CLUSTER },
-      meta:   { product: PRODUCT, cluster: MANAGEMENT_CLUSTER }
+      params: { product: PRODUCT, cluster: BLANK_CLUSTER },
+      meta:   { product: PRODUCT, cluster: BLANK_CLUSTER }
     }
   }
 ];
