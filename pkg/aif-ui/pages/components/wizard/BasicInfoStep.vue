@@ -12,16 +12,15 @@
         <p v-if="releaseError" class="release-error">{{ releaseError }}</p>
       </div>
       <div class="col span-6">
-        <LabeledSelect
+        <NamespaceAutocomplete
           v-model:value="namespace"
           :label="t('suseai.wizard.form.namespace', 'Namespace')"
           :options="namespaceOptions"
           :placeholder="t('suseai.wizard.form.namespacePlaceholder', 'Select or create a namespace')"
-          :taggable="true"
-          :searchable="true"
-          :clearable="false"
           :required="true"
+          :loading="props.loadingNamespaces"
           :disabled="props.namespaceDisabled"
+          :label-inside="true"
         />
       </div>
     </div>
@@ -53,6 +52,7 @@
 import { computed } from 'vue';
 import { LabeledInput } from '@components/Form/LabeledInput';
 import LabeledSelect from '@shell/components/form/LabeledSelect';
+import NamespaceAutocomplete from './NamespaceAutocomplete.vue';
 import { instanceNameError } from '../../../validators/appInstallation';
 
 export interface BasicInfoForm {
@@ -68,6 +68,7 @@ interface Props {
   versionOptions: Array<{ label: string; value: string }>;
   loadingVersions: boolean;
   namespaceOptions: Array<{ label: string; value: string }>;
+  loadingNamespaces?: boolean;
   releaseDisabled?: boolean;
   namespaceDisabled?: boolean;
 }
@@ -99,10 +100,7 @@ const releaseError = computed(() => {
 
 const namespace = computed({
   get: () => props.form.namespace,
-  set: (value: string | { label: string }) => {
-    const namespaceName = typeof value === 'object' ? value.label : value;
-    emit('update:form', { ...props.form, namespace: namespaceName });
-  }
+  set: (value: string) => emit('update:form', { ...props.form, namespace: value }),
 });
 
 const chartName = computed({

@@ -472,6 +472,12 @@ export async function listCatalogApps($store: RancherStore, clusterId: string): 
   return res?.data?.items || res?.data || res?.items || [];
 }
 
+export const SYSTEM_NAMESPACE_PREFIXES = [
+  'c-', 'p-', 'kube-', 'cattle-', 'rancher', 'longhorn-',
+  'fleet-', 'cluster-fleet-', 'system-', 'istio-',
+  'neuvector', 'ingress-', 'cert-manager',
+];
+
 export async function listNamespaces($store: RancherStore, clusterId: string): Promise<string[]> {
   const url = clusterId === 'local'
     ? '/api/v1/namespaces?limit=5000'
@@ -480,6 +486,29 @@ export async function listNamespaces($store: RancherStore, clusterId: string): P
   const items = res?.data?.items || res?.data || res?.items || [];
 
   return (items || []).map((n: NamespaceResource) => n?.metadata?.name).filter((n: string) => !!n);
+}
+
+export async function fetchUserNamespaces(
+  $store: RancherStore,
+  suggestedDefault: string
+): Promise<Array<{ label: string; value: string }>> {
+  try {
+    const clusters = await getClusters($store);
+    const allNs = new Set<string>();
+    await Promise.all(clusters.map(async (cluster) => {
+      try {
+        const nsList = await listNamespaces($store, cluster.id);
+        nsList.forEach(ns => allNs.add(ns));
+      } catch {}
+    }));
+    const sorted = [...allNs]
+      .filter(ns => !SYSTEM_NAMESPACE_PREFIXES.some(p => ns.startsWith(p)))
+      .sort();
+    if (!sorted.includes(suggestedDefault)) sorted.unshift(suggestedDefault);
+    return sorted.map(ns => ({ label: ns, value: ns }));
+  } catch {
+    return [{ label: suggestedDefault, value: suggestedDefault }];
+  }
 }
 
 async function listNsHelmSecrets($store: RancherStore, clusterId: string, ns: string): Promise<HelmSecret[]> {
