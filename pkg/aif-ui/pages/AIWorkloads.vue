@@ -7,9 +7,10 @@ import { BadgeState } from '@components/BadgeState';
 import { listAIWorkloads, deleteAIWorkload, updateAIWorkload } from '../utils/operator-api';
 import { listBlueprints, groupBlueprintsByFamily } from '../utils/blueprint-api';
 import { checkOperatorConnection, getConnectionError } from '../utils/operator-config';
+import OperatorErrorBanner from '../components/OperatorErrorBanner.vue';
 import type { AIWorkload, AIWorkloadPhase } from '../types/aiworkload-types';
 import type { Blueprint } from '../types/blueprint-types';
-import { PRODUCT, PAGE_TYPES } from '../config/suseai';
+import { PRODUCT } from '../config/suseai';
 import ClusterChips from '../formatters/ClusterChips.vue';
 import { getClusters } from '../services/cluster-service';
 import type { ClusterInfo } from '../types/rancher-types';
@@ -23,11 +24,6 @@ const loading       = ref(true);
 const error         = ref<string | null>(null);
 const operatorError = ref<string | null>(null);
 
-const settingsRoute = {
-  name:   `c-cluster-${ PRODUCT }-${ PAGE_TYPES.SETTINGS }`,
-  params: { cluster },
-  query:  { section: 'advanced' },
-};
 const search     = ref('');
 const sortBy     = ref('name-asc');
 const workloads  = ref<AIWorkload[]>([]);
@@ -154,9 +150,11 @@ async function refresh() {
 }
 
 async function retryConnection() {
+  loading.value = true;
   await checkOperatorConnection(true);
   operatorError.value = getConnectionError();
   if (!operatorError.value) refresh();
+  else loading.value = false;
 }
 
 async function silentRefresh() {
@@ -283,19 +281,7 @@ async function executeUpgrade() {
         </div>
       </header>
 
-      <Banner v-if="operatorError" color="error" class="mb-20">
-        <div class="operator-error-body">
-          <div class="operator-error-text">
-            <div>{{ operatorError }}</div>
-            <div>
-              Update <strong>Operator Namespace</strong> under
-              <em>Settings → Advanced → Operator Connection</em>.
-              <RouterLink :to="settingsRoute">Go to Settings →</RouterLink>
-            </div>
-          </div>
-          <button class="btn-retry" type="button" @click="retryConnection">Retry Connection</button>
-        </div>
-      </Banner>
+      <OperatorErrorBanner v-if="operatorError" :operator-error="operatorError" @retry="retryConnection" />
 
       <Banner v-if="error" color="error" class="mb-20">{{ error }}</Banner>
 
@@ -680,35 +666,6 @@ async function executeUpgrade() {
 .ml-5  { margin-left: 5px; }
 .text-muted { color: var(--muted); }
 
-.operator-error-body {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  width: 100%;
-}
-
-.operator-error-text {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-
-  a { color: inherit; font-weight: 600; text-decoration: underline; }
-}
-
-.btn-retry {
-  flex-shrink: 0;
-  background: none;
-  border: 1px solid currentColor;
-  border-radius: 4px;
-  color: inherit;
-  cursor: pointer;
-  font-size: 14px;
-  padding: 6px 16px;
-  white-space: nowrap;
-
-  &:hover { opacity: 1; }
-}
 .text-right { text-align: right; }
 
 .btn {

@@ -74,7 +74,9 @@ async function _runConnectionCheck(): Promise<void> {
     }
 
     connectionError = `Cannot connect to the SUSE AI operator in namespace "${ ns }".`;
-  } catch { /* transient network error — ignore */ }
+  } catch (e: any) {
+    connectionError = `Cannot connect to the SUSE AI operator in namespace "${ ns }": ${ e?.message || 'network error' }`;
+  }
 }
 
 /** Check whether the operator is reachable. Runs at most once per session;
@@ -132,6 +134,9 @@ export async function saveOperatorConfig(namespace: string, service: string): Pr
   }
 
   if (!res.ok) {
+    if (res.status === 403) {
+      throw new Error('Permission denied — only cluster administrators can update the operator configuration.');
+    }
     const err = await res.json().catch(() => null);
     throw new Error(err?.message || `Failed to save operator config: ${ res.statusText }`);
   }
