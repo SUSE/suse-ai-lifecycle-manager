@@ -23,8 +23,7 @@ import {
   getInstalledHelmDetails,
   inferClusterRepoForChart,
   listClusterRepos,
-  listNamespaces,
-  SYSTEM_NAMESPACE_PREFIXES,
+  fetchUserNamespaces,
 } from '../../services/rancher-apps';
 import { persistLoad, persistSave, persistClear } from '../../services/ui-persist';
 import { validateReleaseName, instanceNameError } from '../../validators/appInstallation';
@@ -108,48 +107,12 @@ const versionOptions = computed(() =>
   (versions.value || []).map(v => ({ label: v, value: v }))
 );
 
-// Fetch all namespaces from all clusters and filter out system namespaces
 async function fetchAllNamespaces() {
-  if (!store) {
-    return;
-  }
-
-  try {
-    const clusters = await getClusters(store);
-    console.log('[SUSE-AI] All available clusters:', clusters);
-
-    const allNamespaces = new Set<string>();
-
-    await Promise.all(clusters.map(async (cluster) => {
-      console.log('[SUSE-AI] Trying to get namespaces for cluster:', cluster);
-      try {
-        const namespaces = await listNamespaces(store, cluster.id);
-        namespaces.forEach(ns => allNamespaces.add(ns));
-      } catch (e) {
-        console.warn(`[SUSE-AI] Failed to fetch namespaces for cluster ${cluster.id}:`, e);
-      }
-    }));
-
-    console.log('[SUSE-AI] Found all unique namespaces:', allNamespaces);
-
-    const userNamespaces = Array.from(allNamespaces).filter(name =>
-      !SYSTEM_NAMESPACE_PREFIXES.some(prefix => name.startsWith(prefix))
-    );
-
-    const desiredDefault = `${props.slug}-system`;
-    if (!userNamespaces.includes(desiredDefault)) {
-      userNamespaces.push(desiredDefault);
-    }
-
-    const sortedNamespaces = userNamespaces.sort();
-    namespaceOptions.value = sortedNamespaces.map(ns => ({ label: ns, value: ns }));
-    
-    if (isInstallMode.value) {
-      form.value.namespace = desiredDefault;
-    }
-
-  } catch (e) {
-    console.warn(`[SUSE-AI] Failed to fetch all namespaces:`, e);
+  if (!store) return;
+  const desiredDefault = `${props.slug}-system`;
+  namespaceOptions.value = await fetchUserNamespaces(store, desiredDefault);
+  if (isInstallMode.value) {
+    form.value.namespace = desiredDefault;
   }
 }
 
@@ -252,8 +215,8 @@ const basicInfoForm = computed({
 
 onMounted(async () => {
   try {
-    loadingNamespaces.value = true;
     await initializeWizard();
+    loadingNamespaces.value = true;
     await fetchAllNamespaces();
   } catch (e) {
     error.value = `Failed to initialize: ${e.message || 'Unknown error'}`;

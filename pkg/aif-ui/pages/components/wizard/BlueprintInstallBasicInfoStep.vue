@@ -32,7 +32,7 @@
 <script lang="ts" setup>
 import { ref, onMounted, getCurrentInstance } from 'vue';
 import NamespaceAutocomplete from './NamespaceAutocomplete.vue';
-import { getClusters, listNamespaces, SYSTEM_NAMESPACE_PREFIXES } from '../../../services/rancher-apps';
+import { fetchUserNamespaces } from '../../../services/rancher-apps';
 
 interface Props {
   displayName:    string;
@@ -59,23 +59,7 @@ const loadingNamespaces = ref(false);
 onMounted(async () => {
   loadingNamespaces.value = true;
   try {
-    const clusters = await getClusters(store);
-    const allNs = new Set<string>();
-    for (const cl of clusters) {
-      try {
-        const nsList = await listNamespaces(store, cl.id);
-        nsList.forEach(ns => allNs.add(ns));
-      } catch {}
-    }
-    const suggested = `${props.workloadName}-system`;
-    const filtered = [...allNs]
-      .filter(ns => !SYSTEM_NAMESPACE_PREFIXES.some(p => ns.startsWith(p)))
-      .sort();
-    if (!filtered.includes(suggested)) filtered.unshift(suggested);
-    namespaceOptions.value = filtered.map(ns => ({ label: ns, value: ns }));
-  } catch {
-    const suggested = `${props.workloadName}-system`;
-    namespaceOptions.value = [{ label: suggested, value: suggested }];
+    namespaceOptions.value = await fetchUserNamespaces(store, `${props.workloadName}-system`);
   } finally {
     loadingNamespaces.value = false;
   }

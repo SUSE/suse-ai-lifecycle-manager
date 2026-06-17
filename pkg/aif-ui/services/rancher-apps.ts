@@ -464,6 +464,29 @@ export async function listNamespaces($store: RancherStore, clusterId: string): P
   return (items || []).map((n: NamespaceResource) => n?.metadata?.name).filter((n: string) => !!n);
 }
 
+export async function fetchUserNamespaces(
+  $store: RancherStore,
+  suggestedDefault: string
+): Promise<Array<{ label: string; value: string }>> {
+  try {
+    const clusters = await getClusters($store);
+    const allNs = new Set<string>();
+    await Promise.all(clusters.map(async (cluster) => {
+      try {
+        const nsList = await listNamespaces($store, cluster.id);
+        nsList.forEach(ns => allNs.add(ns));
+      } catch {}
+    }));
+    const sorted = [...allNs]
+      .filter(ns => !SYSTEM_NAMESPACE_PREFIXES.some(p => ns.startsWith(p)))
+      .sort();
+    if (!sorted.includes(suggestedDefault)) sorted.unshift(suggestedDefault);
+    return sorted.map(ns => ({ label: ns, value: ns }));
+  } catch {
+    return [{ label: suggestedDefault, value: suggestedDefault }];
+  }
+}
+
 async function listNsHelmSecrets($store: RancherStore, clusterId: string, ns: string): Promise<HelmSecret[]> {
   const url = `/k8s/clusters/${encodeURIComponent(clusterId)}/api/v1/namespaces/${encodeURIComponent(ns)}/secrets?labelSelector=owner%3Dhelm`;
   const res = await $store.dispatch('rancher/request', { url, timeout: 20000 });

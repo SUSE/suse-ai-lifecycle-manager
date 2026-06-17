@@ -151,6 +151,13 @@ function onKeydown(e: KeyboardEvent) {
     } else {
       isOpen.value = false;
     }
+  } else if (e.key === 'Tab') {
+    if (highlightIndex.value >= 0) {
+      e.preventDefault();
+      select(filteredOptions.value[highlightIndex.value].value);
+    } else {
+      isOpen.value = false;
+    }
   } else if (e.key === 'Escape') {
     isOpen.value = false;
     highlightIndex.value = -1;
