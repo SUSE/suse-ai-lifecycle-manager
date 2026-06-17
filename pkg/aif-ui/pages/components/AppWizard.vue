@@ -15,6 +15,7 @@ import {
   createOrUpgradeApp,
   listChartVersions,
   fetchChartDefaultValues,
+  fetchChartArchiveSize,
   ensureRegistrySecretSimple,
   ensureServiceAccountPullSecret,
   ensurePullSecretOnAllSAs,
@@ -23,11 +24,12 @@ import {
   getInstalledHelmDetails,
   inferClusterRepoForChart,
   listClusterRepos,
-  listNamespaces,
+  fetchUserNamespaces,
 } from '../../services/rancher-apps';
 import { persistLoad, persistSave, persistClear } from '../../services/ui-persist';
 import { validateReleaseName, instanceNameError } from '../../validators/appInstallation';
 import { fetchSuseAiApps, getClusterRepoNameFromUrl, getLibraryFromRepoUrl } from '../../services/app-collection';
+import { isChartArchiveOversized } from '../../services/chart-values';
 import { createAIWorkload, updateAIWorkload, listAIWorkloads, getRegistryCredentials } from '../../utils/operator-api';
 import { createFleetBundle, buildBundleName }        from '../../services/fleet-bundle';
 import { publishToFleetGit }                          from '../../services/git-publish';
@@ -63,6 +65,7 @@ const router = vm.$router;
 const route = vm.$route;
 
 const loading = ref(true);
+const loadingNamespaces = ref(false);
 const submitting = ref(false);
 const error = ref<string | null>(null);
 const versions = ref<string[]>([]);
@@ -90,7 +93,7 @@ const form = ref<WizardForm>({
   chartName:    props.slug,
   chartVersion: '',
   values:       {},
-  deployType:   'Helm',
+  deployType:   'FleetBundle',
 });
 
 // Mode and version computed properties - must be declared before wizardSteps
@@ -106,49 +109,12 @@ const versionOptions = computed(() =>
   (versions.value || []).map(v => ({ label: v, value: v }))
 );
 
-// Fetch all namespaces from all clusters and filter out system namespaces
 async function fetchAllNamespaces() {
-  if (!store) {
-    return;
-  }
-
-  try {
-    const clusters = await getClusters(store);
-    console.log('[SUSE-AI] All available clusters:', clusters);
-
-    const allNamespaces = new Set<string>();
-
-    await Promise.all(clusters.map(async (cluster) => {
-      console.log('[SUSE-AI] Trying to get namespaces for cluster:', cluster);
-      try {
-        const namespaces = await listNamespaces(store, cluster.id);
-        namespaces.forEach(ns => allNamespaces.add(ns));
-      } catch (e) {
-        console.warn(`[SUSE-AI] Failed to fetch namespaces for cluster ${cluster.id}:`, e);
-      }
-    }));
-
-    console.log('[SUSE-AI] Found all unique namespaces:', allNamespaces);
-
-    const systemPrefixes = ['c-', 'p-', 'kube-', 'cattle-', 'rancher', 'longhorn-', 'fleet-', 'cluster-fleet-', 'system-', 'istio-', 'neuvector', 'ingress-', 'cert-manager'];
-    const userNamespaces = Array.from(allNamespaces).filter(name => 
-        !systemPrefixes.some(prefix => name.startsWith(prefix))
-    );
-
-    const desiredDefault = `${props.slug}-system`;
-    if (!userNamespaces.includes(desiredDefault)) {
-      userNamespaces.push(desiredDefault);
-    }
-
-    const sortedNamespaces = userNamespaces.sort();
-    namespaceOptions.value = sortedNamespaces.map(ns => ({ label: ns, value: ns }));
-    
-    if (isInstallMode.value) {
-      form.value.namespace = desiredDefault;
-    }
-
-  } catch (e) {
-    console.warn(`[SUSE-AI] Failed to fetch all namespaces:`, e);
+  if (!store) return;
+  const desiredDefault = `${props.slug}-system`;
+  namespaceOptions.value = await fetchUserNamespaces(store, desiredDefault);
+  if (isInstallMode.value) {
+    form.value.namespace = desiredDefault;
   }
 }
 
@@ -218,6 +184,59 @@ watch(() => form.value.clusters, (clusters) => {
   }
 });
 
+// Cache of measured chart archive sizes, keyed by `${repo}|${chart}|${version}`.
+// A cached value of null means "measured, but size could not be determined" (fail open).
+const chartArchiveSizes = ref<Record<string, number | null>>({});
+
+function archiveCacheKey(): string {
+  return `${form.value.chartRepo}|${form.value.chartName}|${form.value.chartVersion}`;
+}
+
+// Measure the chart archive size once per repo/chart/version (install mode only).
+async function ensureChartArchiveSize(): Promise<void> {
+  if (isManageMode.value) return;
+  if (!store || !form.value.chartRepo || !form.value.chartName || !form.value.chartVersion) return;
+
+  const key = archiveCacheKey();
+  if (key in chartArchiveSizes.value) return; // already measured
+
+  const size = await fetchChartArchiveSize(
+    store,
+    REPO_CLUSTER,
+    form.value.chartRepo,
+    form.value.chartName,
+    form.value.chartVersion
+  );
+  chartArchiveSizes.value = { ...chartArchiveSizes.value, [key]: size };
+}
+
+// True when the currently selected chart is too large for the Helm path.
+const helmOversized = computed(() => {
+  const key = archiveCacheKey();
+  const size = key in chartArchiveSizes.value ? chartArchiveSizes.value[key] : null;
+  return isChartArchiveOversized(size);
+});
+
+// Oversized charts cannot use the Helm path (1 MiB Secret limit). Force FleetBundle,
+// mirroring the non-local cluster behavior above.
+watch(helmOversized, (oversized) => {
+  if (oversized && form.value.deployType === 'Helm') {
+    form.value.deployType = 'FleetBundle';
+  }
+});
+
+// Measure the archive once the user has committed to a chart and moved past Basic
+// Info (Target step onward). Covers non-linear navigation: changing the chart on
+// Basic Info and jumping straight to Configuration/Review still re-measures, so the
+// auto-switch above can correct an oversized Helm selection. Step 0 (browsing chart
+// versions) deliberately does not trigger a download. `immediate` covers resuming a
+// persisted wizard that restores currentStep to the Target step or later before this
+// watcher is registered. Errors are swallowed inside ensureChartArchiveSize, so
+// fire-and-forget is safe.
+watch(currentStep, (step) => {
+  if (step >= 1) void ensureChartArchiveSize();
+}, { immediate: true });
+
 // Basic info form computed
 const basicInfoForm = computed({
   get: () => ({
@@ -252,10 +271,12 @@ const basicInfoForm = computed({
 onMounted(async () => {
   try {
     await initializeWizard();
+    loadingNamespaces.value = true;
     await fetchAllNamespaces();
   } catch (e) {
     error.value = `Failed to initialize: ${e.message || 'Unknown error'}`;
   } finally {
+    loadingNamespaces.value = false;
     loading.value = false;
   }
 });
@@ -994,6 +1015,22 @@ async function installWithConcurrencyLimit(clusterIds: string[], concurrency: nu
   }
 }
 
+// A large umbrella chart (e.g. nvidia-blueprint-rag) can exceed Kubernetes' 1 MiB
+// Secret limit when installed via the Helm path, because Rancher packs the chart
+// archive into a `helm-operation-*` Secret. The Fleet Bundle path pulls the chart
+// in-cluster and isn't subject to this limit. Detect that specific failure and
+// guide the user to switch deployment method instead of surfacing the raw k8s error.
+function humanizeInstallError(message?: string): string {
+  const m = message || 'Unknown error';
+  if (/helm-operation/i.test(m) && /too long/i.test(m)) {
+    return 'This chart is too large to install with the Helm deployment method '
+      + '(it exceeds the 1 MiB Kubernetes Secret limit for Helm operation data). '
+      + 'Go back to the Target Cluster step, change the Deployment Type to '
+      + '"Fleet Bundle", and install again.';
+  }
+  return m;
+}
+
 // Install to a single cluster and update progress
 async function installSingleCluster(clusterId: string): Promise<void> {
   updateClusterProgress(clusterId, {
@@ -1017,7 +1054,7 @@ async function installSingleCluster(clusterId: string): Promise<void> {
       status: 'failed',
       progress: 0,
       message: 'Installation failed',
-      error: e?.message || 'Unknown error'
+      error: humanizeInstallError(e?.message)
     });
   }
 }
@@ -1511,6 +1548,7 @@ function previousStep() {
             :version-options="versionOptions"
             :loading-versions="loadingVersions"
             :namespace-options="namespaceOptions"
+            :loading-namespaces="loadingNamespaces"
             :release-disabled="isManageMode"
             :namespace-disabled="isManageMode"
           />
@@ -1523,6 +1561,7 @@ function previousStep() {
             v-model:deployType="form.deployType"
             :app-slug="props.slug"
             :app-name="(route.query.n as string) || props.slug"
+            :helm-oversized="helmOversized"
           />
 
           <!-- Step: Configuration -->
