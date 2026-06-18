@@ -81,16 +81,16 @@ aiExtension:
     kind: Helm
     helm:
       chartURL: "oci://ghcr.io/suse/chart/aif-ui"
-      version: "0.1.0-dev.1"
+      version: "0.1.0-dev.2"
       # values are merged onto the aif-ui chart's default values. Useful for
       # overriding the UI image during development:
       #   aiExtension.source.helm.values.image.registry=ghcr.io
       #   aiExtension.source.helm.values.image.repository=thbertoldi/aif-ui
-      #   aiExtension.source.helm.values.image.tag=0.1.0-dev.1
+      #   aiExtension.source.helm.values.image.tag=0.1.0-dev.2
       values: {}
   extension:
     name: "aif-ui"
-    version: "0.1.0-dev.1"
+    version: "0.1.0-dev.2"
   cleanup:
     image:
       registry: registry.suse.com
@@ -115,3 +115,10 @@ aiExtension:
         drop:
           - ALL
       readOnlyRootFilesystem: true
+
+# Default blueprints bundled with the chart. When enabled, the curated Blueprint
+# CRs under files/blueprints/ are created on install and reconciled on upgrade.
+# Disable to manage blueprints exclusively through other means (e.g. a future
+# git source) without the chart re-creating its defaults.
+defaultBlueprints:
+  enabled: true
