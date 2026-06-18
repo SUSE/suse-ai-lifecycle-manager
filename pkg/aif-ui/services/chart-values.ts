@@ -6,6 +6,23 @@
 import type { RancherStore } from '../types/rancher-types';
 import { logger } from '../utils/logger';
 import { getClusterContext } from '../utils/cluster-operations';
+import { TIMEOUT_VALUES } from '../utils/constants';
+
+/**
+ * Kubernetes caps a Secret's total data at 1 MiB. Rancher's Helm path stores the
+ * chart archive in a `helm-operation-*` Secret, so a chart archive at or above this
+ * size cannot be installed via Helm. Fleet Bundle / GitOps pull the chart in-cluster
+ * and are not subject to this limit.
+ */
+export const MAX_HELM_CHART_ARCHIVE_BYTES = 1048576; // 1 MiB
+
+/**
+ * True when a measured chart archive size is too large for the Helm deployment path.
+ * A null size (could not be measured) is treated as NOT oversized — fail open.
+ */
+export function isChartArchiveOversized(sizeBytes: number | null): boolean {
+  return sizeBytes !== null && sizeBytes >= MAX_HELM_CHART_ARCHIVE_BYTES;
+}
 
 /**
  * Extract a file from a tar.gz buffer by filename suffix (e.g., 'values.yaml', 'chart.yaml')
@@ -120,6 +137,45 @@ export class ChartValuesService {
   }
 
   /**
+   * Measure the chart archive (.tgz) size in bytes via the ?link=chart endpoint.
+   * Returns the byte length, or null if it cannot be determined (network error,
+   * missing repo, or a non-ArrayBuffer response). Callers fail open on null.
+   */
+  async getChartArchiveSize(repo: string, chart: string, version: string): Promise<number | null> {
+    const found = await getClusterContext(this.store, { repoName: repo });
+    // getClusterContext returns an object with null fields (not a falsy value) on a
+    // miss, so guard on the field we actually use rather than the object itself.
+    if (!found?.baseApi) {
+      logger.warn(`ClusterRepo "${repo}" not found in any cluster`);
+      return null;
+    }
+
+    try {
+      const { baseApi } = found;
+      const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}?link=chart&chartName=${encodeURIComponent(chart)}&version=${encodeURIComponent(version)}`;
+      const response = await this.store.dispatch('rancher/request', {
+        url,
+        responseType: 'arraybuffer',
+        headers:      { Accept: 'application/gzip, application/x-gzip, application/octet-stream' },
+        timeout:      TIMEOUT_VALUES.MEDIUM
+      });
+
+      const buffer = response?.data ?? response;
+      if (buffer instanceof ArrayBuffer) {
+        return buffer.byteLength;
+      }
+      return null;
+    } catch (error) {
+      logger.warn('Failed to measure chart archive size', {
+        component: 'ChartValuesService',
+        action:    'getChartArchiveSize',
+        data:      { repo, chart, version, error: error instanceof Error ? error.message : String(error) }
+      });
+      return null;
+    }
+  }
+
+  /**
    * Try fetching via ?link=files approach
    */
   private async tryFilesLink(repo: string, chart: string, version: string): Promise<string | null> {
@@ -133,7 +189,7 @@ export class ChartValuesService {
     try {
       const { baseApi } = found;
       const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}?link=files&chartName=${encodeURIComponent(chart)}&version=${encodeURIComponent(version)}`;
-      const response = await this.store.dispatch('rancher/request', { url, timeout: 20000 });
+      const response = await this.store.dispatch('rancher/request', { url, timeout: TIMEOUT_VALUES.READ });
       const filesDetail = response?.data ?? response;
 
       if (filesDetail && typeof filesDetail === 'object') {
@@ -168,7 +224,7 @@ export class ChartValuesService {
       try {
         const { baseApi } = found;
         const url = `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}?link=file&chartName=${encodeURIComponent(chart)}&version=${encodeURIComponent(version)}&name=${encodeURIComponent(filename)}`;
-        const response = await this.store.dispatch('rancher/request', { url, timeout: 20000 });
+        const response = await this.store.dispatch('rancher/request', { url, timeout: TIMEOUT_VALUES.READ });
         const text = this.extractTextFromFileEntry(response?.data ?? response);
 
         if (text && text.includes(':')) { // Basic YAML validation
@@ -203,7 +259,7 @@ export class ChartValuesService {
         url,
         responseType: 'arraybuffer',
         headers: { Accept: 'application/gzip, application/x-gzip, application/octet-stream' },
-        timeout: 20000
+        timeout: TIMEOUT_VALUES.MEDIUM
       });
 
       const buffer = response?.data ?? response;
@@ -354,7 +410,7 @@ export class ChartValuesService {
         url: '/v1/management.cattle.io/validate-yaml',
         method: 'POST',
         data: { yaml: valuesYaml },
-        timeout: 20000
+        timeout: TIMEOUT_VALUES.MUTATION
       });
 
       return { valid: response?.valid !== false };
@@ -387,7 +443,7 @@ export class ChartValuesService {
       const { baseApi } = found;
       const response = await this.store.dispatch('rancher/request', {
         url: `${baseApi}/catalog.cattle.io.clusterrepos/${encodeURIComponent(repo)}/charts/${encodeURIComponent(chart)}/versions`,
-        timeout: 20000
+        timeout: TIMEOUT_VALUES.READ
       });
 
       const versions = response?.data || response || [];
