@@ -278,6 +278,60 @@ spec:
 
 ---
 
+## 5b. (Optional) Also exercise the App-source path
+
+The Blueprint flow above proves Blueprint+Fleet works end-to-end. To
+verify the same machinery for an App-sourced workload (single chart,
+no Blueprint wrapper), apply this AIWorkload too. Note `source.app.vendor`
+— without it, the CRD defaults to `"suse"` and the SUSE injector runs
+instead of the NVIDIA one.
+
+```fish
+kubectl --kubeconfig "$KCFG" create namespace myapp-system --dry-run=client -o yaml \
+  | kubectl --kubeconfig "$KCFG" apply -f -
+
+echo "apiVersion: ai-platform.suse.com/v1alpha1
+kind: AIWorkload
+metadata:
+  name: myapp
+  namespace: myapp-system
+spec:
+  displayName: myapp
+  source:
+    sourceType: App
+    app:
+      chartRepo: nvidia-blueprint-charts
+      chartName: nvidia-blueprint-rag
+      chartVersion: v2.6.0
+      release: myapp
+      vendor: nvidia
+  targetNamespace: myapp-system
+  targetClusters: [$DOWNSTREAM]
+  deployStrategy: FleetBundle" \
+  | kubectl --kubeconfig "$KCFG" apply -f -
+```
+
+Then repeat the verification ladder (section 6) but substitute
+`myapp`/`myapp-system` for `myai`/`myai-system`. The operator runs
+`reconcileAppPullSecrets` for App-sourced workloads — the rest of the
+delivery pipeline (consolidated Fleet Bundle, SA-merge Job) is shared
+with the Blueprint path.
+
+If you don't see `pullSecretNames` populate for the App workload but
+you DO see it for the Blueprint, your UI build is sending a CR without
+`vendor: nvidia` — confirm the CR has the field set explicitly. If the
+UI was built BEFORE the AppWizard vendor change, it won't include the
+field and you'll need to either rebuild aif-ui or patch the AIWorkload
+the same way you'd patch a Blueprint:
+
+```fish
+kubectl --kubeconfig "$KCFG" -n myapp-system patch aiworkload myapp \
+  --type=json \
+  -p='[{"op":"replace","path":"/spec/source/app/vendor","value":"nvidia"}]'
+```
+
+---
+
 ## 6. Verify — the ladder, top to bottom
 
 Each step should pass before moving to the next.
@@ -363,6 +417,10 @@ kubectl --kubeconfig "$KCFG" -n myai-system annotate aiworkload myai \
 kubectl --kubeconfig "$KCFG" -n myai-system delete aiworkload myai --ignore-not-found
 kubectl --kubeconfig "$KCFG" delete blueprint myai-1-0-0 --ignore-not-found
 kubectl --kubeconfig "$KCFG" delete namespace myai-system --ignore-not-found
+
+# App-source workload (if you created 5b)
+kubectl --kubeconfig "$KCFG" -n myapp-system delete aiworkload myapp --ignore-not-found
+kubectl --kubeconfig "$KCFG" delete namespace myapp-system --ignore-not-found
 
 # Downstream namespace + its content (via proxy)
 kubectl --kubeconfig "$KCFG" delete --raw \
