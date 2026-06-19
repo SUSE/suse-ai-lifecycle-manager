@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { defineProps, withDefaults, ref, computed, onMounted, getCurrentInstance, watch } from 'vue';
+import { useT } from '../../composables/useT';
 import yaml from 'js-yaml';
 import { Banner } from '@components/Banner';
 import Loading from '@shell/components/Loading';
@@ -64,9 +65,7 @@ const store = vm.$store;
 const router = vm.$router;
 const route = vm.$route;
 
-// Translation helper — reads from the Rancher i18n store (l10n/en-us.json),
-// falling back to the literal string when a key is missing.
-const t = (key: string, fallback: string) => store?.getters['i18n/t']?.(key) || fallback;
+const t = useT();
 
 const loading = ref(true);
 const loadingNamespaces = ref(false);

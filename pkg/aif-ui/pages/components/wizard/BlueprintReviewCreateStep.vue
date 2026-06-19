@@ -29,16 +29,13 @@
 </template>
 
 <script lang="ts" setup>
-import { getCurrentInstance } from 'vue';
 import type { BlueprintSpec } from '../../../types/blueprint-types';
+import { useT } from '../../../composables/useT';
 
 interface Props { form: BlueprintSpec; isEdit?: boolean }
 defineProps<Props>();
 
-// Translation helper — reads from the Rancher i18n store (l10n/en-us.json),
-// falling back to the literal string when a key is missing.
-const store = (getCurrentInstance()!.proxy as any)?.$store;
-const t = (key: string, fallback: string) => store?.getters['i18n/t']?.(key) || fallback;
+const t = useT();
 </script>
 
 <style lang="scss" scoped>

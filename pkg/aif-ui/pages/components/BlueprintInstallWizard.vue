@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { ref, computed, onMounted, getCurrentInstance } from 'vue';
+import { useT } from '../../composables/useT';
 import { Banner } from '@components/Banner';
 import Loading from '@shell/components/Loading';
 import BlueprintInstallBasicInfoStep from './wizard/BlueprintInstallBasicInfoStep.vue';
@@ -18,13 +19,10 @@ interface Props {
 }
 const props   = defineProps<Props>();
 const vm      = getCurrentInstance()!.proxy as any;
-const store   = vm.$store;
 const router  = vm.$router;
 const route   = vm.$route;
 
-// Translation helper — reads from the Rancher i18n store (l10n/en-us.json),
-// falling back to the literal string when a key is missing.
-const t = (key: string, fallback: string) => store?.getters['i18n/t']?.(key) || fallback;
+const t = useT();
 const cluster = (route?.params?.cluster as string) || '_';
 
 const loading     = ref(true);

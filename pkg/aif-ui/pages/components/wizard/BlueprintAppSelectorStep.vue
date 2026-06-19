@@ -61,6 +61,7 @@
 
 <script lang="ts" setup>
 import { ref, onMounted, getCurrentInstance } from 'vue';
+import { useT } from '../../../composables/useT';
 import type { BlueprintComponent } from '../../../types/blueprint-types';
 import type { AppCollectionItem } from '../../../services/app-collection';
 import { fetchSuseAiApps, fetchNvidiaApps, fetchSettingsOrNull, getClusterRepoNameFromUrl } from '../../../services/app-collection';
@@ -76,9 +77,7 @@ const emit   = defineEmits<Emits>();
 const vm     = getCurrentInstance()!.proxy as any;
 const store  = vm.$store;
 
-// Translation helper — reads from the Rancher i18n store (l10n/en-us.json),
-// falling back to the literal string when a key is missing.
-const t = (key: string, fallback: string) => store?.getters['i18n/t']?.(key) || fallback;
+const t = useT();
 
 const searchQuery   = ref('');
 const searchResults = ref<AppCollectionItem[]>([]);

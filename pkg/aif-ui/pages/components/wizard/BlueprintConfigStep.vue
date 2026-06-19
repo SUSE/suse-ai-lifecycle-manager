@@ -40,6 +40,7 @@
 
 <script lang="ts" setup>
 import { ref, getCurrentInstance } from 'vue';
+import { useT } from '../../../composables/useT';
 import yaml from 'js-yaml';
 import ValuesStep from './ValuesStep.vue';
 import { fetchChartDefaultValues } from '../../../services/rancher-apps';
@@ -54,9 +55,7 @@ const emit  = defineEmits<Emits>();
 const vm    = getCurrentInstance()!.proxy as any;
 const store = vm.$store;
 
-// Translation helper — reads from the Rancher i18n store (l10n/en-us.json),
-// falling back to the literal string when a key is missing.
-const t = (key: string, fallback: string) => store?.getters['i18n/t']?.(key) || fallback;
+const t = useT();
 
 const expandedPanels    = ref(new Set<number>([0]));
 const loadingMap        = ref<Record<string, boolean>>({});

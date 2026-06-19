@@ -1,5 +1,6 @@
 <script lang="ts" setup>
-import { computed, getCurrentInstance } from 'vue';
+import { computed } from 'vue';
+import { useT } from '../../../composables/useT';
 import { RcItemCard } from '@components/RcItemCard';
 import ClusterResourceTable from '../ClusterResourceTable.vue';
 import type { AIWorkloadDeployStrategy } from '../../../types/aiworkload-types';
@@ -22,10 +23,7 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-// Translation helper — reads from the Rancher i18n store (l10n/en-us.json),
-// falling back to the literal string when a key is missing.
-const store = (getCurrentInstance()!.proxy as any)?.$store;
-const t = (key: string, fallback: string) => store?.getters['i18n/t']?.(key) || fallback;
+const t = useT();
 
 const isManageMode = computed(() => props.mode === 'manage');
 const hasNonLocalClusters = computed(() => props.clusters.some(c => c !== 'local'));

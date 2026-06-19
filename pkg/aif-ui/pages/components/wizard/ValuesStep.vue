@@ -81,8 +81,9 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, watch, getCurrentInstance } from 'vue';
+import { computed, ref, watch } from 'vue';
 import YamlEditor from '@shell/components/YamlEditor';
+import { useT } from '../../../composables/useT';
 import Questions from '@shell/components/Questions';
 import Loading from '@shell/components/Loading';
 import Tabbed from '@shell/components/Tabbed';
@@ -113,10 +114,7 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-// Translation helper — reads from the Rancher i18n store (l10n/en-us.json),
-// falling back to the literal string when a key is missing.
-const store = (getCurrentInstance()!.proxy as any)?.$store;
-const t = (key: string, fallback: string) => store?.getters['i18n/t']?.(key) || fallback;
+const t = useT();
 
 const viewMode = ref<'form' | 'yaml'>(props.hasQuestions ? 'form' : 'yaml');
 const normalizedMode = computed(() => props.mode === 'install' ? 'create' : 'edit');

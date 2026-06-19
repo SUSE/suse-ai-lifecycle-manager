@@ -52,8 +52,9 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, getCurrentInstance } from 'vue';
+import { computed } from 'vue';
 import YamlEditor from '@shell/components/YamlEditor';
+import { useT } from '../../../composables/useT';
 
 interface Props {
   mode: 'install' | 'manage';
@@ -74,10 +75,7 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-// Translation helper — reads from the Rancher i18n store (l10n/en-us.json),
-// falling back to the literal string when a key is missing.
-const store = (getCurrentInstance()!.proxy as any)?.$store;
-const t = (key: string, fallback: string) => store?.getters['i18n/t']?.(key) || fallback;
+const t = useT();
 
 const localValues = computed({
   get: () => props.values,

@@ -31,6 +31,7 @@
 
 <script lang="ts" setup>
 import { ref, onMounted, getCurrentInstance } from 'vue';
+import { useT } from '../../../composables/useT';
 import NamespaceAutocomplete from './NamespaceAutocomplete.vue';
 import { fetchUserNamespaces } from '../../../services/rancher-apps';
 
@@ -51,9 +52,7 @@ const emit  = defineEmits<Emits>();
 const vm    = getCurrentInstance()!.proxy as any;
 const store = vm.$store;
 
-// Translation helper — reads from the Rancher i18n store (l10n/en-us.json),
-// falling back to the literal string when a key is missing.
-const t = (key: string, fallback: string) => store?.getters['i18n/t']?.(key) || fallback;
+const t = useT();
 
 const localName         = ref(props.workloadName);
 const localNs           = ref(props.namespace);

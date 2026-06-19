@@ -35,8 +35,9 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, watch, getCurrentInstance } from 'vue';
+import { ref, watch } from 'vue';
 import { LabeledInput } from '@components/Form/LabeledInput';
+import { useT } from '../../../composables/useT';
 import { SEMVER_PATTERN } from '../../../types/blueprint-types';
 
 interface BasicInfo {
@@ -51,10 +52,7 @@ interface Emits { (e: 'update:form', form: BasicInfo): void }
 const props = defineProps<Props>();
 const emit  = defineEmits<Emits>();
 
-// Translation helper — reads from the Rancher i18n store (l10n/en-us.json),
-// falling back to the literal string when a key is missing.
-const store = (getCurrentInstance()!.proxy as any)?.$store;
-const t = (key: string, fallback: string) => store?.getters['i18n/t']?.(key) || fallback;
+const t = useT();
 
 const localForm    = ref<BasicInfo>({ ...props.form });
 const versionError = ref('');
