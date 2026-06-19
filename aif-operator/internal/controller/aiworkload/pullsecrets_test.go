@@ -2,6 +2,7 @@ package aiworkload
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -856,4 +857,179 @@ func TestPruneLocalSAImagePullSecrets_EmptyStatusIsNoOp(t *testing.T) {
 	if !equalRefs(got.ImagePullSecrets, []corev1.LocalObjectReference{{Name: "regcred"}}) {
 		t.Errorf("expected regcred preserved (no-op), got %+v", got.ImagePullSecrets)
 	}
+}
+
+// TestPullSecretFactory_SUSECombined verifies the third factory case wires
+// through to buildSUSECombinedDockerConfig so downstream-delivery of the
+// suseInjector's combined pull secret actually emits a Secret payload.
+// Before this case existed, the factory's default branch returned (nil, nil)
+// and deliverPullSecrets skipped the secret — pods on downstream clusters
+// then ImagePullBackOff'd against dp.apps.rancher.io.
+func TestPullSecretFactory_SUSECombined(t *testing.T) {
+	scheme := newTestScheme(t)
+	opNS := "suse-ai-operator"
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+		// AppCollection + SUSE Registry + NVIDIA creds all present so the
+		// resulting dockerconfigjson covers every image host the combined
+		// secret is expected to authenticate.
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "appco", Namespace: opNS},
+			Data: map[string][]byte{
+				"username": []byte("user@example.com"),
+				"token":    []byte("appco-token"),
+			},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "susereg", Namespace: opNS},
+			Data: map[string][]byte{
+				"username": []byte("regcode"),
+				"token":    []byte("susereg-token"),
+			},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "ngc", Namespace: opNS},
+			Data: map[string][]byte{
+				"username": []byte("$oauthtoken"),
+				"token":    []byte("nvapi-token"),
+			},
+		},
+		&aiplatformv1alpha1.Settings{
+			ObjectMeta: metav1.ObjectMeta{Name: "settings", Namespace: opNS},
+			Spec: aiplatformv1alpha1.SettingsSpec{
+				ApplicationCollection: aiplatformv1alpha1.ApplicationCollectionSettings{
+					UserSecretRef:  &aiplatformv1alpha1.SecretKeyRef{Name: "appco", Key: "username"},
+					TokenSecretRef: &aiplatformv1alpha1.SecretKeyRef{Name: "appco", Key: "token"},
+				},
+				SUSERegistry: aiplatformv1alpha1.SUSERegistrySettings{
+					UserSecretRef:  &aiplatformv1alpha1.SecretKeyRef{Name: "susereg", Key: "username"},
+					TokenSecretRef: &aiplatformv1alpha1.SecretKeyRef{Name: "susereg", Key: "token"},
+				},
+				Nvidia: aiplatformv1alpha1.NvidiaSettings{
+					UserSecretRef:  &aiplatformv1alpha1.SecretKeyRef{Name: "ngc", Key: "username"},
+					TokenSecretRef: &aiplatformv1alpha1.SecretKeyRef{Name: "ngc", Key: "token"},
+				},
+			},
+		},
+	).Build()
+	r := &AIWorkloadReconciler{Client: c, Scheme: scheme, OperatorNamespace: opNS}
+
+	factory := r.pullSecretFactory(context.Background())
+	sec, err := factory("target-ns", combinedPullSecretName)
+	if err != nil {
+		t.Fatalf("factory(suse-ai-pull-combined): %v", err)
+	}
+	if sec == nil {
+		t.Fatal("expected non-nil combined secret; got nil")
+	}
+	if sec.Name != combinedPullSecretName {
+		t.Errorf("name: got %q want %q", sec.Name, combinedPullSecretName)
+	}
+	if sec.Namespace != "target-ns" {
+		t.Errorf("namespace: got %q want target-ns", sec.Namespace)
+	}
+	if sec.Type != corev1.SecretTypeDockerConfigJson {
+		t.Errorf("type: got %v want %v", sec.Type, corev1.SecretTypeDockerConfigJson)
+	}
+
+	// Auth payload should include all three image hosts. We don't assert
+	// exact base64 values — that's already covered by the lower-level
+	// ensureCombinedPullSecret tests in blueprint_pullsecret_test.go. Here
+	// we only prove the factory case correctly routes through to the helper.
+	var cfg struct {
+		Auths map[string]any `json:"auths"`
+	}
+	if err := json.Unmarshal(sec.Data[corev1.DockerConfigJsonKey], &cfg); err != nil {
+		t.Fatalf("parse dockerconfigjson: %v", err)
+	}
+	for _, host := range []string{defaultAppCollectionHost, defaultSUSERegistryHost, defaultNvidiaHost} {
+		if _, ok := cfg.Auths[host]; !ok {
+			t.Errorf("auths missing host %q; got hosts: %v", host, mapKeys(cfg.Auths))
+		}
+	}
+}
+
+// TestPullSecretFactory_SUSECombined_NoCreds covers the (nil, nil) skip path:
+// when no Settings credentials are configured, deliverPullSecrets should not
+// emit a Bundle for the combined secret at all (rather than emit one with an
+// empty auths map and confuse Helm downstream).
+func TestPullSecretFactory_SUSECombined_NoCreds(t *testing.T) {
+	scheme := newTestScheme(t)
+	opNS := "suse-ai-operator"
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+		// Settings exists but has no credential refs — addSUSESettingsAuths
+		// produces an empty auths map and the helper returns (nil, nil).
+		&aiplatformv1alpha1.Settings{
+			ObjectMeta: metav1.ObjectMeta{Name: "settings", Namespace: opNS},
+			Spec:       aiplatformv1alpha1.SettingsSpec{},
+		},
+	).Build()
+	r := &AIWorkloadReconciler{Client: c, Scheme: scheme, OperatorNamespace: opNS}
+
+	factory := r.pullSecretFactory(context.Background())
+	sec, err := factory("target-ns", combinedPullSecretName)
+	if err != nil {
+		t.Fatalf("factory(suse-ai-pull-combined): %v", err)
+	}
+	if sec != nil {
+		t.Errorf("expected nil secret when no creds configured; got %+v", sec)
+	}
+}
+
+// TestBuildSUSECombinedDockerConfig_HonorsRegistryEndpointsOverride pins the
+// air-gap behavior: when Settings.spec.registryEndpoints rewrites AppCollection
+// or SUSERegistry to a mirror host, the combined dockerconfigjson uses the
+// mirror host as the auth key (so kubelet finds the credentials when pulling
+// from the mirror). NVIDIA is intentionally NOT remapped — registryEndpoints.nvidia
+// is the chart-repo OCI URL, not an image host; image pulls stay on nvcr.io.
+func TestBuildSUSECombinedDockerConfig_HonorsRegistryEndpointsOverride(t *testing.T) {
+	scheme := newTestScheme(t)
+	opNS := "suse-ai-operator"
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "appco", Namespace: opNS},
+			Data:       map[string][]byte{"username": []byte("u"), "token": []byte("p")},
+		},
+		&aiplatformv1alpha1.Settings{
+			ObjectMeta: metav1.ObjectMeta{Name: "settings", Namespace: opNS},
+			Spec: aiplatformv1alpha1.SettingsSpec{
+				ApplicationCollection: aiplatformv1alpha1.ApplicationCollectionSettings{
+					UserSecretRef:  &aiplatformv1alpha1.SecretKeyRef{Name: "appco", Key: "username"},
+					TokenSecretRef: &aiplatformv1alpha1.SecretKeyRef{Name: "appco", Key: "token"},
+				},
+				RegistryEndpoints: &aiplatformv1alpha1.RegistryEndpointsSettings{
+					ApplicationCollection: "oci://mirror.internal/charts",
+				},
+			},
+		},
+	).Build()
+	r := &AIWorkloadReconciler{Client: c, Scheme: scheme, OperatorNamespace: opNS}
+
+	cfgBytes, err := r.buildSUSECombinedDockerConfig(context.Background())
+	if err != nil {
+		t.Fatalf("buildSUSECombinedDockerConfig: %v", err)
+	}
+	if cfgBytes == nil {
+		t.Fatal("expected non-nil cfg with AppCollection creds")
+	}
+	var cfg struct {
+		Auths map[string]any `json:"auths"`
+	}
+	if err := json.Unmarshal(cfgBytes, &cfg); err != nil {
+		t.Fatalf("parse dockerconfigjson: %v", err)
+	}
+	if _, ok := cfg.Auths["mirror.internal"]; !ok {
+		t.Errorf("auths missing override host mirror.internal; got hosts: %v", mapKeys(cfg.Auths))
+	}
+	if _, ok := cfg.Auths[defaultAppCollectionHost]; ok {
+		t.Errorf("default host %q should NOT appear when override is set; got hosts: %v",
+			defaultAppCollectionHost, mapKeys(cfg.Auths))
+	}
+}
+
+func mapKeys(m map[string]any) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }

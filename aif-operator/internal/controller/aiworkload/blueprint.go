@@ -364,7 +364,9 @@ func (r *AIWorkloadReconciler) injectorFor(vendor aiplatformv1alpha1.ComponentVe
 func (r *AIWorkloadReconciler) ensureCombinedPullSecret(ctx context.Context, cc cluster.Client, targetNamespace string, repoInfo clusterRepoInfo) (string, error) {
 	auths := map[string]any{}
 
-	// Component's own chartRepo credentials.
+	// Component's own chartRepo credentials. The Settings-derived registries
+	// are appended below; for the local path this gives the most complete
+	// coverage (chart-pull host + every image host the chart may reference).
 	if repoInfo.ClientSecret != "" {
 		src := &corev1.Secret{}
 		if err := r.Get(ctx, types.NamespacedName{Namespace: repoInfo.ClientSecretNS, Name: repoInfo.ClientSecret}, src); err == nil {
@@ -374,43 +376,7 @@ func (r *AIWorkloadReconciler) ensureCombinedPullSecret(ctx context.Context, cc 
 		}
 	}
 
-	// All registry credentials configured in Settings.
-	var s aiplatformv1alpha1.Settings
-	if err := r.Get(ctx, types.NamespacedName{Namespace: r.OperatorNamespace, Name: operatorSettingsName}, &s); err == nil {
-		appHost := defaultAppCollectionHost
-		if s.Spec.RegistryEndpoints != nil && s.Spec.RegistryEndpoints.ApplicationCollection != "" {
-			appHost = registryurl.Host(s.Spec.RegistryEndpoints.ApplicationCollection)
-		}
-		if s.Spec.ApplicationCollection.UserSecretRef != nil && s.Spec.ApplicationCollection.TokenSecretRef != nil {
-			u, err1 := r.readSettingsSecretKey(ctx, s.Spec.ApplicationCollection.UserSecretRef)
-			p, err2 := r.readSettingsSecretKey(ctx, s.Spec.ApplicationCollection.TokenSecretRef)
-			if err1 == nil && err2 == nil && u != "" && p != "" {
-				auths[appHost] = dockerAuthEntry(u, p)
-			}
-		}
-
-		suseHost := defaultSUSERegistryHost
-		if s.Spec.RegistryEndpoints != nil && s.Spec.RegistryEndpoints.SUSERegistry != "" {
-			suseHost = registryurl.Host(s.Spec.RegistryEndpoints.SUSERegistry)
-		}
-		if s.Spec.SUSERegistry.UserSecretRef != nil && s.Spec.SUSERegistry.TokenSecretRef != nil {
-			u, err1 := r.readSettingsSecretKey(ctx, s.Spec.SUSERegistry.UserSecretRef)
-			p, err2 := r.readSettingsSecretKey(ctx, s.Spec.SUSERegistry.TokenSecretRef)
-			if err1 == nil && err2 == nil && u != "" && p != "" {
-				auths[suseHost] = dockerAuthEntry(u, p)
-			}
-		}
-
-		// NVIDIA images come from nvcr.io (connected); registryEndpoints.nvidia is the chart-repo
-		// OCI URL, not an image host, and air-gap redirection is a node-level concern.
-		if s.Spec.Nvidia.UserSecretRef != nil && s.Spec.Nvidia.TokenSecretRef != nil {
-			u, err1 := r.readSettingsSecretKey(ctx, s.Spec.Nvidia.UserSecretRef)
-			p, err2 := r.readSettingsSecretKey(ctx, s.Spec.Nvidia.TokenSecretRef)
-			if err1 == nil && err2 == nil && u != "" && p != "" {
-				auths[defaultNvidiaHost] = dockerAuthEntry(u, p)
-			}
-		}
-	}
+	r.addSUSESettingsAuths(ctx, auths)
 
 	if len(auths) == 0 {
 		return "", nil
@@ -430,6 +396,85 @@ func (r *AIWorkloadReconciler) ensureCombinedPullSecret(ctx context.Context, cc 
 		return "", err
 	}
 	return combinedPullSecretName, nil
+}
+
+// addSUSESettingsAuths populates an "auths" map with entries for every
+// Settings-derived registry that has credentials configured: SUSE App
+// Collection, SUSE Registry, and NVIDIA NGC. Hosts honor
+// Settings.spec.registryEndpoints overrides for air-gap mirroring. Missing
+// or partially-configured credential refs are silently skipped (matches the
+// existing per-injector lenient policy).
+//
+// Used by:
+//   - ensureCombinedPullSecret: appended after the component's own chart-repo
+//     credentials for the local-cluster write path.
+//   - buildSUSECombinedDockerConfig: sole source for the downstream-delivery
+//     path, where there is no component-specific chartRepo context.
+func (r *AIWorkloadReconciler) addSUSESettingsAuths(ctx context.Context, auths map[string]any) {
+	var s aiplatformv1alpha1.Settings
+	if err := r.Get(ctx, types.NamespacedName{Namespace: r.OperatorNamespace, Name: operatorSettingsName}, &s); err != nil {
+		return
+	}
+
+	appHost := defaultAppCollectionHost
+	if s.Spec.RegistryEndpoints != nil && s.Spec.RegistryEndpoints.ApplicationCollection != "" {
+		appHost = registryurl.Host(s.Spec.RegistryEndpoints.ApplicationCollection)
+	}
+	if s.Spec.ApplicationCollection.UserSecretRef != nil && s.Spec.ApplicationCollection.TokenSecretRef != nil {
+		u, err1 := r.readSettingsSecretKey(ctx, s.Spec.ApplicationCollection.UserSecretRef)
+		p, err2 := r.readSettingsSecretKey(ctx, s.Spec.ApplicationCollection.TokenSecretRef)
+		if err1 == nil && err2 == nil && u != "" && p != "" {
+			auths[appHost] = dockerAuthEntry(u, p)
+		}
+	}
+
+	suseHost := defaultSUSERegistryHost
+	if s.Spec.RegistryEndpoints != nil && s.Spec.RegistryEndpoints.SUSERegistry != "" {
+		suseHost = registryurl.Host(s.Spec.RegistryEndpoints.SUSERegistry)
+	}
+	if s.Spec.SUSERegistry.UserSecretRef != nil && s.Spec.SUSERegistry.TokenSecretRef != nil {
+		u, err1 := r.readSettingsSecretKey(ctx, s.Spec.SUSERegistry.UserSecretRef)
+		p, err2 := r.readSettingsSecretKey(ctx, s.Spec.SUSERegistry.TokenSecretRef)
+		if err1 == nil && err2 == nil && u != "" && p != "" {
+			auths[suseHost] = dockerAuthEntry(u, p)
+		}
+	}
+
+	// NVIDIA images come from nvcr.io (connected); registryEndpoints.nvidia is the chart-repo
+	// OCI URL, not an image host, and air-gap redirection is a node-level concern.
+	if s.Spec.Nvidia.UserSecretRef != nil && s.Spec.Nvidia.TokenSecretRef != nil {
+		u, err1 := r.readSettingsSecretKey(ctx, s.Spec.Nvidia.UserSecretRef)
+		p, err2 := r.readSettingsSecretKey(ctx, s.Spec.Nvidia.TokenSecretRef)
+		if err1 == nil && err2 == nil && u != "" && p != "" {
+			auths[defaultNvidiaHost] = dockerAuthEntry(u, p)
+		}
+	}
+}
+
+// buildSUSECombinedDockerConfig returns the marshaled dockerconfigjson bytes
+// for the suseInjector's combined pull secret, sourced entirely from Settings
+// (no component-specific chartRepo context). Returns (nil, nil) when no
+// Settings credentials are configured — callers should treat this as
+// "nothing to deliver this round" and skip silently. Returns (nil, err)
+// only on a hard error like JSON marshaling failure.
+//
+// This is the downstream-delivery sibling of ensureCombinedPullSecret: the
+// suseInjector writes the secret locally during reconcile (with chart-repo
+// auth merged in), then deliverPullSecrets needs to ship an equivalent
+// payload to each target downstream cluster — minus the per-component
+// chart-repo entry, since the pull-secret authenticates IMAGE pulls (not
+// chart pulls) and the chart-repo host is not an image registry.
+func (r *AIWorkloadReconciler) buildSUSECombinedDockerConfig(ctx context.Context) ([]byte, error) {
+	auths := map[string]any{}
+	r.addSUSESettingsAuths(ctx, auths)
+	if len(auths) == 0 {
+		return nil, nil
+	}
+	cfg, err := json.Marshal(map[string]any{"auths": auths})
+	if err != nil {
+		return nil, fmt.Errorf("marshal suse combined dockerconfigjson: %w", err)
+	}
+	return cfg, nil
 }
 
 // readSettingsSecretKey reads a single key from a Settings secret ref in the operator namespace.
