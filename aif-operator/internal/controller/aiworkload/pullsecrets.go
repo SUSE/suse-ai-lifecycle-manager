@@ -240,11 +240,15 @@ func (r *AIWorkloadReconciler) deliverPullSecrets(
 // (nil, nil) means "credentials not configured — skip"; deliverPullSecrets
 // treats this as a no-op.
 //
-// Today only the NVIDIA-owned secret names (ngc-secret, ngc-api) are
-// recognized — these are the names nvidiaInjector creates and persists onto
-// Status.PullSecretNames. The suse-vendor combined pull secret stays
-// local-only (its content is per-cluster Settings-derived); names that
-// don't match anything below are skipped via (nil, nil).
+// The factory recognizes the three secret names the operator's injectors
+// persist onto Status.PullSecretNames:
+//   - ngc-secret              (nvidiaInjector dockerconfigjson)
+//   - ngc-api                 (nvidiaInjector Opaque, NGC API keys)
+//   - suse-ai-pull-combined   (suseInjector combined dockerconfigjson)
+//
+// Unknown secret names skip silently — keeps the factory forward-compatible
+// with future injector outputs without coupling deliverPullSecrets to a
+// hard-coded enum.
 func (r *AIWorkloadReconciler) pullSecretFactory(ctx context.Context) PullSecretFactory {
 	return func(targetNamespace, secretName string) (*corev1.Secret, error) {
 		switch secretName {
@@ -280,9 +284,26 @@ func (r *AIWorkloadReconciler) pullSecretFactory(ctx context.Context) PullSecret
 				Type:       corev1.SecretTypeOpaque,
 				Data:       ngcAPISecretData(token),
 			}, nil
+		case combinedPullSecretName:
+			// SUSE-vendor downstream delivery. buildSUSECombinedDockerConfig
+			// pulls auths from Settings (AppCollection, SUSE Registry, NVIDIA)
+			// — no per-component chart-repo entry, because pull-secrets
+			// authenticate IMAGE pulls, not chart pulls (Fleet authenticates
+			// the chart pull separately via its own helmSecretName).
+			cfg, err := r.buildSUSECombinedDockerConfig(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if cfg == nil {
+				return nil, nil
+			}
+			return &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: targetNamespace},
+				Type:       corev1.SecretTypeDockerConfigJson,
+				Data:       map[string][]byte{corev1.DockerConfigJsonKey: cfg},
+			}, nil
 		default:
-			// Unknown secret name (e.g. the suse combined secret); skip.
-			// The existing local-only injector path already handled it.
+			// Unknown secret name — silently skip for forward compatibility.
 			return nil, nil
 		}
 	}
