@@ -325,6 +325,15 @@ func (n *nvidiaInjector) Apply(ctx context.Context, cc cluster.Client, targetNam
 	}
 
 	injectNvidiaPullSecretRefs(vals)
+	// NVIDIA blueprint charts (aiq-aira, nvidia-blueprint-rag, ...) commonly
+	// template their own ngc-secret / ngc-api from `imagePullSecret.password` /
+	// `ngcApiSecret.password`. Those values default to "" — and with the
+	// workload HelmOp's takeOwnership:true the chart adopts the operator's
+	// pre-delivered secret and then OVERWRITES its data with the empty
+	// template, breaking image pulls. Disable the chart's secret templating
+	// so our pre-delivered Secret survives.
+	disableChartSecretCreation(vals, "imagePullSecret", nvidiaImagePullSecretName)
+	disableChartSecretCreation(vals, "ngcApiSecret", nvidiaAPISecretName)
 	return []string{nvidiaImagePullSecretName, nvidiaAPISecretName}, nil
 }
 
@@ -951,6 +960,28 @@ func containsString(list []any, s string) bool {
 		}
 	}
 	return false
+}
+
+// disableChartSecretCreation sets vals[key] = {create: false, name: <name>}
+// to instruct charts that conditionally template a Secret (NVIDIA convention:
+// {{- if .Values.<key>.create -}}) to skip rendering it, while still telling
+// the chart which existing Secret name to wire into pod specs. The operator's
+// pre-delivered Secret then survives the install/upgrade unmangled.
+//
+// Merge rules:
+//   - vals[key] absent or wrong shape → replace with {create:false, name}
+//   - vals[key] is a map → set create=false; only set name if absent (honor
+//     any explicit override from the user's values)
+func disableChartSecretCreation(vals map[string]any, key, name string) {
+	existing, ok := vals[key].(map[string]any)
+	if !ok {
+		vals[key] = map[string]any{"create": false, "name": name}
+		return
+	}
+	existing["create"] = false
+	if _, hasName := existing["name"]; !hasName {
+		existing["name"] = name
+	}
 }
 
 // componentNamespace returns the namespace a blueprint component deploys into:

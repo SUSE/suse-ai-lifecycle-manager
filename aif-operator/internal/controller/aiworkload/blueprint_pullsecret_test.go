@@ -663,6 +663,77 @@ func TestInjectNvidiaPullSecretRefs_OperatorImagePullSecretsLeavesUnexpected(t *
 	}
 }
 
+func TestDisableChartSecretCreation(t *testing.T) {
+	tests := []struct {
+		name     string
+		initial  map[string]any
+		key      string
+		secret   string
+		wantKey  map[string]any
+	}{
+		{
+			name:    "absent → create:false + name",
+			initial: map[string]any{},
+			key:     "imagePullSecret",
+			secret:  "ngc-secret",
+			wantKey: map[string]any{"create": false, "name": "ngc-secret"},
+		},
+		{
+			name:    "wrong shape (string) → replace",
+			initial: map[string]any{"imagePullSecret": "garbage"},
+			key:     "imagePullSecret",
+			secret:  "ngc-secret",
+			wantKey: map[string]any{"create": false, "name": "ngc-secret"},
+		},
+		{
+			name: "existing map with create:true and other fields → flip create, preserve rest, set name if absent",
+			initial: map[string]any{
+				"imagePullSecret": map[string]any{
+					"create":   true,
+					"registry": "nvcr.io",
+					"username": "$oauthtoken",
+					"password": "",
+				},
+			},
+			key:    "imagePullSecret",
+			secret: "ngc-secret",
+			wantKey: map[string]any{
+				"create":   false,
+				"name":     "ngc-secret",
+				"registry": "nvcr.io",
+				"username": "$oauthtoken",
+				"password": "",
+			},
+		},
+		{
+			name: "existing map with user-provided name → honor it",
+			initial: map[string]any{
+				"imagePullSecret": map[string]any{"create": true, "name": "user-override"},
+			},
+			key:     "imagePullSecret",
+			secret:  "ngc-secret",
+			wantKey: map[string]any{"create": false, "name": "user-override"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			disableChartSecretCreation(tc.initial, tc.key, tc.secret)
+			got, ok := tc.initial[tc.key].(map[string]any)
+			if !ok {
+				t.Fatalf("vals[%q] = %T, want map[string]any", tc.key, tc.initial[tc.key])
+			}
+			if len(got) != len(tc.wantKey) {
+				t.Errorf("len(vals[%q]) = %d, want %d (got=%+v want=%+v)", tc.key, len(got), len(tc.wantKey), got, tc.wantKey)
+			}
+			for k, want := range tc.wantKey {
+				if got[k] != want {
+					t.Errorf("vals[%q][%q] = %v, want %v", tc.key, k, got[k], want)
+				}
+			}
+		})
+	}
+}
+
 // equalAnyStringSlice compares two []any treating each element as a string.
 // Used by the operator.image.pullSecrets tests. Add at the bottom of the
 // test file if not already present.
