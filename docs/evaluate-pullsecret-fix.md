@@ -425,9 +425,11 @@ for s in ngc-secret ngc-api suse-ai-pull-combined; do
     | jq '{type, name: .metadata.name, keys: (.data|keys)}'
 end
 
-# 6.6. Did the SA-merge Job run?  Expect succeeded: 1 (or absent if
-#      ttlSecondsAfterFinished=600 already GC'd it — see step 6.7 for
-#      the real check).
+# 6.6. Did the SA-merge Job run? Expect succeeded: 1. The completed Job is
+#      intentionally retained: deleting it with ttlSecondsAfterFinished makes
+#      Fleet report permanent drift and can trigger unsafe release cleanup in
+#      Fleet versions whose implicit release-name handling disagrees at the
+#      53-character Helm boundary.
 kubectl --kubeconfig "$KCFG" get --raw \
   "/k8s/clusters/$DOWNSTREAM/apis/batch/v1/namespaces/myai-system/jobs" 2>/dev/null \
   | jq '.items[] | {name: .metadata.name, succeeded: .status.succeeded, failed: .status.failed}'
@@ -449,6 +451,7 @@ If a step fails:
 | 6.1 returns `["suse-ai-pull-combined"]` for an NVIDIA-vendor workload | Blueprint component (or App `spec.source.app.vendor`) is `"suse"` (the CRD default) | Patch the source: e.g. `kubectl ... patch blueprint myai-1-0-0 --type=json -p='[{"op":"replace","path":"/spec/components/0/vendor","value":"nvidia"}]'` then re-annotate the AIWorkload |
 | 6.3 shows ErrApplied with "namespaces ... not found" | Operator image predates the Bundle-ships-namespace fix (`eaeffe2`) | Rebuild + push + rollout the operator |
 | 6.3 shows "invalid ownership metadata" on a pull-secret bundle | Stale per-secret bundles from before the consolidated-bundle refactor (`2b4853e`) | Delete the stale bundle: `kubectl -n fleet-default delete bundle <old-name>` |
+| 6.3 becomes Modified after about 10 minutes and Fleet agent logs `Deleting unknown bundle ID, helm uninstall` with a shortened actual release and longer `expectedRelease` | Operator image lacks the explicit 53-character Fleet-compatible `spec.helm.releaseName`; old images also delete the merge Job after 600 seconds, creating the first drift signal | Deploy the lifecycle-fixed operator. It emits Fleet's exact capped release name, retains the completed Job, and marks the Namespace `helm.sh/resource-policy: keep` so pull-secret release cleanup cannot delete the workload namespace |
 | 6.7 shows the operator-delivered secret on the workload SA but the chart pod still ImagePullBackOffs | Pod was scheduled BEFORE the SA-merge Job ran | Delete the pod; its controller (Deployment/StatefulSet) recreates it and the new pod inherits the patched SA |
 | Workload chart aborts with `Secret "ngc-secret" ... cannot be imported into the current release` | Operator/UI is missing the `takeOwnership=true` fix (`ee03c14`) | Rebuild operator + UI from `inject-nvidia-auth` HEAD; or set `imagePullSecret.create: false` and `ngcApiSecret.create: false` in the workload's `componentValues` as a per-chart workaround |
 | NVIDIA workload pod ImagePullBackOff with 403 from nvcr.io, AND the in-cluster `ngc-secret` has labels `app.kubernetes.io/managed-by: Helm` / `helm.sh/chart: <nvidia-chart>` and decoded `auth = "$oauthtoken:"` (empty password) | Chart templated its own `ngc-secret` from empty `imagePullSecret.password` / `ngcApiSecret.password` values; `takeOwnership` let Helm adopt the operator's secret then overwrite the data | Operator image is missing the chart-secret-skip fix (`4518355`); rebuild operator + roll, then delete the broken AIWorkload and re-create from the UI so the chart re-installs with `imagePullSecret.create: false` / `ngcApiSecret.create: false` |
@@ -545,17 +548,29 @@ kubectl --kubeconfig "$KCFG" delete -f charts/aif-operator/crds/
 - **GPG timeout on `docker push`** — the docker credential helper
   (`pass`) occasionally wedges. Use the inline-auth workaround at the
   end of section 1.
-- **One-shot SA-merge limitation.** The Job patches every SA in the
+- **Pull-secret Bundle release identity is explicit and migration-safe.**
+  Bundle object names may be up to 63 characters, while Helm release names
+  may be at most 53. Fleet v0.14.1 derives a shortened implicit release name
+  but its release garbage collector compares it with the unshortened
+  BundleDeployment name. The mismatch produces
+  `Deleting unknown bundle ID, helm uninstall`. The operator therefore sets
+  `spec.helm.releaseName` explicitly using Fleet's own MD5/5-character suffix
+  algorithm. Do not replace it with a different capping algorithm during an
+  upgrade: matching the already-installed release name prevents one final
+  destructive uninstall. The shipped Namespace also carries
+  `helm.sh/resource-policy: keep` as defense in depth.
+- **One-shot SA-merge limitation.** The retained Job patches every SA in the
   namespace **at the time it runs**. SAs created later (by the deployed
-  chart, for example) won't be patched until the Bundle re-applies. The
+  chart, for example) are not patched automatically because the completed
+  Job's deterministic name remains unchanged. The
   operator partially mitigates this by injecting `imagePullSecrets`
   directly into chart values for NVIDIA components (so the chart-created
   SAs ship with the right pull-secret refs), and `takeOwnership=true`
   on the workload HelmOp lets the chart adopt the operator-delivered
-  secrets so the chart's *own* SA template references survive the
-  install. If you still see `ImagePullBackOff` on a chart-created pod,
-  re-annotate the AIWorkload to force a reconcile — the next Bundle
-  apply will re-run the SA-merge Job and catch the new SA.
+  secrets so the chart's *own* SA template references survive the install.
+  Treat a late chart-created SA without pull-secret references as a separate
+  reconciliation gap; merely re-annotating the AIWorkload does not rerun an
+  already-completed Job with unchanged inputs.
 - **takeOwnership has an uninstall side-effect.** When the workload
   chart is uninstalled, Helm deletes the adopted pull-secrets along
   with the rest of the release. The pull-secret Bundle's Fleet reconcile

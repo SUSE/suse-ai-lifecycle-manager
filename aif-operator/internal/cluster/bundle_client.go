@@ -2,6 +2,8 @@ package cluster
 
 import (
 	"context"
+	"crypto/md5" //nolint:gosec // Fleet uses MD5 only to derive deterministic Helm release-name suffixes.
+	"encoding/hex"
 	"fmt"
 	"hash/fnv"
 	"strconv"
@@ -125,8 +127,14 @@ func (b *bundleClient) ApplyPullSecretBundle(ctx context.Context, secrets []*cor
 	//    target cluster and applies manifests verbatim with no implicit
 	//    namespace creation, so the namespace must ship in the Bundle.
 	nsObj := &corev1.Namespace{
-		TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
-		ObjectMeta: metav1.ObjectMeta{Name: ns},
+		TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ns,
+			// The pull-secret release must never delete the workload namespace
+			// when Fleet uninstalls or replaces the release. Secrets and the
+			// merger RBAC remain release-owned; only the shared namespace is kept.
+			Annotations: map[string]string{"helm.sh/resource-policy": "keep"},
+		},
 	}
 	nsYAML, err := yaml.Marshal(nsObj)
 	if err != nil {
@@ -191,6 +199,13 @@ func (b *bundleClient) ApplyPullSecretBundle(ctx context.Context, secrets []*cor
 		// namespace as theirs, and without this flag the consolidated
 		// bundle would refuse to install on existing clusters.
 		"helm": map[string]any{
+			// Fleet derives Helm release names from BundleDeployment names and
+			// caps them at 53 characters. Its garbage collector compares against
+			// the uncapped BundleDeployment name unless releaseName is explicit,
+			// which can make it uninstall a healthy long-named release as
+			// "unknown". Use Fleet's exact capping algorithm so existing releases
+			// are adopted safely when this field first appears.
+			"releaseName":   pullSecretReleaseName(bundleName),
 			"takeOwnership": true,
 		},
 	}
@@ -202,6 +217,31 @@ func (b *bundleClient) ApplyPullSecretBundle(ctx context.Context, secrets []*cor
 		return fmt.Errorf("apply bundle %s/%s: %w", bundle.GetNamespace(), bundle.GetName(), err)
 	}
 	return nil
+}
+
+const (
+	pullSecretHelmReleaseNameMax = 53
+	pullSecretHelmHashLen        = 5
+)
+
+// pullSecretReleaseName mirrors Fleet's names.HelmReleaseName/Limit behavior
+// for the DNS-label-safe Bundle names produced by pullSecretBundleName.
+// Matching Fleet's MD5-derived five-character suffix is migration-critical:
+// an already-installed implicit release must get the same name after the
+// operator starts setting spec.helm.releaseName explicitly.
+func pullSecretReleaseName(name string) string {
+	if len(name) <= pullSecretHelmReleaseNameMax {
+		return name
+	}
+
+	digest := md5.Sum([]byte(name))
+	suffix := hex.EncodeToString(digest[:])[:pullSecretHelmHashLen]
+	headLen := pullSecretHelmReleaseNameMax - pullSecretHelmHashLen - 1
+	separator := "-"
+	if name[headLen-1] == '-' {
+		separator = ""
+	}
+	return name[:headLen] + separator + suffix
 }
 
 // pullSecretBundleName builds the Bundle's metadata.name as
