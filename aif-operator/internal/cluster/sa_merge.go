@@ -77,23 +77,27 @@ func buildSAMergeResources(namespace string, secretNames []string, image string)
 	jobName := fmt.Sprintf("%s-%s", saMergeJobNamePrefix, hashHex)
 
 	// The Job's shell script reads each SA's current imagePullSecrets and
-	// unions them with this list (one name per line, sorted) before
-	// patching. We render the desired names as a newline-joined literal so
-	// the script can `sort -u` them with the existing set in one pipeline.
-	desiredLines := strings.Join(sortedNames, "\n")
+	// unions them with this list before patching. We render the desired
+	// names as a SPACE-separated single-line literal so the entire DESIRED='…'
+	// assignment fits on one YAML line — embedding newlines breaks out of the
+	// YAML block-scalar's indent and causes Fleet's post-render to fail with
+	// "could not find expected ':'". The script's pipeline below normalises
+	// the format to one-per-line via `tr ' ' '\n'` before sort -u, so a
+	// space-separated source is fine.
+	desiredLine := strings.Join(sortedNames, " ")
 
 	data := struct {
 		Namespace      string
 		JobName        string
 		ServiceAccount string
 		Image          string
-		DesiredNames   string // newline-separated, sorted, unique
+		DesiredNames   string // space-separated, sorted, unique — kept single-line for YAML safety
 	}{
 		Namespace:      namespace,
 		JobName:        jobName,
 		ServiceAccount: saMergeServiceAccount,
 		Image:          image,
-		DesiredNames:   desiredLines,
+		DesiredNames:   desiredLine,
 	}
 
 	var buf bytes.Buffer
@@ -195,7 +199,8 @@ spec:
           args:
             - |
               set -eu
-              # Desired names, one per line, sorted unique (rendered by the operator).
+              # Desired names, space-separated (rendered by the operator).
+              # Kept single-line so the YAML block-scalar above doesn't break.
               DESIRED='{{ .DesiredNames }}'
               # Only patch chart-managed SAs; cluster-admin-created SAs in the
               # namespace are left alone. See buildSAMergeResources comments.
