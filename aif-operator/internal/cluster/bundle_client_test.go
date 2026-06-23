@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"sigs.k8s.io/yaml"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -109,8 +111,7 @@ func TestBundleClient_EmitsConsolidatedBundle(t *testing.T) {
 	// resources[3] = SA-merge: must include the merger ServiceAccount, Role,
 	// RoleBinding, and Job. The Job's args must reference both secret names
 	// in the DESIRED list the shell script unions with each SA's existing
-	// imagePullSecrets (rendered as newline-separated lines, not as a JSON
-	// array — the JSON is built per-SA from the union, see sa_merge.go).
+	// imagePullSecrets — the JSON is built per-SA from the union, see sa_merge.go.
 	saMerge := contents[3]
 	for _, needle := range []string{
 		"kind: ServiceAccount", "name: ai-pullsecret-merger",
@@ -119,11 +120,43 @@ func TestBundleClient_EmitsConsolidatedBundle(t *testing.T) {
 		"ngc-api", "ngc-secret",
 		// Owner-scope label selector — only chart-managed SAs are patched.
 		"app.kubernetes.io/managed-by=Helm",
+		// The DESIRED literal must be on a single line; a multi-line
+		// rendering inside the YAML `|` block-scalar would break Fleet's
+		// post-render with "could not find expected ':'".
+		"DESIRED='ngc-api ngc-secret'",
 	} {
 		if !strings.Contains(saMerge, needle) {
 			t.Errorf("SA-merge manifest missing %q, got:\n%s", needle, saMerge)
 		}
 	}
+	// DESIRED= must not contain a literal newline (would break the YAML
+	// block-scalar). Anchor the assertion with strings.Index, not contains,
+	// so we explicitly check what follows the opening quote.
+	if i := strings.Index(saMerge, "DESIRED='"); i >= 0 {
+		tail := saMerge[i+len("DESIRED='"):]
+		if end := strings.Index(tail, "'"); end < 0 {
+			t.Errorf("DESIRED literal has no closing quote — multi-line value broke the parse?\nfragment:\n%s", tail[:min(200, len(tail))])
+		} else if strings.Contains(tail[:end], "\n") {
+			t.Errorf("DESIRED literal spans multiple YAML lines — would break Fleet post-render. value=%q", tail[:end])
+		}
+	}
+
+	// Whole-document YAML sanity: every document must parse without error.
+	// This is the regression check for the line-42 ErrApplied bug seen
+	// when DesiredNames was joined with '\n' instead of ' '.
+	for i, doc := range strings.Split(saMerge, "\n---\n") {
+		var out map[string]any
+		if err := yaml.Unmarshal([]byte(doc), &out); err != nil {
+			t.Errorf("SA-merge YAML document %d failed to parse: %v\n--- doc ---\n%s", i, err, doc)
+		}
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // TestBundleClient_Idempotent confirms re-applying the same input does not
