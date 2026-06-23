@@ -115,9 +115,10 @@ func buildSAMergeResources(namespace string, secretNames []string, image string)
 //   - Role:           get/list/patch on serviceaccounts (and nothing else)
 //     scoped to the workload's target namespace.
 //   - RoleBinding:    binds the SA to the Role.
-//   - Job:            the actual SA-merge work. ttlSecondsAfterFinished=600
-//     means completed Jobs (and their pods) are GC'd after 10 minutes,
-//     keeping the namespace tidy without losing logs immediately.
+//   - Job:            the actual SA-merge work. The completed Job is retained
+//     because Fleet continuously compares live resources with Bundle desired
+//     state; a TTL would deliberately create permanent drift ten minutes after
+//     every successful install.
 //
 // The Job script lists chart-managed SAs (label-scoped to
 // app.kubernetes.io/managed-by=Helm) and, for each one:
@@ -169,7 +170,6 @@ metadata:
   labels:
     ai-platform.suse.com/role: pullsecret-sa-merge
 spec:
-  ttlSecondsAfterFinished: 600
   backoffLimit: 4
   template:
     metadata:

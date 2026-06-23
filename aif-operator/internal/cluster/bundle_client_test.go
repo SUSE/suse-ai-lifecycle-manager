@@ -2,6 +2,8 @@ package cluster_test
 
 import (
 	"context"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -93,12 +95,19 @@ func TestBundleClient_EmitsConsolidatedBundle(t *testing.T) {
 	if !strings.Contains(contents[0], "kind: Namespace") || !strings.Contains(contents[0], "name: target-ns") {
 		t.Errorf("resources[0] should be Namespace target-ns, got:\n%s", contents[0])
 	}
+	if !strings.Contains(contents[0], "helm.sh/resource-policy: keep") {
+		t.Errorf("resources[0] Namespace must survive Helm uninstall, got:\n%s", contents[0])
+	}
 
 	// takeOwnership: lets the consolidated Bundle adopt resources
 	// pre-annotated by an older per-secret bundle (upgrade compatibility).
 	takeOwnership, found, err := unstructured.NestedBool(bundle.Object, "spec", "helm", "takeOwnership")
 	if err != nil || !found || !takeOwnership {
 		t.Errorf("spec.helm.takeOwnership: found=%v err=%v value=%v (want true)", found, err, takeOwnership)
+	}
+	releaseName, found, err := unstructured.NestedString(bundle.Object, "spec", "helm", "releaseName")
+	if err != nil || !found || releaseName != bundleName {
+		t.Errorf("spec.helm.releaseName: found=%v err=%v value=%q (want %q)", found, err, releaseName, bundleName)
 	}
 	// resources[1] = pull secret
 	if !strings.Contains(contents[1], "ngc-secret") || !strings.Contains(contents[1], "kubernetes.io/dockerconfigjson") {
@@ -129,6 +138,9 @@ func TestBundleClient_EmitsConsolidatedBundle(t *testing.T) {
 			t.Errorf("SA-merge manifest missing %q, got:\n%s", needle, saMerge)
 		}
 	}
+	if strings.Contains(saMerge, "ttlSecondsAfterFinished") {
+		t.Errorf("SA-merge Job must remain present for Fleet drift detection, got:\n%s", saMerge)
+	}
 	// DESIRED= must not contain a literal newline (would break the YAML
 	// block-scalar). Anchor the assertion with strings.Index, not contains,
 	// so we explicitly check what follows the opening quote.
@@ -150,6 +162,101 @@ func TestBundleClient_EmitsConsolidatedBundle(t *testing.T) {
 			t.Errorf("SA-merge YAML document %d failed to parse: %v\n--- doc ---\n%s", i, err, doc)
 		}
 	}
+}
+
+func TestBundleClient_ExplicitReleaseNameMatchesFleetCapping(t *testing.T) {
+	t.Run("reported 55-byte bundle keeps existing Fleet release identity", func(t *testing.T) {
+		bundle := applyTestPullSecretBundle(t, cluster.BundleClientOptions{
+			ClusterID:      "c-58kz8",
+			FleetWorkspace: "fleet-default",
+			OwnerName:      "aiq-aira-c-58kz8",
+			OwnerNamespace: "aiq-aira-system",
+			Namespace:      "aiq-aira-system",
+		})
+
+		const wantBundle = "ai-pullsecrets-aiq-aira-c-58kz8-c-58kz8-aiq-aira-system"
+		const wantRelease = "ai-pullsecrets-aiq-aira-c-58kz8-c-58kz8-aiq-air-f3763"
+		if bundle.GetName() != wantBundle {
+			t.Fatalf("bundle name: got %q want %q", bundle.GetName(), wantBundle)
+		}
+		got, found, err := unstructured.NestedString(bundle.Object, "spec", "helm", "releaseName")
+		if err != nil || !found || got != wantRelease {
+			t.Fatalf("releaseName: found=%v err=%v got=%q want=%q", found, err, got, wantRelease)
+		}
+	})
+
+	for _, wantBundleLen := range []int{53, 54, 55} {
+		t.Run(strconv.Itoa(wantBundleLen)+"-byte boundary", func(t *testing.T) {
+			// `ai-pullsecrets-<owner>-c` contributes 17 bytes outside owner.
+			owner := strings.Repeat("a", wantBundleLen-17)
+			bundle := applyTestPullSecretBundle(t, cluster.BundleClientOptions{
+				ClusterID:      "c",
+				FleetWorkspace: "fleet-default",
+				OwnerName:      owner,
+				OwnerNamespace: "default",
+			})
+			if len(bundle.GetName()) != wantBundleLen {
+				t.Fatalf("test setup: bundle length got %d want %d (%q)", len(bundle.GetName()), wantBundleLen, bundle.GetName())
+			}
+
+			releaseName, found, err := unstructured.NestedString(bundle.Object, "spec", "helm", "releaseName")
+			if err != nil || !found {
+				t.Fatalf("releaseName missing: found=%v err=%v", found, err)
+			}
+			if len(releaseName) > 53 {
+				t.Errorf("releaseName length got %d, want <=53 (%q)", len(releaseName), releaseName)
+			}
+			if wantBundleLen == 53 && releaseName != bundle.GetName() {
+				t.Errorf("53-byte name should pass through: got %q want %q", releaseName, bundle.GetName())
+			}
+			if wantBundleLen > 53 && releaseName == bundle.GetName() {
+				t.Errorf("%d-byte name was not capped: %q", wantBundleLen, releaseName)
+			}
+			if !regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`).MatchString(releaseName) {
+				t.Errorf("releaseName is not a DNS label: %q", releaseName)
+			}
+		})
+	}
+
+	t.Run("long shared prefixes remain distinct", func(t *testing.T) {
+		prefix := strings.Repeat("a", 37)
+		a := applyTestPullSecretBundle(t, cluster.BundleClientOptions{
+			ClusterID: "c", FleetWorkspace: "fleet-default", OwnerName: prefix + "x", OwnerNamespace: "default",
+		})
+		b := applyTestPullSecretBundle(t, cluster.BundleClientOptions{
+			ClusterID: "c", FleetWorkspace: "fleet-default", OwnerName: prefix + "y", OwnerNamespace: "default",
+		})
+		aRelease, _, _ := unstructured.NestedString(a.Object, "spec", "helm", "releaseName")
+		bRelease, _, _ := unstructured.NestedString(b.Object, "spec", "helm", "releaseName")
+		if aRelease == bRelease {
+			t.Errorf("distinct long names collided at %q", aRelease)
+		}
+	})
+}
+
+func applyTestPullSecretBundle(t *testing.T, opts cluster.BundleClientOptions) unstructured.Unstructured {
+	t.Helper()
+	scheme := newBundleTestScheme(t)
+	c := fake.NewClientBuilder().WithScheme(scheme).Build()
+	bc := cluster.NewBundleClient(c, scheme, opts)
+	secrets := []*corev1.Secret{{
+		ObjectMeta: metav1.ObjectMeta{Name: "ngc-secret", Namespace: "target-ns"},
+		Type:       corev1.SecretTypeDockerConfigJson,
+		Data:       map[string][]byte{corev1.DockerConfigJsonKey: []byte(`{"auths":{}}`)},
+	}}
+	if err := bc.ApplyPullSecretBundle(context.Background(), secrets); err != nil {
+		t.Fatalf("ApplyPullSecretBundle: %v", err)
+	}
+
+	var bundles unstructured.UnstructuredList
+	bundles.SetGroupVersionKind(bundleListGVK)
+	if err := c.List(context.Background(), &bundles, client.InNamespace(opts.FleetWorkspace)); err != nil {
+		t.Fatalf("list bundles: %v", err)
+	}
+	if len(bundles.Items) != 1 {
+		t.Fatalf("bundle count: got %d want 1", len(bundles.Items))
+	}
+	return bundles.Items[0]
 }
 
 func min(a, b int) int {
