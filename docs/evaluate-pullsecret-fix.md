@@ -134,7 +134,7 @@ helm install aif-operator charts/aif-operator/ \
   --set manager.image.pullPolicy=Always \
   --set aiExtension.source.helm.values.image.registry=ghcr.io \
   --set aiExtension.source.helm.values.image.repository=thbertoldi/aif-ui \
-  --set aiExtension.source.helm.values.image.tag=0.1.0-dev.2 \
+  --set aiExtension.source.helm.values.image.tag=0.1.0-dev.3 \
   --set aiExtension.source.helm.values.image.pullPolicy=Always
 
 # Wait for rollout
@@ -146,7 +146,7 @@ kubectl --kubeconfig "$KCFG" -n aif-operator rollout status \
 # Confirm it picked up your image, not the upstream default:
 kubectl --kubeconfig "$KCFG" -n cattle-ui-plugin-system get deploy aif-ui-server \
   -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
-# Expected: ghcr.io/thbertoldi/aif-ui:0.1.0-dev.2
+# Expected: ghcr.io/thbertoldi/aif-ui:0.1.0-dev.3
 ```
 
 If you ever need to upgrade after editing the chart, remember Helm does
@@ -172,20 +172,20 @@ These power the SUSE + NVIDIA app catalogs in the UI. Without them, the
 kubectl --kubeconfig "$KCFG" -n cattle-system create secret generic ngc-helm-auth \
   --type=kubernetes.io/basic-auth \
   --from-literal=username='$oauthtoken' \
-  --from-literal=password='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'
+  --from-literal=password='nvapi-fhuafhuahfuhafuhsaufhuahfuausfdauuhfauhfu'
 
 # SUSE App Collection — note the password is the literal value below
 # (it LOOKS base64-wrapped but isn't double-encoded; do NOT decode it)
 kubectl --kubeconfig "$KCFG" -n cattle-system create secret generic app-collection-auth \
   --type=kubernetes.io/basic-auth \
   --from-literal=username='tbertoldi@suse.com' \
-  --from-literal=password='Ynl1eXRya2VzdWRsaWJsZ2t6cm5sdGVybmNtcGt6Z3BpZmJieGlhdm9rY2t3dmlzcXB3Zm1vb2x4c2pkd2luZw=='
+  --from-literal=password='Ynl1eXRya2VzdWRsaWJsZ2afhufhusafhuhfaushfuahfauhf=='
 
 # SUSE Registry
 kubectl --kubeconfig "$KCFG" -n cattle-system create secret generic suse-registry-auth \
   --type=kubernetes.io/basic-auth \
   --from-literal=username='regcode' \
-  --from-literal=password='INTERNAL-USE-ONLY-c8d3-5629'
+  --from-literal=password='INTERNAL-USE-ONLY-1234-1234'
 
 # 3b. ClusterRepo CRs (cluster-scoped)
 echo '---
@@ -483,7 +483,7 @@ After editing UI source, rebuild + redeploy aif-ui:
 
 ```fish
 cd /home/thbertoldi/suse/suse-ai-lifecycle-manager
-yarn publish-pkgs -c -p -i '' -r ghcr.io -o thbertoldi -t aif-ui-0.1.0-dev.2
+yarn publish-pkgs -c -p -i '' -r ghcr.io -o thbertoldi -t aif-ui-0.1.0-dev.3
 kubectl --kubeconfig "$KCFG" -n cattle-ui-plugin-system rollout restart deploy/aif-ui-server
 # Hard-reload the Rancher UI (Ctrl+Shift+R) — the extension bundle is cached client-side.
 ```
