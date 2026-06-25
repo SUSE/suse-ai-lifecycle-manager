@@ -846,11 +846,29 @@ func slugifyBP(s string) string {
 	return s
 }
 
+// truncateName caps s to max characters as a VALID DNS-1123 label. A naive
+// s[:max] can cut mid-segment and leave a trailing '-' (rejected by the API
+// server, e.g. "...-system-c-") or collapse two distinct long names onto the
+// same prefix. When truncation is needed we trim any trailing '-' and append a
+// deterministic FNV-1a/base36 suffix so the result is always valid and distinct
+// inputs stay distinct. Inputs already within the limit are returned unchanged.
+// Mirrors cluster.pullSecretBundleName.
 func truncateName(s string, max int) string {
 	if len(s) <= max {
 		return s
 	}
-	return s[:max]
+	const hashLen = 6
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(s))
+	suffix := strconv.FormatUint(uint64(h.Sum32()), 36)
+	if len(suffix) > hashLen {
+		suffix = suffix[:hashLen]
+	}
+	head := strings.TrimRight(s[:max-len(suffix)-1], "-")
+	if head == "" {
+		return suffix
+	}
+	return head + "-" + suffix
 }
 
 // injectNvidiaPullSecretRefs writes the ngc-secret reference into both common
