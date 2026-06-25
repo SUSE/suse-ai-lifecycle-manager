@@ -20,9 +20,32 @@ export interface FleetBundleParams {
   library?:                'suse-ai' | 'nvidia'; // library source to determine imagePullSecrets handling
 }
 
+// BUNDLE_NAME_MAX is the K8s metadata.name (DNS-1123 label) limit a Fleet
+// HelmOp/Bundle name must satisfy.
+const BUNDLE_NAME_MAX = 63;
+
+// capBundleName returns a valid DNS-1123 label (<=63 chars, no leading/trailing
+// '-') for a Fleet HelmOp/Bundle name. A naive `.slice(0, 63)` can cut mid-
+// segment and leave a TRAILING '-' (e.g. a long
+// `suse-ai-<release>-<namespace>-c-skg6s` truncated to `...-system-c-`), which
+// the API server rejects with "must start and end with an alphanumeric
+// character". When truncation is needed we trim trailing '-' and append a
+// deterministic FNV-1a/base36 suffix so distinct long names that share a prefix
+// don't collide. Mirrors crNameForCluster and the operator's
+// pullSecretBundleName. Inputs already valid and within the limit are unchanged.
+function capBundleName(name: string): string {
+  const safe = name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  if (safe.length <= BUNDLE_NAME_MAX) {
+    return safe;
+  }
+  const hash = fnv1a32(safe).toString(36).slice(0, HELM_HASH_LEN);
+  const head = safe.slice(0, BUNDLE_NAME_MAX - hash.length - 1).replace(/-+$/g, '');
+  return head ? `${ head }-${ hash }` : hash;
+}
+
 // buildBundleName returns a deterministic Fleet HelmOp name for an app install.
 export function buildBundleName(release: string, namespace: string): string {
-  return `suse-ai-${ release }-${ namespace }`.replace(/[^a-z0-9-]/g, '-').slice(0, 63);
+  return capBundleName(`suse-ai-${ release }-${ namespace }`);
 }
 
 // buildBundleNameForCluster returns a per-cluster HelmOp name so two AIWorkloads
@@ -31,7 +54,7 @@ export function buildBundleName(release: string, namespace: string): string {
 // same as any K8s object). The cluster suffix is the Rancher cluster ID
 // (`local`, `c-zh74k`, …), sanitized defensively into a DNS-1123 label.
 export function buildBundleNameForCluster(release: string, namespace: string, clusterId: string): string {
-  return `suse-ai-${ release }-${ namespace }-${ clusterId }`.replace(/[^a-z0-9-]/g, '-').slice(0, 63);
+  return capBundleName(`suse-ai-${ release }-${ namespace }-${ clusterId }`);
 }
 
 // 53 = 63 (K8s DNS-1123 label max) − 10 bytes Helm reserves for generated
