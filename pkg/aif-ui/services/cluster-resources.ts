@@ -89,7 +89,7 @@ export async function getClusterResourceMetrics(store: RancherStore, clusterId: 
           memory: { used: 0, total: 0 }
         },
         status: 'ready',
-        statusMessage: undefined,
+        statusMessage: 'Node data unavailable',
         storageClasses,
         lastUpdated: new Date(),
         nodes: []
@@ -188,8 +188,8 @@ export async function getClusterResourceMetrics(store: RancherStore, clusterId: 
         name: clusterName,
         nodeCount: 0,
         resources: { cpu: { used: 0, total: 0 }, memory: { used: 0, total: 0 } },
-        status: 'ready',
-        statusMessage: undefined,
+        status: 'unavailable',
+        statusMessage: err.message || 'Failed to retrieve cluster metrics',
         storageClasses: [],
         lastUpdated: new Date(),
         nodes: []
@@ -200,8 +200,8 @@ export async function getClusterResourceMetrics(store: RancherStore, clusterId: 
         name: clusterId,
         nodeCount: 0,
         resources: { cpu: { used: 0, total: 0 }, memory: { used: 0, total: 0 } },
-        status: 'ready',
-        statusMessage: undefined,
+        status: 'unavailable',
+        statusMessage: 'Failed to retrieve cluster information',
         storageClasses: [],
         lastUpdated: new Date(),
         nodes: []

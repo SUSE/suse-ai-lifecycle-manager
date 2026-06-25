@@ -117,7 +117,7 @@
             <td class="col-status">
               <StatusBadge
                 :status="getStatusBadgeStatus(cluster.status)"
-                :title="cluster.status === 'unavailable' ? 'Not ready' : 'Ready'"
+                :title="cluster.statusMessage || (cluster.status === 'unavailable' ? 'Not ready' : 'Ready')"
               />
             </td>
           </tr>
