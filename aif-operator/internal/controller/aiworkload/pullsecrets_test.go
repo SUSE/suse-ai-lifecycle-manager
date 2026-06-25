@@ -30,11 +30,12 @@ func TestReconcilePullSecrets_PatchesDefaultSA(t *testing.T) {
 
 	objs := []client.Object{
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}},
-		// SA must carry the Helm management label — operator now scopes
-		// reconcile to chart-managed SAs (review #2).
+		// The namespace "default" SA carries NO Helm label — charts and bundled
+		// subcharts (e.g. litellm's postgresql dependency) run pods under it.
+		// The operator must still patch it so those pods get image-pull creds,
+		// even though reconcile otherwise scopes to chart-managed SAs.
 		&corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{
 			Name: "default", Namespace: ns,
-			Labels: map[string]string{chartManagedByLabel: chartManagedByHelm},
 		}},
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: ns},

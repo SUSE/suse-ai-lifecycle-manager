@@ -1,5 +1,14 @@
 import { ensureRegistrySecretSimple } from './rancher-apps';
+import { APP_COLLECTION_REPO_URL } from './app-collection';
 import { TIMEOUT_VALUES } from '../utils/constants';
+
+// The operator-managed AppCollection ClusterRepo name. SUSE-registry charts
+// frequently bundle subcharts whose container images come from AppCollection
+// (e.g. litellm's postgresql at dp.apps.rancher.io). A chart that sets its own
+// pod-spec imagePullSecrets makes Kubernetes IGNORE the ServiceAccount's
+// imagePullSecrets, so AppCollection creds must be wired into the chart values
+// directly — delivering them only via the SA is not enough.
+const APP_COLLECTION_REPO_NAME = 'application-collection';
 
 export interface FleetBundleParams {
   bundleName:              string;
@@ -262,6 +271,36 @@ export function buildFleetBundleYAML(params: {
   }, null, 2);
 }
 
+// ensureAppCollectionPullSecrets creates an AppCollection image-pull secret in
+// the target namespace on each cluster and appends its name to pullSecretNames.
+// Resolves credentials from the application-collection ClusterRepo (independent
+// of the operator credentials API, so it works even if that call is slow/fails).
+// No-op when AppCollection credentials can't be resolved. Used for suse-ai
+// charts so subchart images pulled from AppCollection authenticate.
+export async function ensureAppCollectionPullSecrets(
+  store: any, targetNamespace: string, clusterIds: string[], pullSecretNames: string[],
+): Promise<void> {
+  try {
+    const ref = await readClusterRepoClientSecret(store, APP_COLLECTION_REPO_NAME);
+    const creds = ref ? await readAuthSecret(store, ref) : null;
+    if (!creds) return;
+    const host = APP_COLLECTION_REPO_URL.replace(/^oci:\/\//, '').split('/')[0];
+    const slug = host.replace(/[^a-z0-9]/g, '-');
+    for (const clusterId of clusterIds) {
+      try {
+        const name = await ensureRegistrySecretSimple(
+          store, clusterId, targetNamespace, host, slug, creds.username, creds.password,
+        );
+        if (name && !pullSecretNames.includes(name)) pullSecretNames.push(name);
+      } catch (e) {
+        console.warn('[SUSE-AI] AppCollection pull-secret failed for cluster', clusterId, e);
+      }
+    }
+  } catch (e) {
+    console.warn('[SUSE-AI] AppCollection pull-secret resolution skipped:', e);
+  }
+}
+
 // createFleetBundle creates Fleet HelmOp CR(s) which pull and deploy the external OCI Helm chart.
 // fleet-local workspace serves the management cluster; fleet-default serves downstream clusters.
 // When both are selected we create one HelmOp in each workspace.
@@ -295,6 +334,15 @@ export async function createFleetBundle(store: any, params: FleetBundleParams): 
         console.warn('[SUSE-AI] pull-secret creation failed for cluster', clusterId, e);
       }
     }
+  }
+
+  // SUSE-registry charts can bundle subcharts whose images come from
+  // AppCollection (e.g. litellm's postgresql at dp.apps.rancher.io). Wire those
+  // creds into the values too — they cannot be delivered via the ServiceAccount
+  // alone, since a chart that sets pod-spec imagePullSecrets makes Kubernetes
+  // ignore the SA's imagePullSecrets.
+  if (params.library === 'suse-ai') {
+    await ensureAppCollectionPullSecrets(store, params.targetNamespace, params.targetClusterIds, pullSecretNames);
   }
 
   // Create helm auth secrets in the fleet workspace namespaces so HelmOp can pull the chart.

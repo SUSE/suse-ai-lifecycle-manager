@@ -31,10 +31,11 @@ import (
 // patch when the union differs (so unchanged SAs don't generate spurious
 // update events).
 //
-// Owner scope: the script filters SAs (and the Pods it bounces) by label
-// `app.kubernetes.io/managed-by=Helm` so it only touches chart-created
-// resources. Resources the cluster admin pre-created for other purposes are
-// left alone even if they share the namespace.
+// Owner scope: the script patches chart-managed SAs (label
+// `app.kubernetes.io/managed-by=Helm`) plus the namespace "default" SA — many
+// charts and bundled subcharts run pods under "default" — and bounces only
+// chart-managed Pods. Other cluster-admin-created SAs are left alone. Because
+// the SA patch is a union (adds, never replaces), touching "default" is safe.
 //
 // The script uses ONLY POSIX shell builtins, `sort`, `tr`, and `kubectl`
 // — no `jq`, `awk`, `sed`, or `grep` — so a minimal kubectl image (e.g.
@@ -199,9 +200,15 @@ NS='{{ .Namespace }}'
 # Tracks whether we patched any SA this run. The Pod-bounce below only fires
 # when this is 1, so a stable namespace (nothing to patch) never churns Pods.
 PATCHED=0
-# Only patch chart-managed SAs; cluster-admin-created SAs in the namespace are
-# left alone. See buildSAMergeResources comments.
-for sa in $(kubectl -n "$NS" get sa -l 'app.kubernetes.io/managed-by=Helm' -o jsonpath='{.items[*].metadata.name}'); do
+# Patch chart-managed SAs (app.kubernetes.io/managed-by=Helm) PLUS the namespace
+# "default" SA. Many charts — and bundled subcharts (e.g. the bitnami postgresql
+# dependency of litellm) — run their pods under "default" rather than a chart SA,
+# so image-pull creds must land there too or those pods can't pull (notably
+# AppCollection images pulled by a SUSE-registry chart's subchart). Other
+# cluster-admin SAs in the namespace are left alone. The merge is a union, so
+# patching "default" only ADDS creds and never clobbers existing entries.
+SAS=$(kubectl -n "$NS" get sa -l 'app.kubernetes.io/managed-by=Helm' -o jsonpath='{.items[*].metadata.name}')
+for sa in $(printf 'default %s' "$SAS" | tr ' ' '\n' | sort -u); do
   # Read SA's current imagePullSecrets names, one per line.
   EXISTING=$(kubectl -n "$NS" get sa "$sa" -o jsonpath='{range .imagePullSecrets[*]}{.name}{"\n"}{end}')
   # Union: existing + desired, deduped + sorted. tr+sort handles empty EXISTING
