@@ -105,6 +105,28 @@ func (r *AIWorkloadReconciler) reconcilePullSecretsForNamespace(
 		return false, fmt.Errorf("list ServiceAccounts in %s: %w", namespace, err)
 	}
 
+	// Also include the namespace "default" SA. Charts (and bundled subcharts
+	// like the bitnami postgresql dependency of litellm) frequently run pods
+	// under "default" rather than a chart-created SA; those pods still need the
+	// pull secrets (e.g. a SUSE-registry chart whose subchart pulls images from
+	// AppCollection). mergeImagePullSecrets is a union, so patching "default"
+	// only adds entries and never clobbers existing ones.
+	var def corev1.ServiceAccount
+	if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "default"}, &def); err == nil {
+		listed := false
+		for i := range sas.Items {
+			if sas.Items[i].Name == "default" {
+				listed = true
+				break
+			}
+		}
+		if !listed {
+			sas.Items = append(sas.Items, def)
+		}
+	} else if client.IgnoreNotFound(err) != nil {
+		return false, fmt.Errorf("get default ServiceAccount in %s: %w", namespace, err)
+	}
+
 	settled = true
 	for i := range sas.Items {
 		sa := &sas.Items[i]

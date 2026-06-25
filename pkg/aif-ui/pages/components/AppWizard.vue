@@ -32,7 +32,7 @@ import { validateReleaseName, instanceNameError } from '../../validators/appInst
 import { fetchSuseAiApps, getClusterRepoNameFromUrl, getLibraryFromRepoUrl } from '../../services/app-collection';
 import { isChartArchiveOversized } from '../../services/chart-values';
 import { createAIWorkload, updateAIWorkload, listAIWorkloads, getRegistryCredentials } from '../../utils/operator-api';
-import { createFleetBundle, buildBundleName, buildBundleNameForCluster } from '../../services/fleet-bundle';
+import { createFleetBundle, buildBundleName, buildBundleNameForCluster, ensureAppCollectionPullSecrets } from '../../services/fleet-bundle';
 import { publishToFleetGit }                          from '../../services/git-publish';
 import { crNameForCluster } from '../../utils/workload-name';
 import type { AIWorkloadClusterStatus, AIWorkloadPhase } from '../../types/aiworkload-types';
@@ -976,6 +976,13 @@ async function performGitOpsInstall() {
     const chartRepoUrl = repoObj?.spec?.url || repoObj?.spec?.ociRepo || '';
     const helmSecretName = (() => { const cs = repoObj?.spec?.clientSecret; return typeof cs === 'object' ? (cs?.name || null) : (cs || null); })();
 
+    // SUSE-registry charts can bundle subcharts whose images come from
+    // AppCollection — wire those creds into the bundle values too (the SA's
+    // imagePullSecrets are ignored once the chart sets pod-spec imagePullSecrets).
+    if (getLibraryFromRepoUrl(chartRepoUrl) === 'suse-ai') {
+      await ensureAppCollectionPullSecrets(store, form.value.namespace, form.value.clusters, pullSecretNames);
+    }
+
     // One bundle YAML per cluster — committed sequentially to avoid racing on
     // the same git branch. Each cluster is independent: a failure records that
     // cluster as failed and continues with the rest, rather than aborting the
@@ -1491,6 +1498,12 @@ async function performGitOpsUpgrade() {
     const repos = await listClusterRepos(store);
     const repoObj = repos.find((r: any) => r?.metadata?.name === form.value.chartRepo);
     const chartRepoUrl = repoObj?.spec?.url || repoObj?.spec?.ociRepo || '';
+
+    // SUSE-registry charts can bundle subcharts whose images come from
+    // AppCollection — wire those creds in too (see performGitOpsInstall).
+    if (getLibraryFromRepoUrl(chartRepoUrl) === 'suse-ai') {
+      await ensureAppCollectionPullSecrets(store, form.value.namespace, form.value.clusters, pullSecretNames);
+    }
 
     await publishToFleetGit({
       bundleName,

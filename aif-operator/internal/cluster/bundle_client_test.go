@@ -222,6 +222,9 @@ func TestBundleClient_EmitsConsolidatedBundle(t *testing.T) {
 			// run, so a stable namespace never churns Pods (Pending<->Running).
 			"PATCHED=0",
 			`if [ "$PATCHED" = 1 ]; then`,
+			// The namespace "default" SA must be in scope so subchart pods that
+			// run under it (e.g. litellm's postgresql) get the combined creds.
+			`printf 'default %s'`,
 		} {
 			if !strings.Contains(script, frag) {
 				t.Errorf("%s script missing %q after block-scalar round-trip, got:\n%s", tc.name, frag, script)
