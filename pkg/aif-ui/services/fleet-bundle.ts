@@ -10,6 +10,32 @@ import { TIMEOUT_VALUES } from '../utils/constants';
 // directly — delivering them only via the SA is not enough.
 const APP_COLLECTION_REPO_NAME = 'application-collection';
 
+// SUSE_AI_COMBINED_PULL_SECRET is the operator-managed combined
+// dockerconfigjson secret (see aif-operator combinedPullSecretName). It covers
+// EVERY configured registry (AppCollection, SUSE Registry, NVIDIA) in a single
+// secret, and the operator delivers it to every target cluster+namespace,
+// driven off the AIWorkload CR — which the wizards record BEFORE the HelmOp, so
+// delivery leads the chart install. For suse-ai charts we reference THIS secret
+// in the pod-spec imagePullSecrets instead of relying solely on the per-registry
+// secrets the UI creates per-cluster: a downstream per-registry write that fails
+// (cross-cluster proxy timing / namespace-not-yet-present) is swallowed and
+// silently drops that registry from imagePullSecrets, which broke image pulls
+// (litellm-database on registry.suse.com → ImagePullBackOff on downstream
+// clusters while local worked). The combined secret is the single robust source;
+// any per-registry names collected remain as harmless extras. Mirrors the
+// operator's suseInjector, which already does this for Blueprint installs.
+const SUSE_AI_COMBINED_PULL_SECRET = 'suse-ai-pull-combined';
+
+// withCombinedPullSecret guarantees the operator-managed combined pull secret is
+// referenced (first, de-duplicated) for suse-ai charts. No-op for other
+// libraries so NVIDIA / generic charts keep their existing handling.
+function withCombinedPullSecret(names: string[], library?: 'suse-ai' | 'nvidia'): string[] {
+  if (library !== 'suse-ai') {
+    return names;
+  }
+  return [SUSE_AI_COMBINED_PULL_SECRET, ...names.filter(n => n !== SUSE_AI_COMBINED_PULL_SECRET)];
+}
+
 export interface FleetBundleParams {
   bundleName:              string;
   // release is the user-facing Helm release name (the value the user picks
@@ -222,9 +248,10 @@ export function buildFleetBundleYAML(params: {
   const fleetNamespace = isLocalOnly ? 'fleet-local' : 'fleet-default';
 
   const values = JSON.parse(JSON.stringify(params.values));
-  if (params.pullSecretNames.length > 0 && params.library !== 'nvidia') {
+  const pullSecretNames = withCombinedPullSecret(params.pullSecretNames, params.library);
+  if (pullSecretNames.length > 0 && params.library !== 'nvidia') {
     // NVIDIA charts don't have imagePullSecrets in their original values, so don't add them
-    const secrets = params.pullSecretNames.map(name => ({ name }));
+    const secrets = pullSecretNames.map(name => ({ name }));
     values.global = { ...(values.global || {}), imagePullSecrets: secrets };
     values.imagePullSecrets = secrets;
   }
@@ -428,8 +455,9 @@ export async function createFleetBundle(store: any, params: FleetBundleParams): 
 }
 
 function addPullSecretsToValues(values: Record<string, any>, names: string[], library?: 'suse-ai' | 'nvidia'): Record<string, any> {
-  if (names.length === 0 || library === 'nvidia') return values;
-  const secrets = names.map(name => ({ name }));
+  const effective = withCombinedPullSecret(names, library);
+  if (effective.length === 0 || library === 'nvidia') return values;
+  const secrets = effective.map(name => ({ name }));
   return {
     ...values,
     global:           { ...(values.global || {}), imagePullSecrets: secrets },
