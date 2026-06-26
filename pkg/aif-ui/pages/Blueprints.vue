@@ -289,8 +289,8 @@
       >
         <div class="bp-detail-panel-header">
           <div class="bp-detail-panel-title-row">
-            <span class="bp-detail-panel-title">{{ detailPanel.versions[0]?.spec.displayName }}</span>
-            <Tag>{{ sourceLabel(detailPanel.versions) }}</Tag>
+            <span class="bp-detail-panel-title">{{ (families.get(detailPanel.family) ?? [])[0]?.spec.displayName ?? detailPanel.family }}</span>
+            <Tag>{{ sourceLabel(families.get(detailPanel.family) ?? []) }}</Tag>
           </div>
           <button
             class="btn role-link bp-detail-panel-close"
@@ -673,17 +673,16 @@ export default defineComponent({
     const detailPanel = reactive({
       show:            false,
       family:          '',
-      versions:        [] as Blueprint[],
       selectedVersion: '',
     });
 
-    const detailPanelVersions = computed(() =>
-      showDeprecated.value ? detailPanel.versions : detailPanel.versions.filter(bp => !isDeprecated(bp))
-    );
+    const detailPanelVersions = computed(() => {
+      const allVersions = families.value.get(detailPanel.family) ?? [];
+      return showDeprecated.value ? allVersions : allVersions.filter(bp => !isDeprecated(bp));
+    });
 
     function openDetail(family: string, versions: Blueprint[]) {
       detailPanel.family          = family;
-      detailPanel.versions        = versions;
       detailPanel.selectedVersion = selectedVersions.value[family] || versions[0]?.spec.version || '';
       detailPanel.show            = true;
     }
@@ -710,7 +709,7 @@ export default defineComponent({
 
     return {
       loading, error, operatorError, retryConnection,
-      search, sortBy, sortedFamilies, selectedVersions,
+      search, sortBy, sortedFamilies, families, selectedVersions,
       showDeprecated, isAdmin,
       deleteModal, deprecateModal,
       latestFor, isDeprecated, isSelectedDeprecated, visibleVersionsFor, versionLabel, componentCount, descriptionFor,

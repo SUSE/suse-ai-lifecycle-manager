@@ -17,7 +17,7 @@
           class="icon icon-chevron-down bp-version-chevron"
           :class="{ 'is-open': openVersions.has(bp.spec.version) }"
         />
-        <span class="bp-version-tag">v{{ bp.spec.version }}{{ bp.spec.deprecated ? ' (deprecated)' : '' }}</span>
+        <span class="bp-version-tag">{{ versionLabel(bp) }}</span>
       </button>
 
       <div
@@ -55,7 +55,7 @@
             </tr>
             <tr v-if="!bp.spec.components.length">
               <td
-                colspan="2"
+                colspan="3"
                 class="bp-no-components"
               >
                 {{ t('suseai.common.labels.noComponents', 'No components defined') }}
@@ -69,7 +69,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, computed, ref, watch } from 'vue';
+import { defineComponent, ref, watch } from 'vue';
 import { useT } from '../composables/useT';
 import type { Blueprint } from '../types/blueprint-types';
 
@@ -90,13 +90,13 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const t     = useT();
-    const latest = computed(() => props.versions[0] ?? null);
+    const t = useT();
 
-    const openVersions = ref<Set<string>>(new Set([props.expandedVersion || latest.value?.spec.version || ''].filter(Boolean)));
+    const defaultVersion = props.expandedVersion || props.versions[0]?.spec.version || '';
+    const openVersions = ref<Set<string>>(new Set([defaultVersion].filter(Boolean)));
 
     watch(() => props.expandedVersion, (v) => {
-      openVersions.value = new Set([v || latest.value?.spec.version || ''].filter(Boolean));
+      openVersions.value = new Set([v || props.versions[0]?.spec.version || ''].filter(Boolean));
     });
 
     function toggleVersion(version: string) {
@@ -109,7 +109,14 @@ export default defineComponent({
       openVersions.value = next;
     }
 
-    return { t, openVersions, toggleVersion };
+    function versionLabel(bp: Blueprint): string {
+      const suffix = bp.spec.deprecated
+        ? ` (${ t('suseai.common.labels.deprecated', 'deprecated') })`
+        : '';
+      return `v${ bp.spec.version }${ suffix }`;
+    }
+
+    return { t, openVersions, toggleVersion, versionLabel };
   },
 });
 </script>

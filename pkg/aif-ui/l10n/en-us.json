@@ -285,7 +285,8 @@
         "status": "Status",
         "cluster": "Cluster",
         "namespace": "Namespace",
-        "noComponents": "No components defined"
+        "noComponents": "No components defined",
+        "deprecated": "deprecated"
       },
       "messages": {
         "noData": "No data available",
