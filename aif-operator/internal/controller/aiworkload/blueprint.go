@@ -273,7 +273,16 @@ func (s *suseInjector) Apply(ctx context.Context, cc cluster.Client, targetNames
 	}
 	pullSecrets := []any{map[string]any{"name": name}}
 	vals["imagePullSecrets"] = pullSecrets
-	vals["global"] = map[string]any{"imagePullSecrets": pullSecrets}
+	// Merge into the existing global map rather than replacing it — the blueprint
+	// may set sibling keys under global (e.g. open-webui's global.tls for the
+	// suse-private-ai cert config). Replacing global wholesale dropped those,
+	// which made open-webui render an Ingress with an empty TLS host.
+	global, _ := vals["global"].(map[string]any)
+	if global == nil {
+		global = map[string]any{}
+	}
+	global["imagePullSecrets"] = pullSecrets
+	vals["global"] = global
 	return []string{name}, nil
 }
 
@@ -657,7 +666,14 @@ func (r *AIWorkloadReconciler) ensureBlueprintGitFile(
 		helmSpec["repo"] = repoInfo.URL + "/" + c.ChartName
 	}
 
+	// Load the blueprint component's own values BEFORE injecting pull secrets —
+	// mirrors ensureBlueprintHelmOp. Omitting this dropped every component value
+	// (including open-webui's global.tls) from the GitOps git file, so the chart
+	// rendered with defaults and the open-webui Ingress got an empty TLS host.
 	vals := map[string]any{}
+	if c.Values != nil {
+		_ = json.Unmarshal(c.Values.Raw, &vals)
+	}
 	ns := componentNamespace(w, c)
 	created, err := r.injectorFor(c.Vendor).Apply(ctx, r.localCC(), ns, repoInfo, vals)
 	if err != nil {
