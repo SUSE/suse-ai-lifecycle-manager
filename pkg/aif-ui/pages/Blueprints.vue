@@ -80,7 +80,7 @@
 
       <div class="main-content">
         <div
-          v-if="!loading && !sortedFamilies.length && !error && !operatorError"
+          v-if="!loading && !sortedFamiliesWithSource.length && !error && !operatorError"
           class="empty-state-content"
         >
           <i class="icon icon-folder-open icon-4x text-muted" />
@@ -95,7 +95,7 @@
           role="grid"
         >
           <div
-            v-for="[family, versions] in sortedFamilies"
+            v-for="[family, versions, source] in sortedFamiliesWithSource"
             :key="family"
             class="app-tile"
             role="button"
@@ -127,9 +127,21 @@
                 <div class="tile-meta">
                   <span class="tile-meta-item">{{ componentCount(versions, family) }} apps</span>
                   <span class="tile-meta-sep">·</span>
-                  <Tag :aria-label="`Source: ${ sourceLabel(versions) }`">
-                    {{ sourceLabel(versions) }}
-                  </Tag>
+                  <span
+                    class="source-badge"
+                    :class="`source-badge--${ source.toLowerCase() }`"
+                    :aria-label="`Source: ${ source }`"
+                  >
+                    <template v-if="source === 'Nvidia'">
+                      <img :src="nvidiaLogo" alt="" class="source-logo nvidia-logo--light" />
+                      <img :src="nvidiaLogoDark" alt="" class="source-logo nvidia-logo--dark" />
+                    </template>
+                    <template v-else-if="source === 'SUSE'">
+                      <img :src="suseLogo" alt="" class="source-logo suse-logo--light" />
+                      <img :src="suseLogoDark" alt="" class="source-logo suse-logo--dark" />
+                    </template>
+                    <template v-else>{{ source }}</template>
+                  </span>
                 </div>
               </div>
             </div>
@@ -290,7 +302,21 @@
         <div class="bp-detail-panel-header">
           <div class="bp-detail-panel-title-row">
             <span class="bp-detail-panel-title">{{ (families.get(detailPanel.family) ?? [])[0]?.spec.displayName ?? detailPanel.family }}</span>
-            <Tag>{{ sourceLabel(families.get(detailPanel.family) ?? []) }}</Tag>
+            <span
+              class="source-badge"
+              :class="`source-badge--${ detailPanelSource.toLowerCase() }`"
+              :aria-label="`Source: ${ detailPanelSource }`"
+            >
+              <template v-if="detailPanelSource === 'Nvidia'">
+                <img :src="nvidiaLogo" alt="" class="source-logo nvidia-logo--light" />
+                <img :src="nvidiaLogoDark" alt="" class="source-logo nvidia-logo--dark" />
+              </template>
+              <template v-else-if="detailPanelSource === 'SUSE'">
+                <img :src="suseLogo" alt="" class="source-logo suse-logo--light" />
+                <img :src="suseLogoDark" alt="" class="source-logo suse-logo--dark" />
+              </template>
+              <template v-else>{{ detailPanelSource }}</template>
+            </span>
           </div>
           <button
             class="btn role-link bp-detail-panel-close"
@@ -398,6 +424,10 @@ export default defineComponent({
       });
       return entries;
     });
+
+    const sortedFamiliesWithSource = computed(() =>
+      sortedFamilies.value.map(([family, versions]) => [family, versions, sourceLabel(versions)] as [string, Blueprint[], string])
+    );
 
     // When the user hides deprecated, bump any selected-version that is deprecated
     // to the latest non-deprecated version for that family.
@@ -681,6 +711,10 @@ export default defineComponent({
       return showDeprecated.value ? allVersions : allVersions.filter(bp => !isDeprecated(bp));
     });
 
+    const detailPanelSource = computed(() =>
+      sourceLabel(families.value.get(detailPanel.family) ?? [])
+    );
+
     function openDetail(family: string, versions: Blueprint[]) {
       detailPanel.family          = family;
       detailPanel.selectedVersion = selectedVersions.value[family] || versions[0]?.spec.version || '';
@@ -707,17 +741,22 @@ export default defineComponent({
       window.removeEventListener('keydown', handleKeydown);
     });
 
+    const nvidiaLogo      = require('../assets/nvidia-logo-horz.svg') as string;
+    const nvidiaLogoDark = require('../assets/nvidia-logo-horz-light.svg') as string;
+    const suseLogo      = require('../assets/SUSE_Logo-hor_L_Green-pos_sRGB.svg') as string;
+    const suseLogoDark  = require('../assets/SUSE_Logo-hor_L_Green-White-neg_sRGB.svg') as string;
+
     return {
       loading, error, operatorError, retryConnection,
-      search, sortBy, sortedFamilies, families, selectedVersions,
+      search, sortBy, sortedFamiliesWithSource, families, selectedVersions,
       showDeprecated, isAdmin,
       deleteModal, deprecateModal,
       latestFor, isDeprecated, isSelectedDeprecated, visibleVersionsFor, versionLabel, componentCount, descriptionFor,
-      sourceLabel,
+      nvidiaLogo, nvidiaLogoDark, suseLogo, suseLogoDark,
       tileActions, onTileAction,
       refresh, navigateCreate, navigateEdit, navigateCopy, navigateInstall,
       confirmDelete, executeDelete, confirmDeprecate, executeDeprecate,
-      detailPanel, detailPanelVersions, openDetail, closeDetail,
+      detailPanel, detailPanelVersions, detailPanelSource, openDetail, closeDetail,
     };
   },
 });
@@ -806,6 +845,22 @@ export default defineComponent({
     gap: 8px;
     padding-top: 12px;
     border-top: 1px solid var(--border);
+  }
+}
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  font-size: 12px;
+  padding: 0 6px;
+  border-radius: var(--border-radius);
+  color: var(--tag-primary);
+  background: var(--tag-bg);
+
+  .source-logo {
+    height: 13px;
+    width: auto;
   }
 }
 .app-tile-filler { visibility: hidden; }
@@ -934,4 +989,11 @@ export default defineComponent({
 .bp-panel-leave-to {
   transform: translateX(100%);
 }
+</style>
+
+<style lang="scss">
+body:not(.theme-dark) .nvidia-logo--dark { display: none; }
+body.theme-dark .nvidia-logo--light { display: none; }
+body:not(.theme-dark) .suse-logo--dark { display: none; }
+body.theme-dark .suse-logo--light { display: none; }
 </style>
